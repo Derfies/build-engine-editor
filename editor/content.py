@@ -2,6 +2,7 @@ import logging
 from dataclasses import dataclass, field
 
 from applicationframework.contentbase import ContentBase
+from editor.graph import Graph
 from gameengines.build.duke3d import MapReader as Duke3dMapReader
 from gameengines.build.map import Sector, Wall
 
@@ -39,9 +40,37 @@ class Content(ContentBase):
         with open(file_path, 'rb') as f:
             self.map = Duke3dMapReader()(f)
 
+        self.g = Graph()
+
+        """
+        In this example, i would expect 6 nodes and 7 edges.
+        nodes (walls) 1 and 4(?) are the same.
+        nodes (walls) 2 and 7(?) are the same.
+        
+        To get from 1 to 4, I take the nextwall's point2.
+        This makes sense because the next wall is the tail of this head for the 
+        opposing sector, so that tail would be the equivalent of this point.
+        
+        To get from 7 to 2, I take the nextwall's point2.
+        
+        """
+
         for i, wall in enumerate(self.map.walls):
             edwall = EditorWall(wall)
             self.walls.append(edwall)
+
+            # First attempt at finding common nodes / walls.
+            node_idx = i
+            attrs = {'x': wall.x, 'y': wall.y, 'walls': {i}}
+            if wall.nextwall > -1:
+                nextwall = self.map.walls[wall.nextwall]
+                node_idx = nextwall.point2
+                attrs['walls'].add(nextwall.point2)
+            if node_idx in self.g.nodes:
+                self.g.nodes[node_idx]['walls'].update(attrs['walls'])
+            else:
+                self.g.add_node(node_idx, **attrs)
+
 
         for i, sector in enumerate(self.map.sectors):
             sector = self.map.sectors[i]
@@ -61,5 +90,12 @@ class Content(ContentBase):
                 if next_point_idx == sector.wallptr:
                     break
 
+        print(self.g)
+
     def save(self, file_path: str):
         raise NotImplementedError()
+
+
+if __name__ == '__main__':
+    c = Content()
+    c.load(r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\1.MAP')
