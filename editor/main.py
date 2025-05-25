@@ -61,8 +61,8 @@ class MainWindow(MainWindowBase):
         self.select_action.set_checked(True)
         self.scene.set_modal_tool(ModalTool.SELECT)
 
-        self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\LL-SEWER.MAP')
-        #self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\1.MAP')
+        #self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\LL-SEWER.MAP')
+        self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\1.MAP')
         #self.app().doc.updated(dirty=False)
 
     @property

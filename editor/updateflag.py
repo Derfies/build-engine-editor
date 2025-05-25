@@ -5,3 +5,4 @@ class UpdateFlag(Flag):
 
     SELECTION = auto()
     FOO = auto()
+    BAR = auto()

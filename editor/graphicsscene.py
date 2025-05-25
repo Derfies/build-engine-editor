@@ -1,13 +1,14 @@
 import logging
 
-from PySide6.QtCore import QCoreApplication, QPointF
+from PySide6.QtGui import QBrush, QPen, QColorConstants, QPainterPath, QPainterPathStroker, QPainter, QTransform, QColor
+from PySide6.QtCore import QCoreApplication, Qt
 from PySide6.QtWidgets import QApplication, QGraphicsScene
 
 from applicationframework.document import Document
 from editor.constants import ModalTool
-from editor.graphicsitems import NodeGraphicsItem, SectorGraphicsItem, WallGraphicsItem
+from editor.graphicsitems import NodeGraphicsItem, EdgeGraphicsItem
 from editor.graphicsscenetools import SelectGraphicsSceneTool, DrawSectorGraphicsSceneTool
-from updateflag import UpdateFlag
+from editor.updateflag import UpdateFlag
 
 # noinspection PyUnresolvedReferences
 from __feature__ import snake_case
@@ -23,6 +24,33 @@ class GraphicsScene(QGraphicsScene):
 
         self.current_tool = None
         self.app().updated.connect(self.update_event)
+
+        self.grid_spacing = 20
+        self.major_every = 5
+        #self.set_background_brush(Qt.white)
+        #self.draw_grid()
+
+
+    # def draw_grid(self):
+    #     minor_pen = QPen(QColor(200, 200, 200), 0)  # Light gray, thin line
+    #     major_pen = QPen(QColor(100, 100, 100), 0)  # Dark gray, thin line
+    #
+    #     left = int(self.scene_rect().left())
+    #     right = int(self.scene_rect().right())
+    #     top = int(self.scene_rect().top())
+    #     bottom = int(self.scene_rect().bottom())
+    #
+    #     for x in range(left, right + 1, self.grid_spacing):
+    #         if (x - left) // self.grid_spacing % self.major_every == 0:
+    #             self.add_line(x, top, x, bottom, major_pen)
+    #         else:
+    #             self.add_line(x, top, x, bottom, minor_pen)
+    #
+    #     for y in range(top, bottom + 1, self.grid_spacing):
+    #         if (y - top) // self.grid_spacing % self.major_every == 0:
+    #             self.add_line(left, y, right, y, major_pen)
+    #         else:
+    #             self.add_line(left, y, right, y, minor_pen)
 
     def app(self) -> QCoreApplication:
         return QApplication.instance()
@@ -50,40 +78,24 @@ class GraphicsScene(QGraphicsScene):
         self.current_tool.mouse_release_event(event)
 
     def update_event(self, doc: Document, flags: UpdateFlag):
+        logger.debug(f'update_event: {flags}')
         self.block_signals(True)
         if flags != UpdateFlag.SELECTION:
 
-            logger.debug(f'Updating graphics scene: {flags}')
-
             self.clear()
             if doc.content.map is not None:
-
-                edges = {}
-                for wall_idx in range(len(doc.content.map.walls)):
-                    head = doc.content.map.walls[wall_idx]
-                    if head.nextwall > -1 and head.nextwall in edges:
-                        #print('next wall found')
-                        continue
-                    tail = doc.content.map.walls[head.point2]
-                    p1 = QPointF(head.x, head.y)
-                    p2 = QPointF(tail.x, tail.y)
-                    edge = WallGraphicsItem(doc.content.walls[wall_idx], p1, p2)
-                    edge.setZValue(100)
-                    self.add_item(edge)
-                    edges[wall_idx] = edge
-
-            for sector in doc.content.sectors:
-                self.add_item(SectorGraphicsItem(sector))
-
-            for node in doc.content.g.nodes:
-                node_item = NodeGraphicsItem(node)
-                node_item.set_pos(QPointF(doc.content.g.nodes[node]['x'], doc.content.g.nodes[node]['y']))
-                self.add_item(node_item)
+                logger.debug(f'full reDRAW: {flags}')
+                for node in doc.content.g.nodes:
+                    node_item = NodeGraphicsItem(node)
+                    self.add_item(node_item)
+                for edge in doc.content.g.edges:
+                    edge_item = EdgeGraphicsItem(edge)
+                    self.add_item(edge_item)
 
         else:
+
+            # Update selected pen.
             for item in self.items():
-                wall = getattr(item, 'wall', None)
-                if wall is not None:
-                    item.update_pen()
+                item.update_pen()
 
         self.block_signals(False)

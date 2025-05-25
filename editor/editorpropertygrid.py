@@ -4,8 +4,8 @@ from PySide6.QtCore import QCoreApplication
 from PySide6.QtWidgets import QApplication
 
 from applicationframework.document import Document
+from editor.updateflag import UpdateFlag
 from propertygrid.widget import Widget as PropertyGridBase
-from updateflag import UpdateFlag
 
 # noinspection PyUnresolvedReferences
 from __feature__ import snake_case
@@ -31,7 +31,9 @@ class PropertyGrid(PropertyGridBase):
         logger.debug(f'Updating property grid: {flags}')
         self.block_signals(True)
         self.model().clear()
-        if doc.selected_edges:
-            self.add_object(doc.selected_edges[0])
-            self.add_object(doc.selected_edges[0].raw)
+
+        # TODO: Multi-select
+        if doc.selected_elements:
+            element = list(doc.selected_elements)[0]
+            self.add_object(element.data)
         self.block_signals(False)

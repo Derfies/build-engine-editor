@@ -2,30 +2,30 @@ import logging
 from dataclasses import dataclass, field
 
 from applicationframework.contentbase import ContentBase
-from editor.graph import Graph
+from editor.graph import Graph, MapGraph
 from gameengines.build.duke3d import MapReader as Duke3dMapReader
 from gameengines.build.map import Sector, Wall
 
 # noinspection PyUnresolvedReferences
-from __feature__ import snake_case
+#from __feature__ import snake_case
 
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class EditorWall:
-
-    raw: Wall
-    is_selected = False
-
-
-@dataclass
-class EditorSector:
-
-    raw: Sector
-    is_selected = False
-    walls: list = field(default_factory=list)
+# @dataclass
+# class EditorWall:
+#
+#     raw: Wall
+#     is_selected = False
+#
+#
+# @dataclass
+# class EditorSector:
+#
+#     raw: Sector
+#     is_selected = False
+#     walls: list = field(default_factory=list)
 
 
 class Content(ContentBase):
@@ -40,7 +40,7 @@ class Content(ContentBase):
         with open(file_path, 'rb') as f:
             self.map = Duke3dMapReader()(f)
 
-        self.g = Graph()
+        self.g = MapGraph(self.map)
 
         """
         In this example, i would expect 6 nodes and 7 edges.
@@ -53,44 +53,47 @@ class Content(ContentBase):
         
         To get from 7 to 2, I take the nextwall's point2.
         
+        walls 1 and 7 are the same...
+        
         """
 
+        # TODO: Can add_wall and add_wall_edge be collapsed into a single fn?
         for i, wall in enumerate(self.map.walls):
-            edwall = EditorWall(wall)
-            self.walls.append(edwall)
+            self.g.add_wall_node(i)
 
-            # First attempt at finding common nodes / walls.
-            node_idx = i
-            attrs = {'x': wall.x, 'y': wall.y, 'walls': {i}}
-            if wall.nextwall > -1:
-                nextwall = self.map.walls[wall.nextwall]
-                node_idx = nextwall.point2
-                attrs['walls'].add(nextwall.point2)
-            if node_idx in self.g.nodes:
-                self.g.nodes[node_idx]['walls'].update(attrs['walls'])
-            else:
-                self.g.add_node(node_idx, **attrs)
+        print('nodes:')
+        for node in self.g.nodes:
+            print(node, hash(node), node.wall_idxs)
+
+        for i, wall in enumerate(self.map.walls):
+            self.g.add_wall_edge(i)
+
+        #self.g.add_wall_node(0)
 
 
-        for i, sector in enumerate(self.map.sectors):
-            sector = self.map.sectors[i]
-            edsector = EditorSector(sector)
-            self.sectors.append(edsector)
-            next_point_idx = sector.wallptr
-            for _ in range(sector.wallnum):
+        # for i, sector in enumerate(self.map.sectors):
+        #     sector = self.map.sectors[i]
+        #     edsector = EditorSector(sector)
+        #     self.sectors.append(edsector)
+        #     next_point_idx = sector.wallptr
+        #     for _ in range(sector.wallnum):
+        #
+        #         edwall = self.walls[next_point_idx]
+        #         edsector.walls.append(edwall)
+        #
+        #         next_point_idx = edwall.raw.point2
+        #
+        #         # If the next point returns to the start and we haven't reached the
+        #         # end of the sector's walls then the sector has a hole which we
+        #         # currently can't support.
+        #         if next_point_idx == sector.wallptr:
+        #             break
 
-                edwall = self.walls[next_point_idx]
-                edsector.walls.append(edwall)
-
-                next_point_idx = edwall.raw.point2
-
-                # If the next point returns to the start and we haven't reached the
-                # end of the sector's walls then the sector has a hole which we
-                # currently can't support.
-                if next_point_idx == sector.wallptr:
-                    break
-
-        print(self.g)
+        # print(self.g)
+        #
+        # print('edges:')
+        # for edge in self.g.edges:
+        #     print(edge)
 
     def save(self, file_path: str):
         raise NotImplementedError()

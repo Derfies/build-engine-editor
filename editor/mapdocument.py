@@ -4,9 +4,9 @@ from applicationframework.document import Document
 class MapDocument(Document):
 
     @property
-    def selected_edges(self):
-        selected_edges = []
-        for wall_idx, wall in enumerate(self.content.walls):
-            if wall.is_selected:
-                selected_edges.append(wall)
-        return selected_edges
+    def selected_elements(self) -> dict[int, dict]:
+        return {
+            edge
+            for edge in self.content.g.nodes | self.content.g.edges
+            if edge.is_selected
+        }

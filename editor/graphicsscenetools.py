@@ -3,7 +3,7 @@ from PySide6.QtGui import QTransform, QPen, QColorConstants, QPolygonF
 from PySide6.QtWidgets import QGraphicsScene, QApplication
 
 from editor import commands
-from editor.content import EditorWall
+from editor.graphicsitems import EdgeGraphicsItem
 from rubberband import RubberBandGraphicsItem
 
 # noinspection PyUnresolvedReferences
@@ -34,62 +34,65 @@ class SelectGraphicsSceneTool(GraphicsSceneToolBase):
         super().__init__(*args, **kwargs)
 
         self._mouse_origin = None
-        self.rubber_band = None
-        self.walls = []
+        self._rubber_band = None
 
     def mouse_press_event(self, event):
-        self.walls = []
-
         scene_pos = event.scene_pos()
         self._mouse_origin = scene_pos
         item = self.scene.item_at(scene_pos, QTransform())
         if item is None:
 
             # Click occurred over empty space. Deselect walls if there are any.
-            if self.app().doc.selected_edges:
-                commands.select_edges([])
+            if self.app().doc.selected_elements:
+                commands.select_elements({})
 
             # Start rubber band.
-            self.rubber_band = RubberBandGraphicsItem()
-            self.scene.add_item(self.rubber_band)
+            self._rubber_band = RubberBandGraphicsItem()
+            self.scene.add_item(self._rubber_band)
         else:
 
             # If ctrl is held during selection process, add / remove the clip
             # from the current selection appropriately.
             if event.modifiers() & Qt.ControlModifier:
-                select_edges = self.app().doc.selected_edges[:]
-                if item.wall in select_edges:
-                    select_edges.remove(item.wall)
+                select_elements = self.app().doc.selected_elements.copy()
+                if item.element() in select_elements:
+                    select_elements.remove(item.element())
                 else:
-                    select_edges.append(item.wall)
+                    select_elements.add(item.element())
             else:
-                select_edges = [item.wall]
+                select_elements = {item.element()}
 
             # Don't trigger selection change unless something has actually changed.
-            # if set(select_edges) != set(self.app().doc.selected_edges):
-            commands.select_edges(select_edges)
+            if select_elements != self.app().doc.selected_elements:
+                commands.select_elements(select_elements)
 
     def mouse_move_event(self, event):
-        if self.rubber_band is not None:
+        if self._rubber_band is not None:
             scene_pos = event.scene_pos()
             delta_pos = scene_pos - self._mouse_origin
             rect = QRectF(self._mouse_origin.x(), self._mouse_origin.y(), delta_pos.x(), delta_pos.y()).normalized()
-            self.rubber_band.set_rect(rect)
+            self._rubber_band.set_rect(rect)
 
     def mouse_release_event(self, event):
-        if self.rubber_band is not None:
-            walls = []
-            rubber_band_bb = self.rubber_band.bounding_rect()
-            for item in self.scene.items():
-                wall = item.data(0)
-                if not isinstance(wall, EditorWall):
+        if self._rubber_band is not None:
+            elements = set()
+            rubber_band_bb = self._rubber_band.bounding_rect()
+
+            # This doesn't seem to speed things up like I would have expected...
+            #visible_rect = self.scene.views()[0].viewport().rect()
+            #scene_rect = self.scene.views()[0].map_to_scene(visible_rect).bounding_rect()
+            #visible_items = self.scene.items(scene_rect)
+
+            #for item in visible_items:#self.scene.items():
+            for item in self.scene.items(rubber_band_bb):
+                if item is self._rubber_band:
                     continue
                 if rubber_band_bb.contains(item.bounding_rect()):
-                    self.walls.append(wall)
-            self.scene.remove_item(self.rubber_band)
-            self.rubber_band = None
-            if self.walls:
-                commands.select_edges(self.walls)
+                    elements.add(item.element())
+            self.scene.remove_item(self._rubber_band)
+            self._rubber_band = None
+            if elements:
+                commands.select_elements(elements)
 
 
 class DrawSectorGraphicsSceneTool(GraphicsSceneToolBase):
