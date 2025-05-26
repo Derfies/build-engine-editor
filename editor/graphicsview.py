@@ -21,8 +21,10 @@ class GraphicsView(QGraphicsView):
     def scale(self, *args, **kwargs):
         super().scale(*args, **kwargs)
 
+        # Hax
         for item in self.scene().items():
-            item.prepare_geometry_change()
+            if hasattr(item, 'invalidate_shapes'):
+                item.invalidate_shapes()
 
     def mouse_press_event(self, event):
         if event.button() == Qt.MiddleButton:

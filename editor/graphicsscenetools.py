@@ -79,15 +79,10 @@ class SelectGraphicsSceneTool(GraphicsSceneToolBase):
             rubber_band_bb = self._rubber_band.bounding_rect()
 
             # This doesn't seem to speed things up like I would have expected...
-            #visible_rect = self.scene.views()[0].viewport().rect()
-            #scene_rect = self.scene.views()[0].map_to_scene(visible_rect).bounding_rect()
-            #visible_items = self.scene.items(scene_rect)
-
-            #for item in visible_items:#self.scene.items():
             for item in self.scene.items(rubber_band_bb):
                 if item is self._rubber_band:
                     continue
-                if rubber_band_bb.contains(item.bounding_rect()):
+                if rubber_band_bb.contains(item.get_rubberband_shape()):
                     elements.add(item.element())
             self.scene.remove_item(self._rubber_band)
             self._rubber_band = None

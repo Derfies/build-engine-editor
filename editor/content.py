@@ -59,16 +59,14 @@ class Content(ContentBase):
 
         # TODO: Can add_wall and add_wall_edge be collapsed into a single fn?
         for i, wall in enumerate(self.map.walls):
-            self.g.add_wall_node(i)
-
-        print('nodes:')
-        for node in self.g.nodes:
-            print(node, hash(node), node.wall_idxs)
-
+           self.g.add_wall_node(i)
         for i, wall in enumerate(self.map.walls):
             self.g.add_wall_edge(i)
 
-        #self.g.add_wall_node(0)
+
+        # self.g.add_wall_node(0)
+        # self.g.add_wall_node(1)
+        # self.g.add_wall_edge(0)
 
 
         # for i, sector in enumerate(self.map.sectors):
