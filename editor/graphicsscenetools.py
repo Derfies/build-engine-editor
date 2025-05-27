@@ -82,7 +82,7 @@ class SelectGraphicsSceneTool(GraphicsSceneToolBase):
             for item in self.scene.items(rubber_band_bb):
                 if item is self._rubber_band:
                     continue
-                if rubber_band_bb.contains(item.get_rubberband_shape()):
+                if rubber_band_bb.contains(item.rubberband_shape()):
                     elements.add(item.element())
             self.scene.remove_item(self._rubber_band)
             self._rubber_band = None

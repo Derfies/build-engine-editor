@@ -1,12 +1,11 @@
 import logging
 
-from PySide6.QtGui import QBrush, QPen, QColorConstants, QPainterPath, QPainterPathStroker, QPainter, QTransform, QColor
-from PySide6.QtCore import QCoreApplication, Qt
+from PySide6.QtCore import QCoreApplication
 from PySide6.QtWidgets import QApplication, QGraphicsScene
 
 from applicationframework.document import Document
 from editor.constants import ModalTool
-from editor.graphicsitems import NodeGraphicsItem, EdgeGraphicsItem
+from editor.graphicsitems import EdgeGraphicsItem, NodeGraphicsItem, PolyGraphicsItem
 from editor.graphicsscenetools import SelectGraphicsSceneTool, DrawSectorGraphicsSceneTool
 from editor.updateflag import UpdateFlag
 
@@ -83,7 +82,7 @@ class GraphicsScene(QGraphicsScene):
         if flags != UpdateFlag.SELECTION:
 
             self.clear()
-            if doc.content.map is not None:
+            if doc.content.g is not None:
                 logger.debug(f'full reDRAW: {flags}')
                 for node in doc.content.g.nodes:
                     node_item = NodeGraphicsItem(node)
@@ -91,7 +90,9 @@ class GraphicsScene(QGraphicsScene):
                 for edge in doc.content.g.edges:
                     edge_item = EdgeGraphicsItem(edge)
                     self.add_item(edge_item)
-
+                for poly in doc.content.g.polys:
+                    poly_item = PolyGraphicsItem(poly)
+                    self.add_item(poly_item)
         else:
 
             # Update selected pen.

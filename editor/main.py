@@ -4,8 +4,8 @@ from pathlib import Path
 
 import qdarktheme
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction, QActionGroup, QIcon
-from PySide6.QtWidgets import QSplitter, QToolBar, QVBoxLayout, QWidget
+from PySide6.QtGui import QAction, QActionGroup
+from PySide6.QtWidgets import QSplitter, QVBoxLayout, QWidget
 
 from applicationframework.application import Application
 from applicationframework.document import Document
@@ -16,6 +16,7 @@ from editor.editorpropertygrid import PropertyGrid
 from editor.graphicsscene import GraphicsScene
 from editor.graphicsview import GraphicsView
 from editor.mapdocument import MapDocument
+from editor.preferencesdialog import PreferencesDialog
 from editor.updateflag import UpdateFlag
 
 # noinspection PyUnresolvedReferences
@@ -69,17 +70,18 @@ class MainWindow(MainWindowBase):
     def local_icons_path(self) -> Path:
         return Path(__file__).parent.joinpath('data', 'icons')
 
-    def get_local_icon(self, file_name: str) -> QIcon:
-        return QIcon(str(self.local_icons_path.joinpath(file_name)))
-
     def create_actions(self):
         super().create_actions()
 
+        # Edit actions.
+        # TODO: Should preferences be in base class?
+        self.show_preferences_action = QAction(self.get_icon('wrench.png', icons_path=self.local_icons_path), '&Preferences...', self)
+
         # Tool actions.
-        self.select_action = QAction(self.get_local_icon('cursor'), '&Select', self)
+        self.select_action = QAction(self.get_icon('cursor', icons_path=self.local_icons_path), '&Select', self)
         self.select_action.set_data(ModalTool.SELECT)
         self.select_action.set_checkable(True)
-        self.draw_sector_action = QAction(self.get_local_icon('layer-shape-polygon.png'), '&Draw Sector', self)
+        self.draw_sector_action = QAction(self.get_icon('layer-shape-polygon.png', icons_path=self.local_icons_path), '&Draw Sector', self)
         self.draw_sector_action.set_data(ModalTool.DRAW_SECTOR)
         self.draw_sector_action.set_checkable(True)
 
@@ -90,9 +92,21 @@ class MainWindow(MainWindowBase):
         self.tool_group.add_action(self.draw_sector_action)
         self.tool_group.triggered.connect(self.on_tool_group_changed)
 
+    def connect_actions(self):
+        super().connect_actions()
+
+        # Edit actions.
+        self.show_preferences_action.triggered.connect(self.show_preferences)
+
+    def create_menu_bar(self):
+        super().create_menu_bar()
+
+        # Edit actions.
+        self.edit_menu.add_separator()
+        self.edit_menu.add_action(self.show_preferences_action)
+
     def create_tool_bar(self):
-        tool_bar = QToolBar()
-        self.add_tool_bar(tool_bar)
+        tool_bar = self.tool_bar()
 
         tool_bar.add_action(self.select_action)
         tool_bar.add_action(self.draw_sector_action)
@@ -103,6 +117,22 @@ class MainWindow(MainWindowBase):
     def on_tool_group_changed(self):
         action = self.tool_group.checked_action().data()
         self.scene.set_modal_tool(action)
+
+    def show_preferences(self):
+
+        # Collect settings.
+        preferences = {}
+
+        # Show the dialog.
+        dialog = PreferencesDialog()
+        dialog.load_preferences(preferences)
+        if not dialog.exec():
+            return
+
+        # Deserialize back to data objects and set.
+        print(dialog.preferences)
+
+        self.app().doc.updated(UpdateFlag.DISPLAY_SETTINGS, dirty=True)
 
 
 if __name__ == '__main__':

@@ -63,8 +63,13 @@ class Edge(ElementBase):
 
 class Poly(ElementBase):
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, nodes: list[Node], *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+        self.nodes = nodes
+
+    def __hash__(self):
+        return hash(frozenset(self.nodes))
 
 
 class Graph:
@@ -84,18 +89,8 @@ class Graph:
             self.add_node(edge.node2)
         self.edges.add(edge)
 
-    # def add_poly(self, polygon_nodes):
-    #     if not all(node in self.nodes for node in polygon_nodes):
-    #         raise ValueError('All nodes in the polygon must exist in the graph.')
-    #     if polygon_nodes[0] != polygon_nodes[-1]:
-    #         raise ValueError('Polygons must be closed (start and end node must be the same).')
-    #     self.polys.append(polygon_nodes)
-
-    def __str__(self):
-        return (f'Graph:\n'
-                f' {len(self.nodes)} Nodes: {self.nodes}\n'
-                f' {len(self.edges)} Edges: {self.edges}\n'
-                f' {len(self.polys)} Polygons: {self.polys}')
+    def add_poly(self, poly: Poly):
+        self.polys.append(poly)
 
 
 class MapGraph(Graph):
@@ -134,3 +129,11 @@ class MapGraph(Graph):
             if wall in node.wall_idxs:
                 return node
         return None
+
+    def add_sector(self, sector: int):
+        sector_data = self._map.sectors[sector]
+        nodes = [
+            self.wall_to_node(sector_data.wallptr + i)
+            for i in range(sector_data.wallnum)
+        ]
+        self.add_poly(Poly(nodes, sector, sector_data))

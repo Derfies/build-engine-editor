@@ -7,6 +7,6 @@ class MapDocument(Document):
     def selected_elements(self) -> dict[int, dict]:
         return {
             edge
-            for edge in self.content.g.nodes | self.content.g.edges
+            for edge in self.content.g.nodes | self.content.g.edges | set(self.content.g.polys)
             if edge.is_selected
         }
