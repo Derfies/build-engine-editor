@@ -4,13 +4,13 @@ from pathlib import Path
 
 import qdarktheme
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction, QActionGroup
+from PySide6.QtGui import QAction, QActionGroup, QKeySequence
 from PySide6.QtWidgets import QSplitter, QVBoxLayout, QWidget
 
 from applicationframework.application import Application
 from applicationframework.document import Document
 from applicationframework.mainwindow import MainWindow as MainWindowBase
-from editor.constants import ModalTool
+from editor.constants import ModalTool, SelectionMode
 from editor.content import Content
 from editor.editorpropertygrid import PropertyGrid
 from editor.graphicsscene import GraphicsScene
@@ -60,7 +60,10 @@ class MainWindow(MainWindowBase):
         self.app().preferences_manager.register_widget('main_splitter', self.splitter)
 
         self.select_action.set_checked(True)
-        self.scene.set_modal_tool(ModalTool.SELECT)
+        self.select_node_action.set_checked(True)
+        self.on_tool_action_group()
+        self.on_select_action_group()
+        #self.scene.set_modal_tool(ModalTool.SELECT)
 
         #self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\LL-SEWER.MAP')
         self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\1.MAP')
@@ -81,16 +84,50 @@ class MainWindow(MainWindowBase):
         self.select_action = QAction(self.get_icon('cursor', icons_path=self.local_icons_path), '&Select', self)
         self.select_action.set_data(ModalTool.SELECT)
         self.select_action.set_checkable(True)
-        self.draw_sector_action = QAction(self.get_icon('layer-shape-polygon.png', icons_path=self.local_icons_path), '&Draw Sector', self)
-        self.draw_sector_action.set_data(ModalTool.DRAW_SECTOR)
-        self.draw_sector_action.set_checkable(True)
+        self.move_action = QAction(self.get_icon('arrow-move', icons_path=self.local_icons_path),'&Move', self)
+        self.move_action.set_data(ModalTool.MOVE)
+        self.move_action.set_checkable(True)
+        self.rotate_action = QAction(self.get_icon('arrow-circle-double-135', icons_path=self.local_icons_path), '&Rotate', self)
+        self.rotate_action.set_data(ModalTool.ROTATE)
+        self.rotate_action.set_checkable(True)
+        self.scale_action = QAction(self.get_icon('arrow-resize-135', icons_path=self.local_icons_path), '&Select', self)
+        self.scale_action.set_data(ModalTool.SCALE)
+        self.scale_action.set_checkable(True)
+        self.draw_poly_action = QAction(self.get_icon('layer-shape-polygon.png', icons_path=self.local_icons_path), '&Draw Poly', self)
+        self.draw_poly_action.set_data(ModalTool.DRAW_POLY)
+        self.draw_poly_action.set_checkable(True)
 
-        # Tool group.
-        self.tool_group = QActionGroup(self)
-        self.tool_group.set_exclusive(True)
-        self.tool_group.add_action(self.select_action)
-        self.tool_group.add_action(self.draw_sector_action)
-        self.tool_group.triggered.connect(self.on_tool_group_changed)
+        # Select actions.
+        self.select_node_action = QAction(self.get_icon('layer-select-point', icons_path=self.local_icons_path), '&Select Node', self)
+        self.select_node_action.set_data(SelectionMode.NODE)
+        self.select_node_action.set_checkable(True)
+        self.select_edge_action = QAction(self.get_icon('layer-select-line', icons_path=self.local_icons_path), '&Select Edge', self)
+        self.select_edge_action.set_data(SelectionMode.EDGE)
+        self.select_edge_action.set_checkable(True)
+        self.select_poly_action = QAction(self.get_icon('layer-select-polygon', icons_path=self.local_icons_path), '&Select Poly', self)
+        self.select_poly_action.set_data(SelectionMode.POLY)
+        self.select_poly_action.set_checkable(True)
+
+        # Misc actions.
+        self.frame_selection_action = QAction(self.get_icon('image-instagram-frame', icons_path=self.local_icons_path), '&Frame Selection', self)
+
+        # Tool action group.
+        self.tool_action_group = QActionGroup(self)
+        self.tool_action_group.set_exclusive(True)
+        self.tool_action_group.add_action(self.select_action)
+        self.tool_action_group.add_action(self.move_action)
+        self.tool_action_group.add_action(self.rotate_action)
+        self.tool_action_group.add_action(self.scale_action)
+        self.tool_action_group.add_action(self.draw_poly_action)
+        self.tool_action_group.triggered.connect(self.on_tool_action_group)
+
+        # Select action group.
+        self.select_action_group = QActionGroup(self)
+        self.select_action_group.set_exclusive(True)
+        self.select_action_group.add_action(self.select_node_action)
+        self.select_action_group.add_action(self.select_edge_action)
+        self.select_action_group.add_action(self.select_poly_action)
+        self.select_action_group.triggered.connect(self.on_select_action_group)
 
     def connect_actions(self):
         super().connect_actions()
@@ -98,10 +135,28 @@ class MainWindow(MainWindowBase):
         # Edit actions.
         self.show_preferences_action.triggered.connect(self.show_preferences)
 
+        # Misc actions.
+        self.frame_selection_action.triggered.connect(self.frame_selection)
+
+    def connect_hotkeys(self):
+        super().connect_actions()
+
+        # Tool actions.
+        # TODO: Wire up to preferences.
+        self.select_action.set_shortcut(QKeySequence('Q'))
+        self.move_action.set_shortcut(QKeySequence('W'))
+        self.rotate_action.set_shortcut(QKeySequence('E'))
+        self.scale_action.set_shortcut(QKeySequence('R'))
+
+        # Misc actions.
+        self.frame_selection_action.set_shortcut(QKeySequence('F'))
+
     def create_menu_bar(self):
         super().create_menu_bar()
 
         # Edit actions.
+        self.edit_menu.add_separator()
+        self.edit_menu.add_action(self.frame_selection_action)
         self.edit_menu.add_separator()
         self.edit_menu.add_action(self.show_preferences_action)
 
@@ -109,14 +164,25 @@ class MainWindow(MainWindowBase):
         tool_bar = self.tool_bar()
 
         tool_bar.add_action(self.select_action)
-        tool_bar.add_action(self.draw_sector_action)
+        tool_bar.add_action(self.move_action)
+        tool_bar.add_action(self.rotate_action)
+        tool_bar.add_action(self.scale_action)
+        tool_bar.add_action(self.draw_poly_action)
+        tool_bar.add_separator()
+        tool_bar.add_action(self.select_node_action)
+        tool_bar.add_action(self.select_edge_action)
+        tool_bar.add_action(self.select_poly_action)
 
     def create_document(self, file_path: str = None) -> Document:
         return MapDocument(file_path, Content(), UpdateFlag)
 
-    def on_tool_group_changed(self):
-        action = self.tool_group.checked_action().data()
+    def on_tool_action_group(self):
+        action = self.tool_action_group.checked_action().data()
         self.scene.set_modal_tool(action)
+
+    def on_select_action_group(self):
+        action = self.select_action_group.checked_action().data()
+        self.scene.set_selection_mode(action)
 
     def show_preferences(self):
 
@@ -133,6 +199,19 @@ class MainWindow(MainWindowBase):
         print(dialog.preferences)
 
         self.app().doc.updated(UpdateFlag.DISPLAY_SETTINGS, dirty=True)
+
+    def frame_selection(self):
+
+        # Gross. We obviously need to keep better track of the mapping between
+        # items and elements, but then items can change when we do a full scene
+        # rebuild.
+        items = [
+            item
+            for item in self.scene.items()
+            if item.element().is_selected
+        ]
+        items = items or self.scene.items()
+        self.view.frame(items)
 
 
 if __name__ == '__main__':

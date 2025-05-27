@@ -27,8 +27,14 @@ class GraphicsSceneToolBase:
     def mouse_release_event(self, event):
         ...
 
+    def cancel(self):
+        ...
+
 
 class SelectGraphicsSceneTool(GraphicsSceneToolBase):
+
+    # BUG
+    # Sometimes selecting with marquee doesn't work after selecting with pointer.
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -88,6 +94,45 @@ class SelectGraphicsSceneTool(GraphicsSceneToolBase):
             self._rubber_band = None
             if elements:
                 commands.select_elements(elements)
+
+
+class MoveGraphicsSceneTool(SelectGraphicsSceneTool):
+
+    # TODO: Not sure how Maya does it - but I think move tool is also a select
+    # tool? Then why have a select tool? Just if you like pointing at things, I
+    # guess.
+    # BUG: If this inherits from move tool then we pick before we translate which
+    # stops translating multiple elements.
+
+    # TODO: Boil selection down to nodes, then live update move changes.
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self._last_scene_pos = None
+
+    def mouse_press_event(self, event):
+        super().mouse_press_event(event)
+        scene_pos = event.scene_pos()
+        item = self.scene.item_at(scene_pos, QTransform())
+        if item is not None and item.element().is_selected:
+            self._last_scene_pos = scene_pos
+
+    def mouse_move_event(self, event):
+        super().mouse_move_event(event)
+        if self._last_scene_pos is not None:
+            scene_pos = event.scene_pos()
+            delta_pos = scene_pos - self._last_scene_pos
+            for item in self.scene.items():
+                if item.element().is_selected:
+                    item.move_by(delta_pos.x(), delta_pos.y())
+            self._last_scene_pos = scene_pos
+
+    def mouse_release_event(self, event):
+        super().mouse_release_event(event)
+        if self._last_scene_pos is not None:
+            print('COMMIT MOVE')
+        self._last_scene_pos = None
 
 
 class DrawSectorGraphicsSceneTool(GraphicsSceneToolBase):

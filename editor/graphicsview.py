@@ -1,5 +1,5 @@
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QGraphicsView
+from PySide6.QtCore import Qt, QRectF
+from PySide6.QtWidgets import QGraphicsItem, QGraphicsView
 
 
 # noinspection PyUnresolvedReferences
@@ -59,3 +59,9 @@ class GraphicsView(QGraphicsView):
         else:
             factor = 0.8
         self.scale(factor, factor)
+
+    def frame(self, items: list[QGraphicsItem]):
+        bounding_rect = QRectF()
+        for item in items:
+            bounding_rect = bounding_rect.united(item.scene_bounding_rect())
+        self.fit_in_view(bounding_rect, Qt.KeepAspectRatio)

@@ -4,9 +4,9 @@ from PySide6.QtCore import QCoreApplication
 from PySide6.QtWidgets import QApplication, QGraphicsScene
 
 from applicationframework.document import Document
-from editor.constants import ModalTool
+from editor.constants import ModalTool, SelectionMode
 from editor.graphicsitems import EdgeGraphicsItem, NodeGraphicsItem, PolyGraphicsItem
-from editor.graphicsscenetools import SelectGraphicsSceneTool, DrawSectorGraphicsSceneTool
+from editor.graphicsscenetools import DrawSectorGraphicsSceneTool, MoveGraphicsSceneTool, SelectGraphicsSceneTool
 from editor.updateflag import UpdateFlag
 
 # noinspection PyUnresolvedReferences
@@ -57,9 +57,13 @@ class GraphicsScene(QGraphicsScene):
     def set_modal_tool(self, modal_tool: ModalTool):
         tool_cls = {
             ModalTool.SELECT: SelectGraphicsSceneTool,
-            ModalTool.DRAW_SECTOR: DrawSectorGraphicsSceneTool,
+            ModalTool.MOVE: MoveGraphicsSceneTool,
+            ModalTool.DRAW_POLY: DrawSectorGraphicsSceneTool,
         }[modal_tool]
         self.current_tool = tool_cls(self)
+
+    def set_selection_mode(self, select_mode: SelectionMode):
+        self.selection_mode = select_mode
 
     def mouse_press_event(self, event):
         super().mouse_press_event(event)

@@ -1,5 +1,5 @@
 from PySide6.QtGui import QIntValidator
-from PySide6.QtWidgets import QLabel, QLineEdit
+from PySide6.QtWidgets import QLabel, QLineEdit, QGridLayout
 
 from applicationframework.preferencesdialog import PreferencesDialog as PreferenceDialogBase, PreferenceWidgetBase
 
@@ -37,6 +37,41 @@ class TestPreferenceWidget(PreferenceWidgetBase):
         self.resolution_cols.set_text(str(data['resolution_cols']))
 
 
+class HotkeysWidget(PreferenceWidgetBase):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        layout = QGridLayout()
+        labels = [
+            'Select',
+            'Move',
+            'Rotate',
+            'Scale',
+            'Draw Poly',
+            'Select by Node',
+            'Select by Edge',
+            'Select by Poly',
+        ]
+        self.line_edits = []
+
+        for i, text in enumerate(labels):
+            label = QLabel(text)
+            line_edit = QLineEdit()
+            layout.add_widget(label, i, 0)
+            layout.add_widget(line_edit, i, 1)
+            self.line_edits.append(line_edit)
+
+        self.layout.add_layout(layout)
+        self.layout.add_stretch()
+
+    def preferences(self) -> dict:
+        pass
+
+    def set_preferences(self, data: dict):
+        pass
+
+
 class PreferencesDialog(PreferenceDialogBase):
 
     def __init__(self, *args, **kwargs):
@@ -47,6 +82,13 @@ class PreferencesDialog(PreferenceDialogBase):
         for i in range(2):
             wdiget = TestPreferenceWidget('Foo')
             self.add_widget(wdiget, parent=colours_item)
+
+        hotkeys = HotkeysWidget('Hotkeys')
+        self.add_widget(hotkeys)
+        #hotkeys_item = self.add_widget(hotkeys)
+        #for i in range(2):
+        #    wdiget = TestPreferenceWidget('Foo')
+        #    self.add_widget(wdiget, parent=colours_item)
 
     def load_preferences(self, data: dict):
         print(data)
