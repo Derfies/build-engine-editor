@@ -70,6 +70,9 @@ class GraphicsScene(QGraphicsScene):
 
         self.current_tool.mouse_press_event(event)
 
+    def mouse_double_click_event(self, event):
+        self.mouse_press_event(event)
+
     def mouse_move_event(self, event):
         super().mouse_move_event(event)
 

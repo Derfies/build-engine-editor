@@ -3,11 +3,13 @@ from PySide6.QtGui import QTransform, QPen, QColorConstants, QPolygonF
 from PySide6.QtWidgets import QGraphicsScene, QApplication
 
 from editor import commands
-from editor.graphicsitems import EdgeGraphicsItem
 from rubberband import RubberBandGraphicsItem
 
 # noinspection PyUnresolvedReferences
 from __feature__ import snake_case
+
+
+DRAG_TOLERANCE = 4
 
 
 class GraphicsSceneToolBase:
@@ -33,67 +35,68 @@ class GraphicsSceneToolBase:
 
 class SelectGraphicsSceneTool(GraphicsSceneToolBase):
 
-    # BUG
-    # Sometimes selecting with marquee doesn't work after selecting with pointer.
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self._mouse_origin = None
         self._rubber_band = None
 
+    def add_rubber_band(self):
+        self._rubber_band = RubberBandGraphicsItem()
+        self.scene.add_item(self._rubber_band)
+
+    def remove_rubber_band(self):
+        self.scene.remove_item(self._rubber_band)
+        self._rubber_band = None
+
     def mouse_press_event(self, event):
-        scene_pos = event.scene_pos()
-        self._mouse_origin = scene_pos
-        item = self.scene.item_at(scene_pos, QTransform())
-        if item is None:
-
-            # Click occurred over empty space. Deselect walls if there are any.
-            if self.app().doc.selected_elements:
-                commands.select_elements({})
-
-            # Start rubber band.
-            self._rubber_band = RubberBandGraphicsItem()
-            self.scene.add_item(self._rubber_band)
-        else:
-
-            # If ctrl is held during selection process, add / remove the clip
-            # from the current selection appropriately.
-            if event.modifiers() & Qt.ControlModifier:
-                select_elements = self.app().doc.selected_elements.copy()
-                if item.element() in select_elements:
-                    select_elements.remove(item.element())
-                else:
-                    select_elements.add(item.element())
-            else:
-                select_elements = {item.element()}
-
-            # Don't trigger selection change unless something has actually changed.
-            if select_elements != self.app().doc.selected_elements:
-                commands.select_elements(select_elements)
+        self._mouse_origin = event.scene_pos()
 
     def mouse_move_event(self, event):
-        if self._rubber_band is not None:
-            scene_pos = event.scene_pos()
-            delta_pos = scene_pos - self._mouse_origin
-            rect = QRectF(self._mouse_origin.x(), self._mouse_origin.y(), delta_pos.x(), delta_pos.y()).normalized()
-            self._rubber_band.set_rect(rect)
+        if not self._mouse_origin:
+            return
+
+        view = self.scene.views()[0]
+        delta_pos = (view.map_from_scene(event.scene_pos()) - view.map_from_scene(self._mouse_origin)).manhattan_length()
+        if delta_pos > DRAG_TOLERANCE:
+            if self._rubber_band is None:
+                self.add_rubber_band()
+            else:
+                rect = QRectF(self._mouse_origin, event.scene_pos()).normalized()
+                self._rubber_band.set_rect(rect)
+        elif self._rubber_band is not None:
+            self.remove_rubber_band()
 
     def mouse_release_event(self, event):
-        if self._rubber_band is not None:
-            elements = set()
-            rubber_band_bb = self._rubber_band.bounding_rect()
 
-            # This doesn't seem to speed things up like I would have expected...
+        modifiers = event.modifiers()
+        add = modifiers & Qt.ShiftModifier
+        toggle = modifiers & Qt.ControlModifier
+
+        hit_item = self.scene.item_at(self._mouse_origin, QTransform())
+        items = set()
+        if self._rubber_band is not None:
+            rubber_band_bb = self._rubber_band.bounding_rect()
             for item in self.scene.items(rubber_band_bb):
                 if item is self._rubber_band:
                     continue
                 if rubber_band_bb.contains(item.rubberband_shape()):
-                    elements.add(item.element())
-            self.scene.remove_item(self._rubber_band)
-            self._rubber_band = None
-            if elements:
-                commands.select_elements(elements)
+                    items.add(item)
+        elif hit_item is not None:
+            items = {hit_item}
+
+        select_elements = self.app().doc.selected_elements.copy() if add or toggle else set()
+        for item in items:
+            element = item.element()
+            if toggle:
+                select_elements.symmetric_difference_update({element})
+            else:
+                select_elements.add(element)
+
+        self._mouse_origin = None
+        self.remove_rubber_band()
+
+        commands.select_elements(select_elements)
 
 
 class MoveGraphicsSceneTool(SelectGraphicsSceneTool):
@@ -112,27 +115,40 @@ class MoveGraphicsSceneTool(SelectGraphicsSceneTool):
         self._last_scene_pos = None
 
     def mouse_press_event(self, event):
-        super().mouse_press_event(event)
+
         scene_pos = event.scene_pos()
         item = self.scene.item_at(scene_pos, QTransform())
         if item is not None and item.element().is_selected:
             self._last_scene_pos = scene_pos
+        else:
+            super().mouse_press_event(event)
 
     def mouse_move_event(self, event):
-        super().mouse_move_event(event)
+
         if self._last_scene_pos is not None:
             scene_pos = event.scene_pos()
             delta_pos = scene_pos - self._last_scene_pos
             for item in self.scene.items():
+                if item is self._rubber_band:
+                    continue
                 if item.element().is_selected:
                     item.move_by(delta_pos.x(), delta_pos.y())
+                    item.invalidate_shapes()
             self._last_scene_pos = scene_pos
+        else:
+            super().mouse_move_event(event)
 
     def mouse_release_event(self, event):
-        super().mouse_release_event(event)
+        #super().mouse_release_event(event)
+
+        #print('self._last_scene_pos:', self._last_scene_pos)
         if self._last_scene_pos is not None:
             print('COMMIT MOVE')
-        self._last_scene_pos = None
+            #self.app().doc.updated()
+            self._last_scene_pos = None
+        else:
+            super().mouse_release_event(event)
+
 
 
 class DrawSectorGraphicsSceneTool(GraphicsSceneToolBase):
