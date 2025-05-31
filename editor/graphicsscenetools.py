@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from PySide6.QtCore import QCoreApplication, Qt, QRectF
 from PySide6.QtGui import QTransform, QPen, QColorConstants, QPolygonF
 from PySide6.QtWidgets import QGraphicsScene, QApplication
@@ -56,6 +58,7 @@ class SelectGraphicsSceneTool(GraphicsSceneToolBase):
         if not self._mouse_origin:
             return
 
+        # Stop micro-movements from engaging the rubber band.
         view = self.scene.views()[0]
         delta_pos = (view.map_from_scene(event.scene_pos()) - view.map_from_scene(self._mouse_origin)).manhattan_length()
         if delta_pos > DRAG_TOLERANCE:
@@ -69,10 +72,7 @@ class SelectGraphicsSceneTool(GraphicsSceneToolBase):
 
     def mouse_release_event(self, event):
 
-        modifiers = event.modifiers()
-        add = modifiers & Qt.ShiftModifier
-        toggle = modifiers & Qt.ControlModifier
-
+        # Resolve items within rubber band bounds or directly under mouse.
         hit_item = self.scene.item_at(self._mouse_origin, QTransform())
         items = set()
         if self._rubber_band is not None:
@@ -85,6 +85,12 @@ class SelectGraphicsSceneTool(GraphicsSceneToolBase):
         elif hit_item is not None:
             items = {hit_item}
 
+        # Resolve mode based on ctrl / shift modifiers.
+        modifiers = event.modifiers()
+        add = modifiers & Qt.ShiftModifier
+        toggle = modifiers & Qt.ControlModifier
+
+        # Resolve selected elements using modifiers.
         select_elements = self.app().doc.selected_elements.copy() if add or toggle else set()
         for item in items:
             element = item.element()
@@ -101,14 +107,6 @@ class SelectGraphicsSceneTool(GraphicsSceneToolBase):
 
 class MoveGraphicsSceneTool(SelectGraphicsSceneTool):
 
-    # TODO: Not sure how Maya does it - but I think move tool is also a select
-    # tool? Then why have a select tool? Just if you like pointing at things, I
-    # guess.
-    # BUG: If this inherits from move tool then we pick before we translate which
-    # stops translating multiple elements.
-
-    # TODO: Boil selection down to nodes, then live update move changes.
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -116,39 +114,55 @@ class MoveGraphicsSceneTool(SelectGraphicsSceneTool):
 
     def mouse_press_event(self, event):
 
+        # Resolve mode based on ctrl / shift modifiers.
+        modifiers = event.modifiers()
+        add = modifiers & Qt.ShiftModifier
+        toggle = modifiers & Qt.ControlModifier
+
         scene_pos = event.scene_pos()
         item = self.scene.item_at(scene_pos, QTransform())
-        if item is not None and item.element().is_selected:
+        if item is not None and item.element().is_selected and not(add or toggle):
             self._last_scene_pos = scene_pos
+
+            # TODO: Not all nodes are affected!!!
+            self.affected_nodes = set()
+            for element in self.app().doc.selected_elements:
+                self.affected_nodes.update(element.nodes)
+            self.affected_items = set()
+            for node in self.affected_nodes:
+                self.affected_items.update(self.scene._node_to_items[node])
+
         else:
             super().mouse_press_event(event)
 
     def mouse_move_event(self, event):
-
         if self._last_scene_pos is not None:
+
+            # Update the graphics view. Note this doesn't change any content data
+            # just yet.
+            # TODO: Can probably work out a neat way to do the set intersection
+            # earlier.
             scene_pos = event.scene_pos()
             delta_pos = scene_pos - self._last_scene_pos
-            for item in self.scene.items():
-                if item is self._rubber_band:
-                    continue
-                if item.element().is_selected:
-                    item.move_by(delta_pos.x(), delta_pos.y())
-                    item.invalidate_shapes()
+            for item in self.affected_items:
+                item.update_nodes(self.scene._item_to_nodes[item] & self.affected_nodes, delta_pos)
+
             self._last_scene_pos = scene_pos
         else:
             super().mouse_move_event(event)
 
     def mouse_release_event(self, event):
-        #super().mouse_release_event(event)
-
-        #print('self._last_scene_pos:', self._last_scene_pos)
         if self._last_scene_pos is not None:
+
+            # TODO: Only need to call this during commit, I think.
+            for item in self.affected_items:
+                item.invalidate_shapes()
+
             print('COMMIT MOVE')
             #self.app().doc.updated()
             self._last_scene_pos = None
         else:
             super().mouse_release_event(event)
-
 
 
 class DrawSectorGraphicsSceneTool(GraphicsSceneToolBase):

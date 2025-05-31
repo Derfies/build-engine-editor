@@ -1,7 +1,9 @@
+import abc
+
 from gameengines.build.map import Map, Sector, Sprite, Wall
 
 
-class ElementBase:
+class ElementBase(metaclass=abc.ABCMeta):
 
     def __init__(self, index: int, data: Sector | Sprite | Wall):
         self._index = index
@@ -14,12 +16,17 @@ class ElementBase:
         return hash(self) == hash(other)
 
     @property
-    def index(self):
+    def index(self) -> int:
         return self._index
 
     @property
-    def data(self):
+    def data(self) -> Sector | Sprite | Wall:
         return self._data
+
+    @property
+    @abc.abstractmethod
+    def nodes(self) -> set:
+        ...
 
 
 class Node(ElementBase):
@@ -31,6 +38,10 @@ class Node(ElementBase):
 
     def __hash__(self):
         return hash(self._index)
+
+    @property
+    def nodes(self) -> set:
+        return {self}
 
     @property
     def x(self):
@@ -50,7 +61,11 @@ class Edge(ElementBase):
         self.node2 = node2
 
     def __hash__(self):
-        return hash(frozenset({self.node1, self.node2}))
+        return hash(frozenset(self.nodes))
+
+    @property
+    def nodes(self) -> set:
+        return {self.node1, self.node2}
 
     @property
     def x(self):
@@ -66,10 +81,15 @@ class Poly(ElementBase):
     def __init__(self, nodes: list[Node], *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.nodes = nodes
+        # TODO: Figure out whether to store as set / list
+        self._nodes = nodes
 
     def __hash__(self):
         return hash(frozenset(self.nodes))
+
+    @property
+    def nodes(self) -> set:
+        return set(self._nodes)
 
 
 class Graph:

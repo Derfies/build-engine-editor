@@ -1,4 +1,5 @@
 import logging
+from collections import defaultdict
 
 from PySide6.QtCore import QCoreApplication
 from PySide6.QtWidgets import QApplication, QGraphicsScene
@@ -20,6 +21,9 @@ class GraphicsScene(QGraphicsScene):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+        self._node_to_items = defaultdict(set)
+        self._item_to_nodes = {}
 
         self.current_tool = None
         self.app().updated.connect(self.update_event)
@@ -100,6 +104,14 @@ class GraphicsScene(QGraphicsScene):
                 for poly in doc.content.g.polys:
                     poly_item = PolyGraphicsItem(poly)
                     self.add_item(poly_item)
+
+                # Build node -> item map.
+                # TODO: Put in scene object and update only on doc update.
+                for item in self.items():
+                    item_nodes = item.element().nodes
+                    self._item_to_nodes[item] = item_nodes
+                    for node in item_nodes:
+                        self._node_to_items[node].add(item)
         else:
 
             # Update selected pen.

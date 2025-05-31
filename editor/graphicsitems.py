@@ -51,6 +51,9 @@ class GraphicsItemBaseMixin:
             self._rubberband_shape = self.shape().bounding_rect().translated(self.pos())
         return self._rubberband_shape
 
+    def update_nodes(self, nodes, delta: QPointF):
+        ...
+
 
 class NodeGraphicsItem(GraphicsItemBaseMixin, QGraphicsRectItem):
 
@@ -80,8 +83,17 @@ class NodeGraphicsItem(GraphicsItemBaseMixin, QGraphicsRectItem):
         )
         return path
 
+    def update_nodes(self, nodes: set[Node], delta: QPointF):
+        assert self.element() in nodes, f'Item doesnt own element in set: {nodes}'
+        assert len(nodes) == 1
+        p = delta
+        self.move_by(p.x(), p.y())
+
 
 class EdgeGraphicsItem(GraphicsItemBaseMixin, QGraphicsLineItem):
+
+    # NOTE: We're doing stuff in local space where whereas doing stuff in scene
+    # space for the node...
 
     def __init__(self, edge: Edge):
         super().__init__(edge)
@@ -89,8 +101,7 @@ class EdgeGraphicsItem(GraphicsItemBaseMixin, QGraphicsLineItem):
         self.setZValue(50)
         p1 = QPointF(self.element().node1.x, self.element().node1.y)
         p2 = QPointF(self.element().node2.x, self.element().node2.y)
-        self.set_pos(p1)
-        self.set_line(QLineF(QPointF(0, 0), p2 - p1))
+        self.set_line(QLineF(p1, p2))
 
     def get_shape(self):
 
@@ -107,20 +118,29 @@ class EdgeGraphicsItem(GraphicsItemBaseMixin, QGraphicsLineItem):
 
         return stroker.create_stroke(path)
 
+    def update_nodes(self, nodes: set[Node], delta: QPointF):
+        p1 = self.line().p1()
+        if self.element().node1 in nodes:
+            p1 += delta
+        p2 = self.line().p2()
+        if self.element().node2 in nodes:
+            p2 += delta
+        self.set_line(QLineF(p1, p2))
+
 
 class PolyGraphicsItem(GraphicsItemBaseMixin, QGraphicsPathItem):
 
     def __init__(self, poly: Poly, *args, **kwargs):
         super().__init__(poly, *args, **kwargs)
 
-        outer = QPolygonF([
+        ps = [
             QPointF(node.data.x, node.data.y)
-            for node in poly.nodes
-        ])
-        outer.append(QPointF(poly.nodes[0].data.x, poly.nodes[0].data.y))
-        self.poly = outer
+            for node in poly._nodes
+        ]
+        ps.append(QPointF(poly._nodes[0].data.x, poly._nodes[0].data.y))
+        self.poly = QPolygonF(ps)
         path = QPainterPath()
-        path.add_polygon(outer)
+        path.add_polygon(self.poly)
         self.set_path(path)
         self.setZValue(0)
 
@@ -135,3 +155,17 @@ class PolyGraphicsItem(GraphicsItemBaseMixin, QGraphicsPathItem):
 
         # TODO: This could be default as we're having to override override behaviour
         return QGraphicsPathItem.shape(self)
+
+    def update_nodes(self, nodes: set[Node], delta: QPointF):
+
+        ps = []
+        for i, p in enumerate(self.poly.to_list()[:-1]):
+            if self.element()._nodes[i] in nodes:
+                p += delta
+            ps.append(p)
+        ps.append(self.poly.to_list()[0])
+
+        self.poly = QPolygonF(ps)
+        path = QPainterPath()
+        path.add_polygon(self.poly)
+        self.set_path(path)
