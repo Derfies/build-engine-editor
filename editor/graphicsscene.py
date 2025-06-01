@@ -1,7 +1,9 @@
 import logging
+import math
 from collections import defaultdict
 
-from PySide6.QtCore import QCoreApplication
+from PySide6.QtCore import QCoreApplication, QRectF
+from PySide6.QtGui import QPainter, QPen, QColor
 from PySide6.QtWidgets import QApplication, QGraphicsScene
 
 from applicationframework.document import Document
@@ -17,43 +19,84 @@ from __feature__ import snake_case
 logger = logging.getLogger(__name__)
 
 
+class Grid:
+
+    def __init__(
+        self,
+        minor_spacing: int,
+        major_spacing: int,
+        minor_colour: QColor | None = None,
+        major_colour: QColor | None = None,
+        zoom_threshold: float = 0.02,
+    ):
+        minor_colour = minor_colour or QColor(50, 50, 50)
+        major_colour = major_colour or QColor(100, 100, 100)
+        self.minor_spacing = minor_spacing
+        self.minor_pen = QPen(minor_colour, 1)
+        self.minor_pen.set_cosmetic(True)
+        self.major_spacing = major_spacing
+        self.major_pen = QPen(major_colour, 1)
+        self.major_pen.set_cosmetic(True)
+        self.zoom_threshold = zoom_threshold
+
+    def draw(self, painter: QPainter, rect: QRectF):
+
+        # Skip drawing when zoomed too far out.
+        scale = painter.transform().m11()
+        if scale < self.zoom_threshold:
+            return
+
+        left = math.floor(rect.left() / self.minor_spacing) * self.minor_spacing
+        top = math.floor(rect.top() / self.minor_spacing) * self.minor_spacing
+
+        # Draw vertical lines.
+        x = left
+        while x < rect.right():
+            if int(x) % self.major_spacing == 0:
+                painter.set_pen(self.major_pen)
+            else:
+                painter.set_pen(self.minor_pen)
+            painter.draw_line(x, rect.top(), x, rect.bottom())
+            x += self.minor_spacing
+
+        # Draw horizontal lines.
+        y = top
+        while y < rect.bottom():
+            if int(y) % self.major_spacing == 0:
+                painter.set_pen(self.major_pen)
+            else:
+                painter.set_pen(self.minor_pen)
+            painter.draw_line(rect.left(), y, rect.right(), y)
+            y += self.minor_spacing
+
+
 class GraphicsScene(QGraphicsScene):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+        self.grid = None
         self._node_to_items = defaultdict(set)
         self._item_to_nodes = {}
 
         self.current_tool = None
         self.app().updated.connect(self.update_event)
 
-        self.grid_spacing = 20
-        self.major_every = 5
-        #self.set_background_brush(Qt.white)
-        #self.draw_grid()
+        self.update_grid()
 
+    def update_grid(self):
+        self.grid = Grid(
+            self.app().grid_settings.minor_spacing,
+            self.app().grid_settings.major_spacing,
+            self.app().grid_settings.minor_colour,
+            self.app().grid_settings.major_colour,
+            self.app().grid_settings.zoom_threshold,
+        )
 
-    # def draw_grid(self):
-    #     minor_pen = QPen(QColor(200, 200, 200), 0)  # Light gray, thin line
-    #     major_pen = QPen(QColor(100, 100, 100), 0)  # Dark gray, thin line
-    #
-    #     left = int(self.scene_rect().left())
-    #     right = int(self.scene_rect().right())
-    #     top = int(self.scene_rect().top())
-    #     bottom = int(self.scene_rect().bottom())
-    #
-    #     for x in range(left, right + 1, self.grid_spacing):
-    #         if (x - left) // self.grid_spacing % self.major_every == 0:
-    #             self.add_line(x, top, x, bottom, major_pen)
-    #         else:
-    #             self.add_line(x, top, x, bottom, minor_pen)
-    #
-    #     for y in range(top, bottom + 1, self.grid_spacing):
-    #         if (y - top) // self.grid_spacing % self.major_every == 0:
-    #             self.add_line(left, y, right, y, major_pen)
-    #         else:
-    #             self.add_line(left, y, right, y, minor_pen)
+    def draw_background(self, painter: QPainter, rect: QRectF):
+        if not self.app().grid_settings.visible:
+            return
+        self.grid.draw(painter, rect)
 
     def app(self) -> QCoreApplication:
         return QApplication.instance()
@@ -90,7 +133,7 @@ class GraphicsScene(QGraphicsScene):
     def update_event(self, doc: Document, flags: UpdateFlag):
         logger.debug(f'update_event: {flags}')
         self.block_signals(True)
-        if flags != UpdateFlag.SELECTION:
+        if flags != UpdateFlag.SELECTION and flags != UpdateFlag.SETTINGS:
 
             self.clear()
             if doc.content.g is not None:
@@ -117,5 +160,9 @@ class GraphicsScene(QGraphicsScene):
             # Update selected pen.
             for item in self.items():
                 item.update_pen()
+
+        # TODO: Think this logic through again
+        if UpdateFlag.SETTINGS in flags:
+            self.update_grid()
 
         self.block_signals(False)

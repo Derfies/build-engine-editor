@@ -2,6 +2,7 @@ import logging
 import sys
 from pathlib import Path
 
+import marshmallow_dataclass
 import qdarktheme
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QActionGroup, QKeySequence
@@ -10,6 +11,7 @@ from PySide6.QtWidgets import QSplitter, QVBoxLayout, QWidget
 from applicationframework.application import Application
 from applicationframework.document import Document
 from applicationframework.mainwindow import MainWindow as MainWindowBase
+from editor.settings import GridSettings, HotkeySettings
 from editor.constants import ModalTool, SelectionMode
 from editor.content import Content
 from editor.editorpropertygrid import PropertyGrid
@@ -38,11 +40,14 @@ class MainWindow(MainWindowBase):
     """
 
     def __init__(self, *args, **kwargs):
+        self.app().grid_settings = GridSettings()
+        self.app().hotkey_settings = HotkeySettings()
+
         super().__init__(*args, **kwargs)
 
         self.create_tool_bar()
 
-        self.scene = GraphicsScene()#self.tool_group)
+        self.scene = GraphicsScene()
         self.view = GraphicsView(self.scene)
         self.property_grid = PropertyGrid()
 
@@ -58,12 +63,13 @@ class MainWindow(MainWindowBase):
         self.set_central_widget(self.window)
 
         self.app().preferences_manager.register_widget('main_splitter', self.splitter)
+        self.app().preferences_manager.register_dataclass('grid_settings', self.app().grid_settings)
+        self.app().preferences_manager.register_dataclass('hotkey_settings', self.app().hotkey_settings)
 
         self.select_action.set_checked(True)
         self.select_node_action.set_checked(True)
         self.on_tool_action_group()
         self.on_select_action_group()
-        #self.scene.set_modal_tool(ModalTool.SELECT)
 
         #self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\LL-SEWER.MAP')
         self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\1.MAP')
@@ -143,13 +149,14 @@ class MainWindow(MainWindowBase):
 
         # Tool actions.
         # TODO: Wire up to preferences.
-        self.select_action.set_shortcut(QKeySequence('Q'))
-        self.move_action.set_shortcut(QKeySequence('W'))
-        self.rotate_action.set_shortcut(QKeySequence('E'))
-        self.scale_action.set_shortcut(QKeySequence('R'))
+        hotkeys: HotkeySettings = self.app().hotkey_settings
+        self.select_action.set_shortcut(QKeySequence(hotkeys.select))
+        self.move_action.set_shortcut(QKeySequence(hotkeys.move))
+        self.rotate_action.set_shortcut(QKeySequence(hotkeys.rotate))
+        self.scale_action.set_shortcut(QKeySequence(hotkeys.scale))
 
         # Misc actions.
-        self.frame_selection_action.set_shortcut(QKeySequence('F'))
+        self.frame_selection_action.set_shortcut(hotkeys.frame_selection)
 
     def create_menu_bar(self):
         super().create_menu_bar()
@@ -187,7 +194,12 @@ class MainWindow(MainWindowBase):
     def show_preferences(self):
 
         # Collect settings.
-        preferences = {}
+        grid_schema = marshmallow_dataclass.class_schema(GridSettings)()
+        hotkey_schema = marshmallow_dataclass.class_schema(HotkeySettings)()
+        preferences = {
+            'grid': grid_schema.dump(self.app().grid_settings),
+            'hotkeys': hotkey_schema.dump(self.app().hotkey_settings),
+        }
 
         # Show the dialog.
         dialog = PreferencesDialog()
@@ -196,9 +208,13 @@ class MainWindow(MainWindowBase):
             return
 
         # Deserialize back to data objects and set.
-        print(dialog.preferences)
+        for k, v in dialog.preferences['grid'].items():
+            setattr(self.app().grid_settings, k, v)
+        for k, v in dialog.preferences['hotkeys'].items():
+            setattr(self.app().hotkey_settings, k, v)
 
-        self.app().doc.updated(UpdateFlag.DISPLAY_SETTINGS, dirty=True)
+        # Don't treat modification of prefs as a content change.
+        self.app().doc.updated(UpdateFlag.SETTINGS, dirty=False)
 
     def frame_selection(self):
 
@@ -212,6 +228,19 @@ class MainWindow(MainWindowBase):
         ]
         items = items or self.scene.items()
         self.view.frame(items)
+
+    def show_event(self, event):
+        super().show_event(event)
+
+        # TODO: Think about if there's a cleaner way to do this.
+        self.connect_hotkeys()
+
+    def update_event(self, doc: Document, flags: UpdateFlag):
+        super().update_event(doc, flags)
+
+        # TODO: Think about if there's a cleaner way to do this.
+        if UpdateFlag.SETTINGS in flags:
+            self.connect_hotkeys()
 
 
 if __name__ == '__main__':

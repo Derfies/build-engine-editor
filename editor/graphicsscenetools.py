@@ -1,5 +1,3 @@
-from collections import defaultdict
-
 from PySide6.QtCore import QCoreApplication, Qt, QRectF
 from PySide6.QtGui import QTransform, QPen, QColorConstants, QPolygonF
 from PySide6.QtWidgets import QGraphicsScene, QApplication
