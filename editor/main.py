@@ -151,10 +151,9 @@ class MainWindow(MainWindowBase):
         self.frame_selection_action.triggered.connect(self.frame_selection)
 
     def connect_hotkeys(self):
-        super().connect_actions()
+        super().connect_hotkeys()
 
         # Tool actions.
-        # TODO: Wire up to preferences.
         hotkeys: HotkeySettings = self.app().hotkey_settings
         self.select_action.set_shortcut(QKeySequence(hotkeys.select))
         self.move_action.set_shortcut(QKeySequence(hotkeys.move))

@@ -31,11 +31,7 @@ class GraphicsItemBaseMixin:
         return self.data(0)
 
     def update_pen(self):
-        colour = QColorConstants.Cyan if self.element().is_selected else QColorConstants.DarkGray
-        width = 2 if self.element().is_selected else 1
-        self.pen = QPen(colour, width)
-        self.pen.set_cosmetic(True)
-        self.set_pen(self.pen)
+        ...
 
     def invalidate_shapes(self):
         self._shape = None
@@ -67,6 +63,15 @@ class NodeGraphicsItem(GraphicsItemBaseMixin, QGraphicsRectItem):
         self.set_flag(QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations)
         p = QPointF(self.element().x, self.element().y)
         self.set_pos(p)
+
+    def update_pen(self):
+
+        # TODO: Can possibly abstract this method a bit more.
+        colour = self.app().colour_settings.selected_node if self.element().is_selected else self.app().colour_settings.node
+        width = 2 if self.element().is_selected else 1
+        self.pen = QPen(colour, width)
+        self.pen.set_cosmetic(True)
+        self.set_pen(self.pen)
 
     def bounding_rect(self):
         return self.shape().bounding_rect()
@@ -105,6 +110,15 @@ class EdgeGraphicsItem(GraphicsItemBaseMixin, QGraphicsLineItem):
         p1 = QPointF(self.element().node1.x, self.element().node1.y)
         p2 = QPointF(self.element().node2.x, self.element().node2.y)
         self.set_line(QLineF(p1, p2))
+
+    def update_pen(self):
+
+        # TODO: Can possibly abstract this method a bit more.
+        colour = self.app().colour_settings.selected_edge if self.element().is_selected else self.app().colour_settings.edge
+        width = 2 if self.element().is_selected else 1
+        self.pen = QPen(colour, width)
+        self.pen.set_cosmetic(True)
+        self.set_pen(self.pen)
 
     def get_shape(self):
 
@@ -150,6 +164,8 @@ class PolyGraphicsItem(GraphicsItemBaseMixin, QGraphicsPathItem):
         self.setZValue(0)
 
     def update_pen(self):
+
+        # TODO: Can possibly abstract this method a bit more.
         colour = self.app().colour_settings.selected_poly if self.element().is_selected else self.app().colour_settings.poly
         self.pen = Qt.NoPen
         self.set_pen(self.pen)

@@ -61,6 +61,10 @@ class ColoursWidget(PreferenceWidgetBase):
 
         layout = QGridLayout()
         self.texts = [
+            'Node',
+            'Selected Node',
+            'Edge',
+            'Selected Edge',
             'Poly',
             'Selected Poly',
         ]
@@ -78,14 +82,15 @@ class ColoursWidget(PreferenceWidgetBase):
 
     def preferences(self) -> dict:
         return {
-            text.lower().replace(' ', '_'): widget.colour()
+            text: widget.colour()
             for text, widget in self.colour_pickers.items()
         }
 
     def set_preferences(self, data: dict):
-        for key, value in data.items():
-            widget = self.colour_pickers[key]
-            widget.set_colour(QColor(*value))
+        #for key, value in data.items():
+        for text, widget in self.colour_pickers.items():
+            #widget = self.colour_pickers[text]
+            widget.set_colour(QColor(*data[text]))
 
 
 class HotkeysWidget(PreferenceWidgetBase):
