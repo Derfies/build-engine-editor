@@ -11,7 +11,7 @@ from PySide6.QtWidgets import QSplitter, QVBoxLayout, QWidget
 from applicationframework.application import Application
 from applicationframework.document import Document
 from applicationframework.mainwindow import MainWindow as MainWindowBase
-from editor.settings import GridSettings, HotkeySettings
+from editor.settings import ColourSettings, GridSettings, HotkeySettings
 from editor.constants import ModalTool, SelectionMode
 from editor.content import Content
 from editor.editorpropertygrid import PropertyGrid
@@ -40,6 +40,7 @@ class MainWindow(MainWindowBase):
     """
 
     def __init__(self, *args, **kwargs):
+        self.app().colour_settings = ColourSettings()
         self.app().grid_settings = GridSettings()
         self.app().hotkey_settings = HotkeySettings()
 
@@ -63,6 +64,7 @@ class MainWindow(MainWindowBase):
         self.set_central_widget(self.window)
 
         self.app().preferences_manager.register_widget('main_splitter', self.splitter)
+        self.app().preferences_manager.register_dataclass('colour_settings', self.app().colour_settings)
         self.app().preferences_manager.register_dataclass('grid_settings', self.app().grid_settings)
         self.app().preferences_manager.register_dataclass('hotkey_settings', self.app().hotkey_settings)
 
@@ -71,8 +73,8 @@ class MainWindow(MainWindowBase):
         self.on_tool_action_group()
         self.on_select_action_group()
 
-        #self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\LL-SEWER.MAP')
-        self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\1.MAP')
+        self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\LL-SEWER.MAP')
+        # self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\1.MAP')
         #self.app().doc.updated(dirty=False)
 
     @property
@@ -194,9 +196,11 @@ class MainWindow(MainWindowBase):
     def show_preferences(self):
 
         # Collect settings.
+        colour_schema = marshmallow_dataclass.class_schema(ColourSettings)()
         grid_schema = marshmallow_dataclass.class_schema(GridSettings)()
         hotkey_schema = marshmallow_dataclass.class_schema(HotkeySettings)()
         preferences = {
+            'colours': colour_schema.dump(self.app().colour_settings),
             'grid': grid_schema.dump(self.app().grid_settings),
             'hotkeys': hotkey_schema.dump(self.app().hotkey_settings),
         }
@@ -208,6 +212,8 @@ class MainWindow(MainWindowBase):
             return
 
         # Deserialize back to data objects and set.
+        for k, v in dialog.preferences['colours'].items():
+            setattr(self.app().colour_settings, k, v)
         for k, v in dialog.preferences['grid'].items():
             setattr(self.app().grid_settings, k, v)
         for k, v in dialog.preferences['hotkeys'].items():

@@ -8,13 +8,20 @@ from marshmallow_dataclass import NewType
 class QColorField(fields.Field):
 
     def _serialize(self, value: QColor, attr, obj, **kwargs):
-        return value.name()
+        return value.red(), value.green(), value.blue(), value.alpha()
 
     def _deserialize(self, value, attr, data, **kwargs):
-        return QColor(value)
+        return QColor(*value)
 
 
 QColourType = NewType('QColour', QColor, QColorField)
+
+
+@dataclass
+class ColourSettings:
+
+    poly: QColourType = field(default_factory=lambda: QColor(0, 0, 127, 127))
+    selected_poly: QColourType = field(default_factory=lambda: QColor(0, 255, 255, 127))
 
 
 @dataclass

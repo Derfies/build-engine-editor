@@ -27,6 +27,8 @@ class ColourPicker(QWidget):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+        self._colour = QColor()
+
         self.button = QPushButton()
         self.button.clicked.connect(self.show_colour_dialog)
 
@@ -38,42 +40,52 @@ class ColourPicker(QWidget):
         self.set_colour(QColor())
 
     def show_colour_dialog(self):
-        colour = QColorDialog.get_color(self.colour, self, 'Choose Colour')
-        if colour.is_valid():
-            self.set_colour(colour)
+        print(self._colour)
+        dialog = QColorDialog(self._colour)
+        dialog.set_option(QColorDialog.ShowAlphaChannel, True)
+        if dialog.exec():
+            self.set_colour(dialog.selected_color())
+
+    def colour(self):
+        return self._colour
 
     def set_colour(self, colour: QColor):
-        self.colour = colour
-        self.button.set_style_sheet(f'background-color: {self.colour.name()};')
+        self._colour = colour
+        self.button.set_style_sheet(f'background-color: {self.colour().name()};')
 
 
-class TestPreferenceWidget(PreferenceWidgetBase):
+class ColoursWidget(PreferenceWidgetBase):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.resolution_rows = QLineEdit()
-        self.layout.add_widget(QLabel('Number of rows:'))
-        self.layout.add_widget(self.resolution_rows)
-        self.resolution_cols = QLineEdit()
-        self.layout.add_widget(QLabel('Number of columns:'))
-        self.layout.add_widget(self.resolution_cols)
+        layout = QGridLayout()
+        self.texts = [
+            'Poly',
+            'Selected Poly',
+        ]
+        self.colour_pickers = {}
 
-        int_validator = QIntValidator()
-        self.resolution_rows.set_validator(int_validator)
-        self.resolution_cols.set_validator(int_validator)
+        for i, text in enumerate(self.texts):
+            label = QLabel(text)
+            line_edit = ColourPicker()
+            layout.add_widget(label, i, 0)
+            layout.add_widget(line_edit, i, 1)
+            self.colour_pickers[text.lower().replace(' ', '_')] = line_edit
 
+        self.layout.add_layout(layout)
         self.layout.add_stretch()
 
     def preferences(self) -> dict:
         return {
-            'resolution_rows': int(self.resolution_rows.text()),
-            'resolution_cols': int(self.resolution_cols.text()),
+            text.lower().replace(' ', '_'): widget.colour()
+            for text, widget in self.colour_pickers.items()
         }
 
     def set_preferences(self, data: dict):
-        self.resolution_rows.set_text(str(data['resolution_rows']))
-        self.resolution_cols.set_text(str(data['resolution_cols']))
+        for key, value in data.items():
+            widget = self.colour_pickers[key]
+            widget.set_colour(QColor(*value))
 
 
 class HotkeysWidget(PreferenceWidgetBase):
@@ -113,7 +125,7 @@ class HotkeysWidget(PreferenceWidgetBase):
             widget.set_text(value)
 
 
-class GridsWidget(PreferenceWidgetBase):
+class GridWidget(PreferenceWidgetBase):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -155,18 +167,18 @@ class GridsWidget(PreferenceWidgetBase):
             'visible': self.visible.is_checked(),
             'zoom_threshold': float(self.zoom_threshold.text()),
             'minor_spacing': int(self.minor_spacing.text()),
-            'minor_colour': self.minor_colour.colour,
+            'minor_colour': self.minor_colour.colour(),
             'major_spacing': int(self.major_spacing.text()),
-            'major_colour': self.major_colour.colour,
+            'major_colour': self.major_colour.colour(),
         }
 
     def set_preferences(self, data: dict):
         self.visible.set_checked(data['visible'])
         self.zoom_threshold.set_text(str(data['zoom_threshold']))
         self.minor_spacing.set_text(str(data['minor_spacing']))
-        self.minor_colour.set_colour(QColor(data['minor_colour']))
+        self.minor_colour.set_colour(QColor(*data['minor_colour']))
         self.major_spacing.set_text(str(data['major_spacing']))
-        self.major_colour.set_colour(QColor(data['major_colour']))
+        self.major_colour.set_colour(QColor(*data['major_colour']))
 
 
 class PreferencesDialog(PreferenceDialogBase):
@@ -174,11 +186,11 @@ class PreferencesDialog(PreferenceDialogBase):
     def __init__(self, *args, **kwargs):
         super().__init__( *args, **kwargs)
 
-        # colours = PreferenceWidgetBase('Colours')
-        # self.add_widget(colours)
+        colours = ColoursWidget('Colours')
+        self.add_widget(colours)
+
+        grid = GridWidget('Grid')
+        self.add_widget(grid)
 
         hotkeys = HotkeysWidget('Hotkeys')
         self.add_widget(hotkeys)
-
-        grid = GridsWidget('Grid')
-        self.add_widget(grid)

@@ -1,6 +1,6 @@
-from PySide6.QtCore import QLineF, QPointF, QRect
+from PySide6.QtCore import QCoreApplication, QLineF, QPointF
 from PySide6.QtGui import QBrush, QColorConstants, QPainterPath, QPainterPathStroker, QPen, QPolygonF, Qt
-from PySide6.QtWidgets import QGraphicsItem, QGraphicsLineItem, QGraphicsPathItem, QGraphicsRectItem
+from PySide6.QtWidgets import QApplication, QGraphicsItem, QGraphicsLineItem, QGraphicsPathItem, QGraphicsRectItem
 
 from editor.graph import Edge, Node, Poly
 
@@ -23,6 +23,9 @@ class GraphicsItemBaseMixin:
         self._rubberband_shape = None
         self.set_data(0, element)
         self.update_pen()
+
+    def app(self) -> QCoreApplication:
+        return QApplication.instance()
 
     def element(self):
         return self.data(0)
@@ -145,7 +148,7 @@ class PolyGraphicsItem(GraphicsItemBaseMixin, QGraphicsPathItem):
         self.setZValue(0)
 
     def update_pen(self):
-        colour = QColorConstants.Cyan if self.element().is_selected else QColorConstants.DarkBlue
+        colour = self.app().colour_settings.selected_poly if self.element().is_selected else self.app().colour_settings.poly
         self.pen = Qt.NoPen
         self.set_pen(self.pen)
         self.brush = QBrush(colour)
