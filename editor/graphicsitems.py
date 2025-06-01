@@ -133,6 +133,8 @@ class EdgeGraphicsItem(GraphicsItemBaseMixin, QGraphicsLineItem):
 
 class PolyGraphicsItem(GraphicsItemBaseMixin, QGraphicsPathItem):
 
+    # TODO: Switch to QGraphicsPolygonItem.
+
     def __init__(self, poly: Poly, *args, **kwargs):
         super().__init__(poly, *args, **kwargs)
 

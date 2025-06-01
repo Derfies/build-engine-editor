@@ -1,6 +1,7 @@
-from PySide6.QtCore import QCoreApplication, Qt, QRectF
+import math
+from PySide6.QtCore import QCoreApplication, QPointF, QRectF, Qt
 from PySide6.QtGui import QTransform, QPen, QColorConstants, QPolygonF
-from PySide6.QtWidgets import QGraphicsScene, QApplication
+from PySide6.QtWidgets import QApplication, QGraphicsPolygonItem, QGraphicsScene
 
 from editor import commands
 from rubberband import RubberBandGraphicsItem
@@ -163,13 +164,55 @@ class MoveGraphicsSceneTool(SelectGraphicsSceneTool):
             super().mouse_release_event(event)
 
 
-class DrawSectorGraphicsSceneTool(GraphicsSceneToolBase):
+class CreatePolygonTool(GraphicsSceneToolBase):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.start_pos = QPointF()
+        self.current_polygon_item = None
+        self.sides = 4
+
+        self.pen = QPen(QColorConstants.DarkGray, 1, Qt.DashLine)
+        self.pen.set_cosmetic(True)
+
+    def _create_polygon(self, center: QPointF, radius: float) -> QPolygonF:
+        points = []
+        for i in range(self.sides):
+            angle = 2 * math.pi * i / self.sides
+            x = center.x() + radius * math.cos(angle)
+            y = center.y() + radius * math.sin(angle)
+            points.append(QPointF(x, y))
+        return QPolygonF(points)
+
+    def mouse_press_event(self, event):
+        if event.button() == Qt.LeftButton:
+            self.start_pos = event.scene_pos()
+            self.current_polygon_item = QGraphicsPolygonItem()
+            self.current_polygon_item.set_pen(self.pen)
+            self.scene.add_item(self.current_polygon_item)
+
+    def mouse_move_event(self, event):
+        if self.current_polygon_item is not None:
+            end_pos = event.scene_pos()
+            radius = (end_pos - self.start_pos).manhattan_length()
+            polygon = self._create_polygon(self.start_pos, radius)
+            self.current_polygon_item.set_polygon(polygon)
+
+    def mouse_release_event(self, event):
+        if event.button() == Qt.LeftButton:
+            self.scene.remove_item(self.current_polygon_item)
+            self.current_polygon_item = None
+
+
+class CreateFreeformPolygonTool(GraphicsSceneToolBase):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self._points = []
         self.temp_polygon = None
+
         self.pen = QPen(QColorConstants.DarkGray, 1, Qt.DashLine)
         self.pen.set_cosmetic(True)
 

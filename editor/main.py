@@ -101,9 +101,12 @@ class MainWindow(MainWindowBase):
         self.scale_action = QAction(self.get_icon('arrow-resize-135', icons_path=self.local_icons_path), '&Select', self)
         self.scale_action.set_data(ModalTool.SCALE)
         self.scale_action.set_checkable(True)
-        self.draw_poly_action = QAction(self.get_icon('layer-shape-polygon.png', icons_path=self.local_icons_path), '&Draw Poly', self)
-        self.draw_poly_action.set_data(ModalTool.DRAW_POLY)
-        self.draw_poly_action.set_checkable(True)
+        self.create_poly_action = QAction(self.get_icon('layer-shape', icons_path=self.local_icons_path), '&Draw Poly', self)
+        self.create_poly_action.set_data(ModalTool.CREATE_POLY)
+        self.create_poly_action.set_checkable(True)
+        self.create_freeform_poly_action = QAction(self.get_icon('layer-shape-polygon', icons_path=self.local_icons_path), '&Draw Poly', self)
+        self.create_freeform_poly_action.set_data(ModalTool.CREATE_FREEFORM_POLY)
+        self.create_freeform_poly_action.set_checkable(True)
 
         # Select actions.
         self.select_node_action = QAction(self.get_icon('layer-select-point', icons_path=self.local_icons_path), '&Select Node', self)
@@ -126,7 +129,8 @@ class MainWindow(MainWindowBase):
         self.tool_action_group.add_action(self.move_action)
         self.tool_action_group.add_action(self.rotate_action)
         self.tool_action_group.add_action(self.scale_action)
-        self.tool_action_group.add_action(self.draw_poly_action)
+        self.tool_action_group.add_action(self.create_poly_action)
+        self.tool_action_group.add_action(self.create_freeform_poly_action)
         self.tool_action_group.triggered.connect(self.on_tool_action_group)
 
         # Select action group.
@@ -176,7 +180,8 @@ class MainWindow(MainWindowBase):
         tool_bar.add_action(self.move_action)
         tool_bar.add_action(self.rotate_action)
         tool_bar.add_action(self.scale_action)
-        tool_bar.add_action(self.draw_poly_action)
+        tool_bar.add_action(self.create_poly_action)
+        tool_bar.add_action(self.create_freeform_poly_action)
         tool_bar.add_separator()
         tool_bar.add_action(self.select_node_action)
         tool_bar.add_action(self.select_edge_action)

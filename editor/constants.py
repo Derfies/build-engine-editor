@@ -7,7 +7,8 @@ class ModalTool(IntEnum):
     MOVE = 1
     ROTATE = 2
     SCALE = 3
-    DRAW_POLY = 4
+    CREATE_POLY = 4
+    CREATE_FREEFORM_POLY = 5
 
 
 class SelectionMode(IntEnum):

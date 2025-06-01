@@ -9,7 +9,12 @@ from PySide6.QtWidgets import QApplication, QGraphicsScene
 from applicationframework.document import Document
 from editor.constants import ModalTool, SelectionMode
 from editor.graphicsitems import EdgeGraphicsItem, NodeGraphicsItem, PolyGraphicsItem
-from editor.graphicsscenetools import DrawSectorGraphicsSceneTool, MoveGraphicsSceneTool, SelectGraphicsSceneTool
+from editor.graphicsscenetools import (
+    CreatePolygonTool,
+    CreateFreeformPolygonTool,
+    MoveGraphicsSceneTool,
+    SelectGraphicsSceneTool,
+)
 from editor.updateflag import UpdateFlag
 
 # noinspection PyUnresolvedReferences
@@ -105,7 +110,8 @@ class GraphicsScene(QGraphicsScene):
         tool_cls = {
             ModalTool.SELECT: SelectGraphicsSceneTool,
             ModalTool.MOVE: MoveGraphicsSceneTool,
-            ModalTool.DRAW_POLY: DrawSectorGraphicsSceneTool,
+            ModalTool.CREATE_POLY: CreatePolygonTool,
+            ModalTool.CREATE_FREEFORM_POLY: CreateFreeformPolygonTool,
         }[modal_tool]
         self.current_tool = tool_cls(self)
 
