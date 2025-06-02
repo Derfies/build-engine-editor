@@ -32,16 +32,20 @@ class Grid:
         major_spacing: int,
         minor_colour: QColor | None = None,
         major_colour: QColor | None = None,
+        axes_colour: QColor | None = None,
         zoom_threshold: float = 0.02,
     ):
+        self.minor_spacing = minor_spacing
+        self.major_spacing = major_spacing
         minor_colour = minor_colour or QColor(50, 50, 50)
         major_colour = major_colour or QColor(100, 100, 100)
-        self.minor_spacing = minor_spacing
+        axes_colour = axes_colour or QColor(255, 255, 255)
         self.minor_pen = QPen(minor_colour, 1)
         self.minor_pen.set_cosmetic(True)
-        self.major_spacing = major_spacing
         self.major_pen = QPen(major_colour, 1)
         self.major_pen.set_cosmetic(True)
+        self.axes_pen = QPen(axes_colour, 1)
+        self.axes_pen.set_cosmetic(True)
         self.zoom_threshold = zoom_threshold
 
     def draw(self, painter: QPainter, rect: QRectF):
@@ -57,7 +61,9 @@ class Grid:
         # Draw vertical lines.
         x = left
         while x < rect.right():
-            if int(x) % self.major_spacing == 0:
+            if int(x) == 0:
+                painter.set_pen(self.axes_pen)
+            elif int(x) % self.major_spacing == 0:
                 painter.set_pen(self.major_pen)
             else:
                 painter.set_pen(self.minor_pen)
@@ -67,7 +73,9 @@ class Grid:
         # Draw horizontal lines.
         y = top
         while y < rect.bottom():
-            if int(y) % self.major_spacing == 0:
+            if int(y) == 0:
+                painter.set_pen(self.axes_pen)
+            elif int(y) % self.major_spacing == 0:
                 painter.set_pen(self.major_pen)
             else:
                 painter.set_pen(self.minor_pen)
@@ -82,12 +90,11 @@ class GraphicsScene(QGraphicsScene):
 
         self.grid = None
         self._node_to_items = defaultdict(set)
+        self._node_to_node_item = {}
         self._item_to_nodes = {}
 
         self.current_tool = None
         self.app().updated.connect(self.update_event)
-
-        self.update_grid()
 
     def update_grid(self):
         self.grid = Grid(
@@ -95,6 +102,7 @@ class GraphicsScene(QGraphicsScene):
             self.app().grid_settings.major_spacing,
             self.app().grid_settings.minor_colour,
             self.app().grid_settings.major_colour,
+            self.app().grid_settings.axes_colour,
             self.app().grid_settings.zoom_threshold,
         )
 
@@ -145,22 +153,30 @@ class GraphicsScene(QGraphicsScene):
             if doc.content.g is not None:
                 logger.debug(f'full reDRAW: {flags}')
                 for node in doc.content.g.nodes:
+                    #logger.debug(f'Adding item: {node}')
                     node_item = NodeGraphicsItem(node)
                     self.add_item(node_item)
                 for edge in doc.content.g.edges:
+                    #logger.debug(f'Adding item: {edge}')
                     edge_item = EdgeGraphicsItem(edge)
                     self.add_item(edge_item)
                 for poly in doc.content.g.polys:
+                    #logger.debug(f'Adding item: {poly}')
                     poly_item = PolyGraphicsItem(poly)
                     self.add_item(poly_item)
 
                 # Build node -> item map.
                 # TODO: Put in scene object and update only on doc update.
+                self._node_to_items.clear()
+                self._node_to_node_item.clear()
                 for item in self.items():
                     item_nodes = item.element().nodes
-                    self._item_to_nodes[item] = item_nodes
+                    self._item_to_nodes[item] = set(item_nodes)
                     for node in item_nodes:
                         self._node_to_items[node].add(item)
+
+                    if isinstance(item, NodeGraphicsItem):
+                        self._node_to_node_item[node] = item
         else:
 
             # Update selected pen.

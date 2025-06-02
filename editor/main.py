@@ -73,9 +73,13 @@ class MainWindow(MainWindowBase):
         self.on_tool_action_group()
         self.on_select_action_group()
 
-        self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\LL-SEWER.MAP')
-        # self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\1.MAP')
+        #self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\LL-SEWER.MAP')
+        #self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\1.MAP')
+        self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\editor\tests\data\1_squares.map')
         #self.app().doc.updated(dirty=False)
+
+        #self.app().doc.file_path = r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\out.map'
+        #self.app().doc.save()
 
     @property
     def local_icons_path(self) -> Path:
@@ -244,6 +248,10 @@ class MainWindow(MainWindowBase):
 
         # TODO: Think about if there's a cleaner way to do this.
         self.connect_hotkeys()
+
+        # This is a bit of a hack. We need to refresh after preferences are
+        # loaded and that gets done during show_event.
+        self.app().doc.updated(dirty=False)
 
     def update_event(self, doc: Document, flags: UpdateFlag):
         super().update_event(doc, flags)

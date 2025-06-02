@@ -38,6 +38,7 @@ class GridSettings:
     minor_colour: QColourType = field(default_factory=lambda: QColor(50, 50, 50))
     major_spacing: int = 512
     major_colour: QColourType = field(default_factory=lambda: QColor(100, 100, 100))
+    axes_colour: QColourType = field(default_factory=lambda: QColor(150, 150, 150))
 
 
 @dataclass
