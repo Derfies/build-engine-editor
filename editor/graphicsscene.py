@@ -145,12 +145,15 @@ class GraphicsScene(QGraphicsScene):
             if doc.content.g is not None:
                 logger.debug(f'full reDRAW: {flags}')
                 for node in doc.content.g.nodes:
+                    logger.debug(f'Adding item: {node}')
                     node_item = NodeGraphicsItem(node)
                     self.add_item(node_item)
                 for edge in doc.content.g.edges:
+                    logger.debug(f'Adding item: {edge}')
                     edge_item = EdgeGraphicsItem(edge)
                     self.add_item(edge_item)
                 for poly in doc.content.g.polys:
+                    logger.debug(f'Adding item: {poly}')
                     poly_item = PolyGraphicsItem(poly)
                     self.add_item(poly_item)
 

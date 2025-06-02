@@ -1,9 +1,12 @@
 import math
+
 from PySide6.QtCore import QCoreApplication, QPointF, QRectF, Qt
 from PySide6.QtGui import QTransform, QPen, QColorConstants, QPolygonF
 from PySide6.QtWidgets import QApplication, QGraphicsPolygonItem, QGraphicsScene
 
 from editor import commands
+from editor.graph import Edge, Node, Poly
+from gameengines.build.map import Map, Sector, Sprite, Wall
 from rubberband import RubberBandGraphicsItem
 
 # noinspection PyUnresolvedReferences
@@ -153,6 +156,9 @@ class MoveGraphicsSceneTool(SelectGraphicsSceneTool):
     def mouse_release_event(self, event):
         if self._last_scene_pos is not None:
 
+            #for item in self.affected_items:
+            commands.do_it(self.affected_items)
+
             # TODO: Only need to call this during commit, I think.
             for item in self.affected_items:
                 item.invalidate_shapes()
@@ -201,8 +207,27 @@ class CreatePolygonTool(GraphicsSceneToolBase):
 
     def mouse_release_event(self, event):
         if event.button() == Qt.LeftButton:
+
+            # Build data from polygon.
+            # nodes = [
+            #     Node(Wall())
+            # ]
+
+            #import uuid
+
+            nodes = []
+            for point in self.current_polygon_item.polygon():
+                nodes.append(Node(Wall(x=point.x(), y=point.y())))
+
+            # poly = Poly([
+            #     Node(Wall())
+            #
+            # ])
+
             self.scene.remove_item(self.current_polygon_item)
             self.current_polygon_item = None
+
+            commands.add_poly(Poly(nodes, Sector()))
 
 
 class CreateFreeformPolygonTool(GraphicsSceneToolBase):

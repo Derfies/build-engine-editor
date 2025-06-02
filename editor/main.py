@@ -73,8 +73,9 @@ class MainWindow(MainWindowBase):
         self.on_tool_action_group()
         self.on_select_action_group()
 
-        self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\LL-SEWER.MAP')
-        # self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\1.MAP')
+        #self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\LL-SEWER.MAP')
+        #self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\1.MAP')
+        self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\editor\tests\data\4_squares.map')
         #self.app().doc.updated(dirty=False)
 
     @property
