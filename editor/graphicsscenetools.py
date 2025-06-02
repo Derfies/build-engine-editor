@@ -16,6 +16,21 @@ from __feature__ import snake_case
 DRAG_TOLERANCE = 4
 
 
+
+def create_poly_edges(points: list[QPointF]):
+    nodes = [Node(Wall(x=int(point.x()), y=int(point.y()))) for point in points]
+    poly_edges = []
+    for i in range(len(nodes)):
+        node1 = nodes[i]
+        node2 = nodes[(i + 1) % len(nodes)]
+
+        # TODO: Ensure correct winding order - the wall that the edge
+        # owns is on the LEFT (I think).
+        edge = Edge(node1, node2, node1.data)
+        poly_edges.append(edge)
+    return poly_edges
+
+
 class GraphicsSceneToolBase:
 
     def __init__(self, scene: QGraphicsScene):
@@ -169,18 +184,18 @@ class CreatePolygonTool(GraphicsSceneToolBase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.start_pos = QPointF()
-        self.current_polygon_item = None
-        self.sides = 4
+        self._num_sides = 4
+        self._start_point = None
+        self._preview = None
+        self._pen = QPen(QColorConstants.DarkGray, 1, Qt.DashLine)
+        self._pen.set_cosmetic(True)
 
-        self.pen = QPen(QColorConstants.DarkGray, 1, Qt.DashLine)
-        self.pen.set_cosmetic(True)
-
-    def _create_polygon(self, center: QPointF, radius: float) -> QPolygonF:
-        angle_offset = math.pi / self.sides
+    @staticmethod
+    def _create_polygon(center: QPointF, num_sides: int, radius: float) -> QPolygonF:
+        angle_offset = math.pi / num_sides
         points = []
-        for i in range(self.sides):
-            angle = 2 * math.pi * i / self.sides + angle_offset
+        for i in range(num_sides):
+            angle = 2 * math.pi * i / num_sides + angle_offset
             x = center.x() + radius * math.cos(angle)
             y = center.y() + radius * math.sin(angle)
             points.append(QPointF(x, y))
@@ -188,40 +203,23 @@ class CreatePolygonTool(GraphicsSceneToolBase):
 
     def mouse_press_event(self, event):
         if event.button() == Qt.LeftButton:
-            self.start_pos = event.scene_pos()
-            self.current_polygon_item = QGraphicsPolygonItem()
-            self.current_polygon_item.set_pen(self.pen)
-            self.scene.add_item(self.current_polygon_item)
+            self._start_point = event.scene_pos()
+            self._preview = QGraphicsPolygonItem()
+            self._preview.set_pen(self._pen)
+            self.scene.add_item(self._preview)
 
     def mouse_move_event(self, event):
-        if self.current_polygon_item is not None:
-            end_pos = event.scene_pos()
-            radius = (end_pos - self.start_pos).manhattan_length()
-            polygon = self._create_polygon(self.start_pos, radius)
-            self.current_polygon_item.set_polygon(polygon)
+        if self._preview is not None:
+            end_point = event.scene_pos()
+            radius = (end_point - self._start_point).manhattan_length()
+            polygon = self._create_polygon(self._start_point, self._num_sides, radius)
+            self._preview.set_polygon(polygon)
 
     def mouse_release_event(self, event):
         if event.button() == Qt.LeftButton:
-
-            nodes = [
-                Node(Wall(x=point.x(), y=point.y()))
-                for point in self.current_polygon_item.polygon()
-            ]
-
-            poly_edges = []
-            for i in range(len(nodes)):
-
-                node1 = nodes[i]
-                node2 = nodes[(i + 1) % len(nodes)]
-
-                # TODO: Ensure correct winding order - the wall that the edge
-                # owns is on the LEFT (I think).
-                edge = Edge(node1, node2, node1.data)
-                poly_edges.append(edge)
-
-            self.scene.remove_item(self.current_polygon_item)
-            self.current_polygon_item = None
-
+            poly_edges = create_poly_edges(self._preview.polygon())
+            self.scene.remove_item(self._preview)
+            self._preview = None
             commands.add_poly(Poly(poly_edges, Sector()))
 
 
@@ -231,34 +229,30 @@ class CreateFreeformPolygonTool(GraphicsSceneToolBase):
         super().__init__(*args, **kwargs)
 
         self._points = []
-        self.temp_polygon = None
+        self._preview = None
+        self._pen = QPen(QColorConstants.DarkGray, 1, Qt.DashLine)
+        self._pen.set_cosmetic(True)
 
-        self.pen = QPen(QColorConstants.DarkGray, 1, Qt.DashLine)
-        self.pen.set_cosmetic(True)
-
-    def _update_polygon_preview(self, temp_point=None):
-        if self.temp_polygon:
-            self.scene.remove_item(self.temp_polygon)
-
-        polygon_points = self._points[:]
-        if temp_point:
-            polygon_points.append(temp_point)
-        self.temp_polygon = self.scene.add_polygon(QPolygonF(polygon_points), self.pen)
+    def _update_preview(self, temp_point: QPointF | None = None):
+        if self._preview is not None:
+            self.scene.remove_item(self._preview)
+        points = self._points[:]
+        if temp_point is not None:
+            points.append(temp_point)
+        self._preview = self.scene.add_polygon(QPolygonF(points), self._pen)
 
     def mouse_press_event(self, event):
         if event.button() == Qt.LeftButton:
-            point = event.scene_pos()
-            self._points.append(point)
-            self._update_polygon_preview()
-        elif event.button() == Qt.RightButton:
-            self.finish_polygon()
+            self._points.append(event.scene_pos())
+            self._update_preview()
+        elif event.button() == Qt.RightButton and self._preview is not None:
+            self._points.append(event.scene_pos())
+            poly_edges = create_poly_edges(self._points)
+            self.scene.remove_item(self._preview)
+            self._preview = None
+            self._points = []
+            commands.add_poly(Poly(poly_edges, Sector()))
 
     def mouse_move_event(self, event):
         if self._points:
-            self._update_polygon_preview(event.scene_pos())
-
-    def finish_polygon(self):
-        if self.temp_polygon:
-            self.scene.remove_item(self.temp_polygon)
-            self.temp_polygon = None
-            self._points = []
+            self._update_preview(event.scene_pos())

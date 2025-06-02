@@ -3,8 +3,8 @@ from collections import defaultdict
 
 from applicationframework.contentbase import ContentBase
 from editor.graph import Edge, Graph, Node, Poly
-from gameengines.build.duke3d import MapReader as Duke3dMapReader
-from gameengines.build.map import Map, Wall
+from gameengines.build.duke3d import MapReader as Duke3dMapReader, MapWriter as Duke3dMapWriter
+from gameengines.build.map import Map
 
 
 logger = logging.getLogger(__name__)
@@ -40,6 +40,7 @@ class Content(ContentBase):
 
         wall_to_walls = defaultdict(set)
         for i, wall_data in enumerate(m.walls):
+            print('READ:', wall_data)
             wall_to_walls[i].add(i)
             if wall_data.nextwall > -1:
                 nextwall_data = m.walls[wall_data.nextwall]
@@ -106,7 +107,21 @@ class Content(ContentBase):
             self.g.add_poly(Poly(poly_edges, sector_data))
 
     def save(self, file_path: str):
-        raise NotImplementedError()
+        #raise NotImplementedError()
+
+        edge_map = {}
+        m = Map()
+        for wall, edge in enumerate(self.g.edges):
+            m.walls.append(edge.data)
+            edge_map[wall] = edge
+
+        # Now ensure wall point2 is calculated correctly
+        for wall, wall_data in enumerate(m.walls):
+            wall_data.point2 = edge_map[wall].node2.data
+
+
+        with open(file_path, 'wb') as f:
+            m = Duke3dMapWriter()(m, f)
 
 
 if __name__ == '__main__':

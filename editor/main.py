@@ -78,6 +78,9 @@ class MainWindow(MainWindowBase):
         self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\editor\tests\data\1_squares.map')
         #self.app().doc.updated(dirty=False)
 
+        #self.app().doc.file_path = r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\out.map'
+        #self.app().doc.save()
+
     @property
     def local_icons_path(self) -> Path:
         return Path(__file__).parent.joinpath('data', 'icons')
