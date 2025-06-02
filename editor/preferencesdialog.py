@@ -143,6 +143,7 @@ class GridWidget(PreferenceWidgetBase):
         self.minor_colour = ColourPicker()
         self.major_spacing = QLineEdit()
         self.major_colour = ColourPicker()
+        self.axes_colour = ColourPicker()
 
         i = 0
         for text, widget in {
@@ -152,6 +153,7 @@ class GridWidget(PreferenceWidgetBase):
             'Minor Colour': self.minor_colour,
             'Major Spacing': self.major_spacing,
             'Major Colour': self.major_colour,
+            'Axes Colour': self.axes_colour,
         }.items():
             layout.add_widget(QLabel(text), i, 0)
             layout.add_widget(widget, i, 1)
@@ -175,6 +177,7 @@ class GridWidget(PreferenceWidgetBase):
             'minor_colour': self.minor_colour.colour(),
             'major_spacing': int(self.major_spacing.text()),
             'major_colour': self.major_colour.colour(),
+            'axes_colour': self.axes_colour.colour(),
         }
 
     def set_preferences(self, data: dict):
@@ -184,6 +187,7 @@ class GridWidget(PreferenceWidgetBase):
         self.minor_colour.set_colour(QColor(*data['minor_colour']))
         self.major_spacing.set_text(str(data['major_spacing']))
         self.major_colour.set_colour(QColor(*data['major_colour']))
+        self.axes_colour.set_colour(QColor(*data['axes_colour']))
 
 
 class PreferencesDialog(PreferenceDialogBase):

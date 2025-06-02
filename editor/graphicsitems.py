@@ -1,6 +1,6 @@
 from PySide6.QtCore import QCoreApplication, QLineF, QPointF
 from PySide6.QtGui import QBrush, QColorConstants, QPainterPath, QPainterPathStroker, QPen, QPolygonF, Qt
-from PySide6.QtWidgets import QApplication, QGraphicsItem, QGraphicsLineItem, QGraphicsPathItem, QGraphicsRectItem
+from PySide6.QtWidgets import QApplication, QGraphicsItem, QGraphicsLineItem, QGraphicsPathItem, QGraphicsRectItem, QGraphicsPolygonItem
 
 from editor.graph import Edge, Node, Poly
 
@@ -145,22 +145,15 @@ class EdgeGraphicsItem(GraphicsItemBaseMixin, QGraphicsLineItem):
         self.set_line(QLineF(p1, p2))
 
 
-class PolyGraphicsItem(GraphicsItemBaseMixin, QGraphicsPathItem):
-
-    # TODO: Switch to QGraphicsPolygonItem.
+class PolyGraphicsItem(GraphicsItemBaseMixin, QGraphicsPolygonItem):
 
     def __init__(self, poly: Poly, *args, **kwargs):
         super().__init__(poly, *args, **kwargs)
 
-        ps = [
-            QPointF(node.data.x, node.data.y)
-            for node in poly._nodes
-        ]
-        ps.append(QPointF(poly._nodes[0].data.x, poly._nodes[0].data.y))
-        self.poly = QPolygonF(ps)
-        path = QPainterPath()
-        path.add_polygon(self.poly)
-        self.set_path(path)
+        self.set_polygon([
+            QPointF(edge.node1.data.x, edge.node1.data.y)
+            for edge in poly.edges
+        ])
         self.setZValue(0)
 
     def update_pen(self):
@@ -175,18 +168,12 @@ class PolyGraphicsItem(GraphicsItemBaseMixin, QGraphicsPathItem):
     def get_shape(self):
 
         # TODO: This could be default as we're having to override override behaviour
-        return QGraphicsPathItem.shape(self)
+        return QGraphicsPolygonItem.shape(self)
 
     def update_nodes(self, nodes: set[Node], delta: QPointF):
-
         ps = []
-        for i, p in enumerate(self.poly.to_list()[:-1]):
-            if self.element()._nodes[i] in nodes:
+        for i, p in enumerate(self.polygon()):
+            if self.element().nodes[i] in nodes:
                 p += delta
             ps.append(p)
-        ps.append(self.poly.to_list()[0])
-
-        self.poly = QPolygonF(ps)
-        path = QPainterPath()
-        path.add_polygon(self.poly)
-        self.set_path(path)
+        self.set_polygon(ps)

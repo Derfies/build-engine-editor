@@ -155,16 +155,10 @@ class MoveGraphicsSceneTool(SelectGraphicsSceneTool):
 
     def mouse_release_event(self, event):
         if self._last_scene_pos is not None:
-
-            #for item in self.affected_items:
-            commands.do_it(self.affected_items)
-
-            # TODO: Only need to call this during commit, I think.
-            for item in self.affected_items:
-                item.invalidate_shapes()
-
-            print('COMMIT MOVE')
-            #self.app().doc.updated()
+            commands.transform_node_items([
+                self.scene._node_to_node_item[node]
+                for node in self.affected_nodes
+            ])
             self._last_scene_pos = None
         else:
             super().mouse_release_event(event)
@@ -183,9 +177,10 @@ class CreatePolygonTool(GraphicsSceneToolBase):
         self.pen.set_cosmetic(True)
 
     def _create_polygon(self, center: QPointF, radius: float) -> QPolygonF:
+        angle_offset = math.pi / self.sides
         points = []
         for i in range(self.sides):
-            angle = 2 * math.pi * i / self.sides
+            angle = 2 * math.pi * i / self.sides + angle_offset
             x = center.x() + radius * math.cos(angle)
             y = center.y() + radius * math.sin(angle)
             points.append(QPointF(x, y))
@@ -208,26 +203,26 @@ class CreatePolygonTool(GraphicsSceneToolBase):
     def mouse_release_event(self, event):
         if event.button() == Qt.LeftButton:
 
-            # Build data from polygon.
-            # nodes = [
-            #     Node(Wall())
-            # ]
+            nodes = [
+                Node(Wall(x=point.x(), y=point.y()))
+                for point in self.current_polygon_item.polygon()
+            ]
 
-            #import uuid
+            poly_edges = []
+            for i in range(len(nodes)):
 
-            nodes = []
-            for point in self.current_polygon_item.polygon():
-                nodes.append(Node(Wall(x=point.x(), y=point.y())))
+                node1 = nodes[i]
+                node2 = nodes[(i + 1) % len(nodes)]
 
-            # poly = Poly([
-            #     Node(Wall())
-            #
-            # ])
+                # TODO: Ensure correct winding order - the wall that the edge
+                # owns is on the LEFT (I think).
+                edge = Edge(node1, node2, node1.data)
+                poly_edges.append(edge)
 
             self.scene.remove_item(self.current_polygon_item)
             self.current_polygon_item = None
 
-            commands.add_poly(Poly(nodes, Sector()))
+            commands.add_poly(Poly(poly_edges, Sector()))
 
 
 class CreateFreeformPolygonTool(GraphicsSceneToolBase):
