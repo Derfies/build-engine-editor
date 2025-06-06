@@ -5,10 +5,8 @@ class MapDocument(Document):
 
     @property
     def selected_elements(self) -> dict[int, dict]:
-        # if self.content.g is None:
-        #     return {}
         return {
             edge
-            for edge in self.content.g.nodes | self.content.g.edges | set(self.content.g.polys)
+            for edge in self.content.nodes | self.content.edges | set(self.content.faces)
             if edge.is_selected
         }

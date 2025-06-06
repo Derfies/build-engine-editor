@@ -1,66 +1,55 @@
-from applicationframework.actions import Base
-from editor.graph import Edge, Node, Poly
-from editor.updateflag import UpdateFlag
+from dataclasses import dataclass
+
+from applicationframework.actions import Edit
 
 # noinspection PyUnresolvedReferences
 from __feature__ import snake_case
 
 
-class SelectDeselectElementsBase(Base):
+@dataclass
+class GraphEditData:
 
-    # TODO: Use setattribute?
-
-    def __init__(self, elements: set[Edge, Node]):
-        self.elements = elements
-
-    def _select_elements(self):
-        for element in self.elements:
-            element.is_selected = True
-        return UpdateFlag.SELECTION
-
-    def _deselect_elements(self):
-        for element in self.elements:
-            element.is_selected = False
-        return UpdateFlag.SELECTION
+    nodes: tuple
+    edges: tuple[tuple]
+    faces: tuple[tuple]
+    node_attrs: dict[tuple]
+    edge_attrs: dict[tuple[tuple]]
+    face_attrs: dict[tuple[tuple]]
 
 
-class SelectElements(SelectDeselectElementsBase):
+class GraphEditBase(Edit):
 
-    def undo(self):
-        self._deselect_elements()
+    def __init__(self, nodes: tuple, edges: tuple[tuple], faces: tuple[tuple], *args, **kwargs):
+        self.node_attrs = kwargs.pop('node_attrs', {})
+        self.edge_attrs = kwargs.pop('edge_attrs', {})
+        self.face_attrs = kwargs.pop('face_attrs', {})
+        super().__init__(*args, **kwargs)
 
-    def redo(self):
-        self._select_elements()
+        print(faces)
+        print(self.face_attrs)
 
-
-class DeselectElements(SelectDeselectElementsBase):
+        self.nodes = nodes
+        self.edges = edges
+        self.faces = faces
 
     def undo(self):
-        self._select_elements()
+
+        # TODO: Use nicer interface.
+        # TODO: Needs to handle all node / edge / face with attr combos.
+        for face in self.faces:
+            del self.obj._faces[face]
+        for edge in self.edges:
+            self.obj.data.remove_edge(*edge)
+        for node in self.nodes:
+            self.obj.data.remove_node(node)
+        self.obj.update_undirected()
 
     def redo(self):
-        self._deselect_elements()
-
-
-class AddPoly(Base):
-
-    def __init__(self, poly: Poly):
-        self.poly = poly
-
-    def undo(self):
-        self.app().doc.content.g.polys.remove(self.poly)
-
-    def redo(self):
-        self.app().doc.content.g.add_poly(self.poly)
-
-
-class CreatePoly(Base):
-
-    def __init__(self, points):
-        self.points = points
-
-    def undo(self):
-        self._deselect_elements()
-
-    def redo(self):
-        self._select_elements()
+        for node in self.nodes:
+            self.obj.data.add_node(node, **self.node_attrs.get(node, {}))
+        for edge in self.edges:
+            self.obj.data.add_edge(*edge, **self.edge_attrs.get(edge, {}))
+        for face in self.faces:
+            self.obj._faces[face] = self.face_attrs.get(face, {})
+            print(face, '->', self.obj._faces[face])
+        self.obj.update_undirected()
