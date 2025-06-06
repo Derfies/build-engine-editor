@@ -11,14 +11,14 @@ from PySide6.QtWidgets import QSplitter, QVBoxLayout, QWidget
 from applicationframework.application import Application
 from applicationframework.document import Document
 from applicationframework.mainwindow import MainWindow as MainWindowBase
-from editor.settings import ColourSettings, GridSettings, HotkeySettings
 from editor.constants import ModalTool, SelectionMode
-from editor.content import Content
 from editor.editorpropertygrid import PropertyGrid
+from editor.graph import Graph
 from editor.graphicsscene import GraphicsScene
 from editor.graphicsview import GraphicsView
 from editor.mapdocument import MapDocument
 from editor.preferencesdialog import PreferencesDialog
+from editor.settings import ColourSettings, GridSettings, HotkeySettings
 from editor.updateflag import UpdateFlag
 
 # noinspection PyUnresolvedReferences
@@ -75,8 +75,8 @@ class MainWindow(MainWindowBase):
 
         #self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\LL-SEWER.MAP')
         #self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\1.MAP')
-        self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\editor\tests\data\1_squares.map')
-        #self.app().doc.updated(dirty=False)
+        #self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\editor\tests\data\1_squares.map')
+        self.app().doc.updated(dirty=False)
 
         #self.app().doc.file_path = r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\out.map'
         #self.app().doc.save()
@@ -191,7 +191,7 @@ class MainWindow(MainWindowBase):
         tool_bar.add_action(self.select_poly_action)
 
     def create_document(self, file_path: str = None) -> Document:
-        return MapDocument(file_path, Content(), UpdateFlag)
+        return MapDocument(file_path, Graph(), UpdateFlag)
 
     def on_tool_action_group(self):
         action = self.tool_action_group.checked_action().data()

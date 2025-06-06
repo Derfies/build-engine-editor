@@ -1,11 +1,12 @@
 import math
+import uuid
 
 from PySide6.QtCore import QCoreApplication, QPointF, QRectF, Qt
 from PySide6.QtGui import QTransform, QPen, QColorConstants, QPolygonF
 from PySide6.QtWidgets import QApplication, QGraphicsPolygonItem, QGraphicsScene
 
 from editor import commands
-from editor.graph import Edge, Node, Poly
+from editor.graph import Edge, Face, Node
 from gameengines.build.map import Map, Sector, Sprite, Wall
 from rubberband import RubberBandGraphicsItem
 
@@ -16,19 +17,26 @@ from __feature__ import snake_case
 DRAG_TOLERANCE = 4
 
 
+#
+# def create_poly_edges(points: list[QPointF]):
+#     nodes = [Node(Wall(x=int(point.x()), y=int(point.y()))) for point in points]
+#     poly_edges = []
+#     for i in range(len(nodes)):
+#         node1 = nodes[i]
+#         node2 = nodes[(i + 1) % len(nodes)]
+#
+#         # TODO: Ensure correct winding order - the wall that the edge
+#         # owns is on the LEFT (I think).
+#         edge = Edge(node1, node2, node1.data)
+#         poly_edges.append(edge)
+#     return poly_edges
 
-def create_poly_edges(points: list[QPointF]):
-    nodes = [Node(Wall(x=int(point.x()), y=int(point.y()))) for point in points]
-    poly_edges = []
-    for i in range(len(nodes)):
-        node1 = nodes[i]
-        node2 = nodes[(i + 1) % len(nodes)]
 
-        # TODO: Ensure correct winding order - the wall that the edge
-        # owns is on the LEFT (I think).
-        edge = Edge(node1, node2, node1.data)
-        poly_edges.append(edge)
-    return poly_edges
+def create_poly_nodes(points: tuple[QPointF]):
+    return tuple([
+        (str(uuid.uuid4()), {'x': points[i].x(), 'y': points[i].y()})
+        for i in range(len(points))
+    ])
 
 
 class GraphicsSceneToolBase:
@@ -217,10 +225,21 @@ class CreatePolygonTool(GraphicsSceneToolBase):
 
     def mouse_release_event(self, event):
         if event.button() == Qt.LeftButton:
-            poly_edges = create_poly_edges(self._preview.polygon())
+            nodes = tuple([str(uuid.uuid4()) for node in self._preview.polygon()])
+            node_attrs = {
+                nodes[i]: {'x': point.x(), 'y': point.y()}
+                for i, point in enumerate(self._preview.polygon())
+            }
+            edge_attrs = {}
+            for i in range(len(nodes)):
+                head = nodes[i]
+                tail = nodes[(i + 1) % len(nodes)]
+                edge_attrs[(head, tail)] = {'wall': Wall()}
+            face_attrs = {nodes: {'sector': Sector()}}
+
             self.scene.remove_item(self._preview)
             self._preview = None
-            commands.add_poly(Poly(poly_edges, Sector()))
+            commands.add_face(nodes, node_attrs=node_attrs, edge_attrs=edge_attrs, face_attrs=face_attrs)
 
 
 class CreateFreeformPolygonTool(GraphicsSceneToolBase):
@@ -247,11 +266,21 @@ class CreateFreeformPolygonTool(GraphicsSceneToolBase):
             self._update_preview()
         elif event.button() == Qt.RightButton and self._preview is not None:
             self._points.append(event.scene_pos())
-            poly_edges = create_poly_edges(self._points)
+            nodes = tuple([str(uuid.uuid4()) for node in self._preview.polygon()])
+            node_attrs = {
+                nodes[i]: {'x': point.x(), 'y': point.y()}
+                for i, point in enumerate(self._preview.polygon())
+            }
+            edge_attrs = {}
+            for i in range(len(nodes)):
+                head = nodes[i]
+                tail = nodes[(i + 1) % len(nodes)]
+                edge_attrs[(head, tail)] = {'wall': Wall()}
+            face_attrs = {nodes: {'sector': Sector()}}
             self.scene.remove_item(self._preview)
             self._preview = None
             self._points = []
-            commands.add_poly(Poly(poly_edges, Sector()))
+            commands.add_face(nodes, node_attrs=node_attrs, edge_attrs=edge_attrs, face_attrs=face_attrs)
 
     def mouse_move_event(self, event):
         if self._points:

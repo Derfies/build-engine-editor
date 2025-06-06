@@ -2,7 +2,8 @@ from PySide6.QtCore import QCoreApplication, QLineF, QPointF
 from PySide6.QtGui import QBrush, QColorConstants, QPainterPath, QPainterPathStroker, QPen, QPolygonF, Qt
 from PySide6.QtWidgets import QApplication, QGraphicsItem, QGraphicsLineItem, QGraphicsPathItem, QGraphicsRectItem, QGraphicsPolygonItem
 
-from editor.graph import Edge, Node, Poly
+#from editor.graph import Edge, Node, Poly
+from editor.graph import Edge, Node, Face
 
 # noinspection PyUnresolvedReferences
 from __feature__ import snake_case
@@ -15,7 +16,7 @@ WALL_COLLISION_THICKNESS = 7
 
 class GraphicsItemBaseMixin:
 
-    def __init__(self, element: Edge | Node | Poly, *args, **kwargs):
+    def __init__(self, element: Edge | Node | Face, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.pen = None
@@ -107,8 +108,8 @@ class EdgeGraphicsItem(GraphicsItemBaseMixin, QGraphicsLineItem):
         super().__init__(edge)
 
         self.setZValue(50)
-        p1 = QPointF(self.element().node1.x, self.element().node1.y)
-        p2 = QPointF(self.element().node2.x, self.element().node2.y)
+        p1 = QPointF(self.element().head.x, self.element().head.y)
+        p2 = QPointF(self.element().tail.x, self.element().tail.y)
         self.set_line(QLineF(p1, p2))
 
     def update_pen(self):
@@ -137,23 +138,25 @@ class EdgeGraphicsItem(GraphicsItemBaseMixin, QGraphicsLineItem):
 
     def update_nodes(self, nodes: set[Node], delta: QPointF):
         p1 = self.line().p1()
-        if self.element().node1 in nodes:
+        if self.element().head in nodes:
             p1 += delta
         p2 = self.line().p2()
-        if self.element().node2 in nodes:
+        if self.element().tail in nodes:
             p2 += delta
         self.set_line(QLineF(p1, p2))
 
 
-class PolyGraphicsItem(GraphicsItemBaseMixin, QGraphicsPolygonItem):
+class FaceGraphicsItem(GraphicsItemBaseMixin, QGraphicsPolygonItem):
 
-    def __init__(self, poly: Poly, *args, **kwargs):
-        super().__init__(poly, *args, **kwargs)
+    def __init__(self, face: Face, *args, **kwargs):
+        super().__init__(face, *args, **kwargs)
 
-        self.set_polygon([
-            QPointF(edge.node1.data.x, edge.node1.data.y)
-            for edge in poly.edges
-        ])
+        poly = []
+        for node in face.data:
+            node_ = face.graph.get_node(node)
+            poly.append(QPointF(node_.x, node_.y))
+
+        self.set_polygon(poly)
         self.setZValue(0)
 
     def update_pen(self):
@@ -173,7 +176,7 @@ class PolyGraphicsItem(GraphicsItemBaseMixin, QGraphicsPolygonItem):
     def update_nodes(self, nodes: set[Node], delta: QPointF):
         ps = []
         for i, p in enumerate(self.polygon()):
-            if self.element().nodes[i] in nodes:
+            if self.element().data[i] in nodes:
                 p += delta
             ps.append(p)
         self.set_polygon(ps)

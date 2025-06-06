@@ -33,7 +33,7 @@ class PropertyGrid(PropertyGridBase):
         self.model().clear()
 
         # TODO: Multi-select
-        if doc.selected_elements:
-            element = list(doc.selected_elements)[0]
-            self.add_object(element.data)
+        # if doc.selected_elements:
+        #     element = list(doc.selected_elements)[0]
+        #     self.add_object(element.data)
         self.block_signals(False)

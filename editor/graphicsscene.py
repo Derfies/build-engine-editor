@@ -8,7 +8,7 @@ from PySide6.QtWidgets import QApplication, QGraphicsScene
 
 from applicationframework.document import Document
 from editor.constants import ModalTool, SelectionMode
-from editor.graphicsitems import EdgeGraphicsItem, NodeGraphicsItem, PolyGraphicsItem
+from editor.graphicsitems import EdgeGraphicsItem, NodeGraphicsItem, FaceGraphicsItem
 from editor.graphicsscenetools import (
     CreatePolygonTool,
     CreateFreeformPolygonTool,
@@ -150,33 +150,39 @@ class GraphicsScene(QGraphicsScene):
         if flags != UpdateFlag.SELECTION and flags != UpdateFlag.SETTINGS:
 
             self.clear()
-            if doc.content.g is not None:
-                logger.debug(f'full reDRAW: {flags}')
-                for node in doc.content.g.nodes:
-                    #logger.debug(f'Adding item: {node}')
-                    node_item = NodeGraphicsItem(node)
-                    self.add_item(node_item)
-                for edge in doc.content.g.edges:
-                    #logger.debug(f'Adding item: {edge}')
-                    edge_item = EdgeGraphicsItem(edge)
-                    self.add_item(edge_item)
-                for poly in doc.content.g.polys:
-                    #logger.debug(f'Adding item: {poly}')
-                    poly_item = PolyGraphicsItem(poly)
-                    self.add_item(poly_item)
 
-                # Build node -> item map.
-                # TODO: Put in scene object and update only on doc update.
-                self._node_to_items.clear()
-                self._node_to_node_item.clear()
-                for item in self.items():
-                    item_nodes = item.element().nodes
-                    self._item_to_nodes[item] = set(item_nodes)
-                    for node in item_nodes:
-                        self._node_to_items[node].add(item)
+            self._item_to_nodes.clear()
+            self._node_to_items.clear()
+            self._node_to_node_item.clear()
 
-                    if isinstance(item, NodeGraphicsItem):
-                        self._node_to_node_item[node] = item
+            #if doc.content.g is not None:
+            logger.debug(f'full reDRAW: {flags}')
+            for node in doc.content.nodes:
+                logger.debug(f'Adding node: {node}')
+                node_item = NodeGraphicsItem(node)
+                self.add_item(node_item)
+                self._node_to_node_item[node] = node_item
+            for edge in doc.content.edges:
+                logger.debug(f'Adding edge: {edge}')
+                edge_item = EdgeGraphicsItem(edge)
+                self.add_item(edge_item)
+            for face in doc.content.faces:
+                logger.debug(f'Adding face: {face}')
+                face_item = FaceGraphicsItem(face)
+                self.add_item(face_item)
+
+            # Build node -> item map.
+            # TODO: Put in scene object and update only on doc update.
+            # self._node_to_items.clear()
+            # self._node_to_node_item.clear()
+            for item in self.items():
+                item_nodes = item.element().nodes
+                self._item_to_nodes[item] = set(item_nodes)
+                for node in item_nodes:
+                    self._node_to_items[node].add(item)
+
+                #if isinstance(item, NodeGraphicsItem):
+                   # self._node_to_node_item[node] = item
         else:
 
             # Update selected pen.
