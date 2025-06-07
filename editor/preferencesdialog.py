@@ -105,6 +105,8 @@ class HotkeysWidget(PreferenceWidgetBase):
             'Rotate',
             'Scale',
             'Frame Selection',
+            'Grid Snap',
+            'Vertex Snap',
         ]
         self.line_edits = {}
 
@@ -190,6 +192,35 @@ class GridWidget(PreferenceWidgetBase):
         self.axes_colour.set_colour(QColor(*data['axes_colour']))
 
 
+class PlayWidget(PreferenceWidgetBase):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        layout = QGridLayout()
+
+        self.eduke32_path = QLineEdit()
+
+        i = 0
+        for text, widget in {
+            'EDuke32 Path': self.eduke32_path,
+        }.items():
+            layout.add_widget(QLabel(text), i, 0)
+            layout.add_widget(widget, i, 1)
+            i += 1
+
+        self.layout.add_layout(layout)
+        self.layout.add_stretch()
+
+    def preferences(self) -> dict:
+        return {
+            'eduke32_path': self.eduke32_path.text(),
+        }
+
+    def set_preferences(self, data: dict):
+        self.eduke32_path.set_text(data['eduke32_path'])
+
+
 class PreferencesDialog(PreferenceDialogBase):
 
     def __init__(self, *args, **kwargs):
@@ -203,3 +234,6 @@ class PreferencesDialog(PreferenceDialogBase):
 
         hotkeys = HotkeysWidget('Hotkeys')
         self.add_widget(hotkeys)
+
+        play = PlayWidget('Play')
+        self.add_widget(play)

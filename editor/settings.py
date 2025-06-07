@@ -49,3 +49,11 @@ class HotkeySettings:
     rotate: str = 'E'
     scale: str = 'R'
     frame_selection: str = 'F'
+    grid_snap: str = 'X'
+    vertex_snap: str = 'V'
+
+
+@dataclass
+class PlaySettings:
+
+    eduke32_path: str = ''

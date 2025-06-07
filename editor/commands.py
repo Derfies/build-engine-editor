@@ -49,13 +49,7 @@ def add_face(nodes: tuple[tuple], **kwargs):
         edges.append((head, tail))
         face.append(head)
 
-
-
-
     graph = QApplication.instance().doc.content
-    # nodes = {node for node in face.nodes if node not in graph.nodes}
-    # edges = {edge for edge in face.edges if edge not in graph.edges}
-    # faces = face if face not in graph.faces else set()
 
     # TODO: Factory for default data? How else does the next sector get in here?
     action = GraphEditBase(
@@ -64,15 +58,6 @@ def add_face(nodes: tuple[tuple], **kwargs):
         (tuple(face),),
         graph,
         **kwargs
-        #node_attrs={'sector': Sector()},
-        #edge_attrs={edge: Wall() for edge in edges},
-        #face_attrs={'sector': Sector()},
     )
-
-    #print('nodes:', nodes)
-    #print('edges:', edges)
-    #print('faces:', face)
-    #print('faces:', faces)
-    #action = AddFace(face)
     QApplication.instance().action_manager.push(action)
     QApplication.instance().doc.updated(action(), dirty=True)

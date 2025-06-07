@@ -7,7 +7,6 @@ import networkx as nx
 
 from applicationframework.contentbase import ContentBase
 from gameengines.build.duke3d import MapReader as Duke3dMapReader, MapWriter, Map
-from gameengines.build.map import Sector, Wall
 
 
 logger = logging.getLogger(__name__)

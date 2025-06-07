@@ -1,4 +1,5 @@
 import logging
+import subprocess
 import sys
 from pathlib import Path
 
@@ -18,7 +19,7 @@ from editor.graphicsscene import GraphicsScene
 from editor.graphicsview import GraphicsView
 from editor.mapdocument import MapDocument
 from editor.preferencesdialog import PreferencesDialog
-from editor.settings import ColourSettings, GridSettings, HotkeySettings
+from editor.settings import ColourSettings, GridSettings, HotkeySettings, PlaySettings
 from editor.updateflag import UpdateFlag
 
 # noinspection PyUnresolvedReferences
@@ -40,9 +41,13 @@ class MainWindow(MainWindowBase):
     """
 
     def __init__(self, *args, **kwargs):
+
+        # TODO: Create custom app instance.
         self.app().colour_settings = ColourSettings()
         self.app().grid_settings = GridSettings()
         self.app().hotkey_settings = HotkeySettings()
+        self.app().play_settings = PlaySettings()
+        self.app().held_keys = set()
 
         super().__init__(*args, **kwargs)
 
@@ -64,15 +69,23 @@ class MainWindow(MainWindowBase):
         self.set_central_widget(self.window)
 
         self.app().preferences_manager.register_widget('main_splitter', self.splitter)
-        self.app().preferences_manager.register_dataclass('colour_settings', self.app().colour_settings)
-        self.app().preferences_manager.register_dataclass('grid_settings', self.app().grid_settings)
-        self.app().preferences_manager.register_dataclass('hotkey_settings', self.app().hotkey_settings)
+        for name, dataclass in {
+            'colour_settings': self.app().colour_settings,
+            'grid_settings': self.app().grid_settings,
+            'hotkey_settings': self.app().hotkey_settings,
+            'play_settings': self.app().play_settings,
+        }.items():
+            self.app().preferences_manager.register_dataclass(name, dataclass)
+        # self.app().preferences_manager.register_dataclass('grid_settings', self.app().grid_settings)
+        # self.app().preferences_manager.register_dataclass('hotkey_settings', self.app().hotkey_settings)
+        # self.app().preferences_manager.register_dataclass('play_settings', self.app().play_settings)
 
         self.select_action.set_checked(True)
         self.select_node_action.set_checked(True)
         self.on_tool_action_group()
         self.on_select_action_group()
 
+        #self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\test.map')
         #self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\LL-SEWER.MAP')
         #self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\1.MAP')
         #self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\editor\tests\data\1_squares.map')
@@ -80,6 +93,15 @@ class MainWindow(MainWindowBase):
 
         #self.app().doc.file_path = r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\out.map'
         #self.app().doc.save()
+
+    def key_press_event(self, event):
+
+        # TODO: Might not be very robust, but we want to be able to match with
+        # hotkey settings.
+        self.app().held_keys.add(event.text())
+
+    def key_release_event(self, event):
+        self.app().held_keys.discard(event.text())
 
     @property
     def local_icons_path(self) -> Path:
@@ -125,6 +147,7 @@ class MainWindow(MainWindowBase):
 
         # Misc actions.
         self.frame_selection_action = QAction(self.get_icon('image-instagram-frame', icons_path=self.local_icons_path), '&Frame Selection', self)
+        self.play_action = QAction(self.get_icon('control', icons_path=self.local_icons_path), '&Play', self)
 
         # Tool action group.
         self.tool_action_group = QActionGroup(self)
@@ -153,6 +176,7 @@ class MainWindow(MainWindowBase):
 
         # Misc actions.
         self.frame_selection_action.triggered.connect(self.frame_selection)
+        self.play_action.triggered.connect(self.play)
 
     def connect_hotkeys(self):
         super().connect_hotkeys()
@@ -189,6 +213,8 @@ class MainWindow(MainWindowBase):
         tool_bar.add_action(self.select_node_action)
         tool_bar.add_action(self.select_edge_action)
         tool_bar.add_action(self.select_poly_action)
+        tool_bar.add_separator()
+        tool_bar.add_action(self.play_action)
 
     def create_document(self, file_path: str = None) -> Document:
         return MapDocument(file_path, Graph(), UpdateFlag)
@@ -204,14 +230,24 @@ class MainWindow(MainWindowBase):
     def show_preferences(self):
 
         # Collect settings.
-        colour_schema = marshmallow_dataclass.class_schema(ColourSettings)()
-        grid_schema = marshmallow_dataclass.class_schema(GridSettings)()
-        hotkey_schema = marshmallow_dataclass.class_schema(HotkeySettings)()
-        preferences = {
-            'colours': colour_schema.dump(self.app().colour_settings),
-            'grid': grid_schema.dump(self.app().grid_settings),
-            'hotkeys': hotkey_schema.dump(self.app().hotkey_settings),
-        }
+        # colour_schema = marshmallow_dataclass.class_schema(ColourSettings)()
+        # grid_schema = marshmallow_dataclass.class_schema(GridSettings)()
+        # hotkey_schema = marshmallow_dataclass.class_schema(HotkeySettings)()
+        # preferences = {
+        #     'colours': colour_schema.dump(self.app().colour_settings),
+        #     'grid': grid_schema.dump(self.app().grid_settings),
+        #     'hotkeys': hotkey_schema.dump(self.app().hotkey_settings),
+        # }
+
+        preferences = {}
+        for name, dataclass in {
+            'colours': self.app().colour_settings,
+            'grid': self.app().grid_settings,
+            'hotkeys': self.app().hotkey_settings,
+            'play': self.app().play_settings,
+        }.items():
+            schema = marshmallow_dataclass.class_schema(dataclass.__class__)()
+            preferences[name] = schema.dump(dataclass)
 
         # Show the dialog.
         dialog = PreferencesDialog()
@@ -220,12 +256,21 @@ class MainWindow(MainWindowBase):
             return
 
         # Deserialize back to data objects and set.
-        for k, v in dialog.preferences['colours'].items():
-            setattr(self.app().colour_settings, k, v)
-        for k, v in dialog.preferences['grid'].items():
-            setattr(self.app().grid_settings, k, v)
-        for k, v in dialog.preferences['hotkeys'].items():
-            setattr(self.app().hotkey_settings, k, v)
+        # for k, v in dialog.preferences['colours'].items():
+        #     setattr(self.app().colour_settings, k, v)
+        # for k, v in dialog.preferences['grid'].items():
+        #     setattr(self.app().grid_settings, k, v)
+        # for k, v in dialog.preferences['hotkeys'].items():
+        #     setattr(self.app().hotkey_settings, k, v)
+
+        for name, dataclass in {
+            'colours': self.app().colour_settings,
+            'grid': self.app().grid_settings,
+            'hotkeys': self.app().hotkey_settings,
+            'play': self.app().play_settings,
+        }.items():
+            for k, v in dialog.preferences[name].items():
+                setattr(dataclass, k, v)
 
         # Don't treat modification of prefs as a content change.
         self.app().doc.updated(UpdateFlag.SETTINGS, dirty=False)
@@ -242,6 +287,35 @@ class MainWindow(MainWindowBase):
         ]
         items = items or self.scene.items()
         self.view.frame(items)
+
+    def play(self):
+
+        eduke32_path = Path(self.app().play_settings.eduke32_path)
+        if not eduke32_path.exists():
+            raise Exception(f'Cannot find eduke32 at: {eduke32_path}')
+
+        # TODO: Since we're loading an external non-blocking process not sure
+        # how to clean up properly here.
+        temp_map_path = eduke32_path.parent.joinpath('out.map')
+        self.app().doc.content.save(temp_map_path)
+
+        # Launch EDuke32.
+        process = subprocess.Popen(
+            [eduke32_path] + ['-map', 'out.map'],
+            stderr=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            text=True,  # ensures output is in string format instead of bytes
+            cwd=eduke32_path.parent,
+        )
+
+        # Read and print stderr.
+        stderr_output, stdout_output = process.communicate()
+
+        print('STDERR:')
+        print(stderr_output)
+
+        print('STDOUT:')
+        print(stdout_output)
 
     def show_event(self, event):
         super().show_event(event)

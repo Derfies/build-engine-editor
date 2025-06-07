@@ -2,7 +2,7 @@ import logging
 import math
 from collections import defaultdict
 
-from PySide6.QtCore import QCoreApplication, QRectF
+from PySide6.QtCore import QCoreApplication, QPointF, QRectF
 from PySide6.QtGui import QPainter, QPen, QColor
 from PySide6.QtWidgets import QApplication, QGraphicsScene
 
@@ -22,6 +22,9 @@ from __feature__ import snake_case
 
 
 logger = logging.getLogger(__name__)
+
+
+SNAP_TOLERANCE = 16
 
 
 class Grid:
@@ -61,9 +64,7 @@ class Grid:
         # Draw vertical lines.
         x = left
         while x < rect.right():
-            if int(x) == 0:
-                painter.set_pen(self.axes_pen)
-            elif int(x) % self.major_spacing == 0:
+            if int(x) % self.major_spacing == 0:
                 painter.set_pen(self.major_pen)
             else:
                 painter.set_pen(self.minor_pen)
@@ -73,14 +74,17 @@ class Grid:
         # Draw horizontal lines.
         y = top
         while y < rect.bottom():
-            if int(y) == 0:
-                painter.set_pen(self.axes_pen)
-            elif int(y) % self.major_spacing == 0:
+            if int(y) % self.major_spacing == 0:
                 painter.set_pen(self.major_pen)
             else:
                 painter.set_pen(self.minor_pen)
             painter.draw_line(rect.left(), y, rect.right(), y)
             y += self.minor_spacing
+
+        # Draw solid axes lines.
+        painter.set_pen(self.axes_pen)
+        painter.draw_line(0, rect.top(), 0, rect.bottom())
+        painter.draw_line(rect.left(), 0, rect.right(), 0)
 
 
 class GraphicsScene(QGraphicsScene):
@@ -144,6 +148,32 @@ class GraphicsScene(QGraphicsScene):
 
         self.current_tool.mouse_release_event(event)
 
+    def snap_to_grid(self, pos: QPointF):
+        x = round(pos.x() / self.grid.minor_spacing) * self.grid.minor_spacing
+        y = round(pos.y() / self.grid.minor_spacing) * self.grid.minor_spacing
+        return QPointF(x, y)
+
+    def apply_snapping(self, pos: QPointF):
+        grid_snap = self.app().hotkey_settings.grid_snap.lower() in self.app().held_keys
+        vertex_snap = self.app().hotkey_settings.vertex_snap.lower() in self.app().held_keys
+        if grid_snap:
+            return self.snap_to_grid(pos)
+        elif vertex_snap:
+            nearest = self.snap_to_existing_vertex(pos)
+            if nearest is not None:
+                return nearest
+        return pos
+
+    def snap_to_existing_vertex(self, pos: QPointF):
+
+        # TODO: Replace SNAP_TOLERANCE with preference.
+        view = self.views()[0]
+        for point in self.points:
+            delta_pos = (view.map_from_scene(point) - view.map_from_scene(pos)).manhattan_length()
+            if delta_pos < SNAP_TOLERANCE:
+                return point
+        return None
+
     def update_event(self, doc: Document, flags: UpdateFlag):
         logger.debug(f'update_event: {flags}')
         self.block_signals(True)
@@ -155,6 +185,11 @@ class GraphicsScene(QGraphicsScene):
             self._node_to_items.clear()
             self._node_to_node_item.clear()
 
+            # Quick look-up for all points when vertex-snapping.
+            # NOTE: Can't use set because QPointf doesn't hash, but this shouldn't
+            # contain too many dupes, right..?
+            self.points = []
+
             #if doc.content.g is not None:
             logger.debug(f'full reDRAW: {flags}')
             for node in doc.content.nodes:
@@ -162,6 +197,7 @@ class GraphicsScene(QGraphicsScene):
                 node_item = NodeGraphicsItem(node)
                 self.add_item(node_item)
                 self._node_to_node_item[node] = node_item
+                self.points.append(node_item.pos())
             for edge in doc.content.edges:
                 logger.debug(f'Adding edge: {edge}')
                 edge_item = EdgeGraphicsItem(edge)

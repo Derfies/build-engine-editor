@@ -25,9 +25,6 @@ class GraphEditBase(Edit):
         self.face_attrs = kwargs.pop('face_attrs', {})
         super().__init__(*args, **kwargs)
 
-        print(faces)
-        print(self.face_attrs)
-
         self.nodes = nodes
         self.edges = edges
         self.faces = faces
@@ -51,5 +48,4 @@ class GraphEditBase(Edit):
             self.obj.data.add_edge(*edge, **self.edge_attrs.get(edge, {}))
         for face in self.faces:
             self.obj._faces[face] = self.face_attrs.get(face, {})
-            print(face, '->', self.obj._faces[face])
         self.obj.update_undirected()

@@ -1,6 +1,6 @@
 from PySide6.QtCore import QCoreApplication, QLineF, QPointF
-from PySide6.QtGui import QBrush, QColorConstants, QPainterPath, QPainterPathStroker, QPen, QPolygonF, Qt
-from PySide6.QtWidgets import QApplication, QGraphicsItem, QGraphicsLineItem, QGraphicsPathItem, QGraphicsRectItem, QGraphicsPolygonItem
+from PySide6.QtGui import QBrush, QPainterPath, QPainterPathStroker, QPen, Qt
+from PySide6.QtWidgets import QApplication, QGraphicsItem, QGraphicsLineItem, QGraphicsRectItem, QGraphicsPolygonItem
 
 #from editor.graph import Edge, Node, Poly
 from editor.graph import Edge, Node, Face
