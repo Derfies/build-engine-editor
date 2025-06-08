@@ -14,6 +14,7 @@ from editor.graphicsscenetools import (
     CreateFreeformPolygonTool,
     MoveGraphicsSceneTool,
     SelectGraphicsSceneTool,
+    SplitFaceTool,
 )
 from editor.updateflag import UpdateFlag
 
@@ -100,6 +101,8 @@ class GraphicsScene(QGraphicsScene):
         self.current_tool = None
         self.app().updated.connect(self.update_event)
 
+        self.xform = None
+
     def update_grid(self):
         self.grid = Grid(
             self.app().grid_settings.minor_spacing,
@@ -124,6 +127,7 @@ class GraphicsScene(QGraphicsScene):
             ModalTool.MOVE: MoveGraphicsSceneTool,
             ModalTool.CREATE_POLY: CreatePolygonTool,
             ModalTool.CREATE_FREEFORM_POLY: CreateFreeformPolygonTool,
+            ModalTool.SPLIT_FACE: SplitFaceTool,
         }[modal_tool]
         self.current_tool = tool_cls(self)
 

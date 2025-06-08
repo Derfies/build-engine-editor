@@ -88,8 +88,8 @@ class MainWindow(MainWindowBase):
         #self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\test.map')
         #self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\LL-SEWER.MAP')
         #self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\1.MAP')
-        #self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\editor\tests\data\1_squares.map')
-        self.app().doc.updated(dirty=False)
+        self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\editor\tests\data\1_squares.map')
+        #self.app().doc.updated(dirty=False)
 
         #self.app().doc.file_path = r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\out.map'
         #self.app().doc.save()
@@ -133,6 +133,9 @@ class MainWindow(MainWindowBase):
         self.create_freeform_poly_action = QAction(self.get_icon('layer-shape-polygon', icons_path=self.local_icons_path), '&Draw Poly', self)
         self.create_freeform_poly_action.set_data(ModalTool.CREATE_FREEFORM_POLY)
         self.create_freeform_poly_action.set_checkable(True)
+        self.split_face_action = QAction(self.get_icon('face-split', icons_path=self.local_icons_path), '&Split Face', self)
+        self.split_face_action.set_data(ModalTool.SPLIT_FACE)
+        self.split_face_action.set_checkable(True)
 
         # Select actions.
         self.select_node_action = QAction(self.get_icon('layer-select-point', icons_path=self.local_icons_path), '&Select Node', self)
@@ -158,6 +161,7 @@ class MainWindow(MainWindowBase):
         self.tool_action_group.add_action(self.scale_action)
         self.tool_action_group.add_action(self.create_poly_action)
         self.tool_action_group.add_action(self.create_freeform_poly_action)
+        self.tool_action_group.add_action(self.split_face_action)
         self.tool_action_group.triggered.connect(self.on_tool_action_group)
 
         # Select action group.
@@ -209,6 +213,7 @@ class MainWindow(MainWindowBase):
         tool_bar.add_action(self.scale_action)
         tool_bar.add_action(self.create_poly_action)
         tool_bar.add_action(self.create_freeform_poly_action)
+        tool_bar.add_action(self.split_face_action)
         tool_bar.add_separator()
         tool_bar.add_action(self.select_node_action)
         tool_bar.add_action(self.select_edge_action)

@@ -11,7 +11,7 @@ from __feature__ import snake_case
 
 NODE_RADIUS = 2
 NODE_COLLISION_RADIUS = 6
-WALL_COLLISION_THICKNESS = 7
+WALL_COLLISION_THICKNESS = 10
 
 
 class GraphicsItemBaseMixin:
@@ -83,6 +83,7 @@ class NodeGraphicsItem(GraphicsItemBaseMixin, QGraphicsRectItem):
         scale = self.scene().views()[0].transform().m11()
 
         # Create a larger clickable shape.
+        # Wait, why are we using paint path? Can't I just use a vanilla rect?
         path = QPainterPath()
         path.add_rect(
             -NODE_COLLISION_RADIUS / scale,

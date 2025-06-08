@@ -1,11 +1,13 @@
 import math
 import uuid
 
-from PySide6.QtCore import QCoreApplication, QPointF, QRectF, Qt
-from PySide6.QtGui import QTransform, QPen, QColorConstants, QPolygonF
-from PySide6.QtWidgets import QApplication, QGraphicsPolygonItem, QGraphicsScene
+from PySide6.QtCore import QCoreApplication, QLineF, QPointF, QRectF, Qt
+from PySide6.QtGui import QTransform, QPen, QColorConstants, QPolygonF, QPainter
+from PySide6.QtWidgets import QApplication, QGraphicsItem, QGraphicsPolygonItem, QGraphicsScene
 
 from editor import commands
+from editor.graph import Edge
+from editor.graphicsitems import EdgeGraphicsItem
 from gameengines.build.map import Sector, Wall
 from rubberband import RubberBandGraphicsItem
 
@@ -14,6 +16,20 @@ from __feature__ import snake_case
 
 
 DRAG_TOLERANCE = 4
+HIT_MARK_SIZE = 5
+NODE_RADIUS = 2
+
+
+def project_point_onto_segment(p: QPointF, line: QLineF) -> QPointF:
+    dx = line.dx()
+    dy = line.dy()
+    if dx == dy == 0:
+        return line.p1()
+
+    t = ((p.x() - line.x1()) * dx + (p.y() - line.y1()) * dy) / (
+                dx * dx + dy * dy)
+    t = max(0.0, min(1.0, t))
+    return line.point_at(t)
 
 
 def create_foobar(points: tuple[QPointF]):
@@ -31,6 +47,48 @@ def create_foobar(points: tuple[QPointF]):
         edge_attrs[(head, tail)] = {'wall': Wall()}
     face_attrs = {nodes: {'sector': Sector()}}
     return nodes, tuple(), tuple(), node_attrs, edge_attrs, face_attrs
+
+
+class HitMark(QGraphicsItem):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self._pen = QPen(Qt.yellow)
+        self._pen.set_width(1)
+        self._pen.set_cosmetic(True)
+        self.setZValue(1000)
+        #self._size = HIT_MARK_SIZE
+
+    def foo(self):
+        #print('self._size:', self._size)
+        #print('self.scene().views()[0].transform().m11():', self.scene().views()[0].transform().m11())
+        #print('result:', self._size / self.scene().views()[0].transform().m11())
+        return NODE_RADIUS / self.scene().xform#().views()[0].xform#.transform().m11()
+        #return self._size / self.scene().views()[0].transform().m11()
+
+    def bounding_rect(self) -> QRectF:
+       # print('isValid:', isValid(self))
+        foo = self.foo()
+        return QRectF(-foo - 1, -foo - 1, foo * 2 + 2, foo * 2 + 2)
+
+    def paint(self, painter: QPainter, option, widget=None):
+
+        foo = self.foo()
+
+        # painter.set_pen(self._pen)
+        # painter.draw_line(-foo, -foo, foo, foo)
+        # painter.draw_line(-foo, foo, foo, -foo)
+        painter.set_pen(self._pen)
+        painter.draw_rect(
+            -foo,
+            -foo,
+            foo * 2,
+            foo * 2,
+        )
+
+    def contains(self, point):
+        return False
 
 
 class GraphicsSceneToolBase:
@@ -263,3 +321,70 @@ class CreateFreeformPolygonTool(GraphicsSceneToolBase):
         self.scene.remove_item(self._preview)
         self._preview = None
         self._points = []
+
+
+
+class SplitFaceTool(GraphicsSceneToolBase):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self._start_point = None
+        self._preview = None
+        self._hit_mark = None
+
+        # TODO: Move this pen into base class.
+        self._pen = QPen(QColorConstants.DarkGray, 1, Qt.DashLine)
+        self._pen.set_cosmetic(True)
+
+    def add_hit_mark(self):
+        if self._hit_mark is None:
+            self._hit_mark = HitMark()
+            self.scene.add_item(self._hit_mark)
+
+    def remove_hit_mark(self):
+        if self._hit_mark is not None:
+            self.scene.remove_item(self._hit_mark)
+            self._hit_mark = None
+
+    def mouse_press_event(self, event):
+        if event.button() == Qt.LeftButton and self._hit_mark is not None:
+            pos = event.scene_pos()
+            hit_item = self.scene.item_at(pos, QTransform())
+            edge = hit_item.element()
+            segment = QLineF(edge.head.x, edge.head.y, edge.tail.x, edge.tail.y)
+            pos = project_point_onto_segment(pos, segment)
+            self._start_point = pos
+            self._preview = self.scene.add_line(QLineF(self._start_point, self._start_point), self._pen)
+        elif event.button() == Qt.RightButton and self._preview is not None:
+            self.cancel()
+
+    def mouse_move_event(self, event):
+
+        pos = event.scene_pos()
+
+        hit_item = self.scene.item_at(pos, QTransform())
+
+        if hit_item is not None and isinstance(hit_item, EdgeGraphicsItem):
+            edge = hit_item.element()
+            segment = QLineF(edge.head.x, edge.head.y, edge.tail.x, edge.tail.y)
+            pos = project_point_onto_segment(pos, segment)
+
+        if self._preview is not None:
+            self._preview.set_line(QLineF(self._start_point, pos))
+
+        if not isinstance(hit_item, EdgeGraphicsItem):
+            self.remove_hit_mark()
+            return
+
+        self.add_hit_mark()
+        self._hit_mark.set_pos(pos)
+
+    # def mouse_release_event(self, event):
+    #     ...
+
+    def cancel(self):
+        self.scene.remove_item(self._preview)
+        self._start_point = None
+        self._preview = None
+        self.remove_hit_mark()

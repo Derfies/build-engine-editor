@@ -1,5 +1,6 @@
 from PySide6.QtCore import Qt, QRectF
 from PySide6.QtWidgets import QGraphicsItem, QGraphicsView
+from PySide6.QtGui import QTransform
 
 
 # noinspection PyUnresolvedReferences
@@ -11,10 +12,13 @@ class GraphicsView(QGraphicsView):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+        #self.xform = None
+
         self.set_mouse_tracking(True)
 
         # TODO: Auto scale to fit content.
-        self.scale(0.03, 0.03)
+        #self.scale(0.03, 0.03)
+        self.scale(0.3, 0.3)
 
         self._start_screen_pos = None
 
@@ -25,6 +29,11 @@ class GraphicsView(QGraphicsView):
         for item in self.scene().items():
             if hasattr(item, 'invalidate_shapes'):
                 item.invalidate_shapes()
+
+        # TODO: Just encountered a scale-adjusting crash because we tried to
+        # access this from a graphics item, which apparantly is not good practice.
+        # Doing it here seems to be a better bet.
+        self.scene().xform = self.scene().views()[0].transform().m11()
 
     def mouse_press_event(self, event):
         if event.button() == Qt.MiddleButton:
