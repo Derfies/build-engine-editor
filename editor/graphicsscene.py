@@ -129,6 +129,10 @@ class GraphicsScene(QGraphicsScene):
             ModalTool.CREATE_FREEFORM_POLY: CreateFreeformPolygonTool,
             ModalTool.SPLIT_FACE: SplitFaceTool,
         }[modal_tool]
+
+        # TODO: Noop tool?
+        if self.current_tool is not None:
+            self.current_tool.cancel()
         self.current_tool = tool_cls(self)
 
     def set_selection_mode(self, select_mode: SelectionMode):
@@ -188,6 +192,8 @@ class GraphicsScene(QGraphicsScene):
             self._item_to_nodes.clear()
             self._node_to_items.clear()
             self._node_to_node_item.clear()
+            #self.face_to_item = {}
+            self.element_to_item = {}
 
             # Quick look-up for all points when vertex-snapping.
             # NOTE: Can't use set because QPointf doesn't hash, but this shouldn't
@@ -210,6 +216,9 @@ class GraphicsScene(QGraphicsScene):
                 logger.debug(f'Adding face: {face}')
                 face_item = FaceGraphicsItem(face)
                 self.add_item(face_item)
+                #self.face_to_item[face] = face_item
+
+                self.element_to_item[face] = face_item
 
             # Build node -> item map.
             # TODO: Put in scene object and update only on doc update.
