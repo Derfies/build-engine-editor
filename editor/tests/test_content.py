@@ -28,7 +28,7 @@ class ContentTestCase(unittest.TestCase):
         # Assert results.
         self.assertEqual(len(c.nodes), 4)
         self.assertEqual(len(c.edges), 4)
-        self.assertEqual(len(c.half_edges), 4)
+        self.assertEqual(len(c.hedges), 4)
         self.assertEqual(len(c.faces), 1)
 
     def test_load_2_squares(self):
@@ -47,7 +47,7 @@ class ContentTestCase(unittest.TestCase):
         # Assert results.
         self.assertEqual(len(c.nodes), 6)
         self.assertEqual(len(c.edges), 7)
-        self.assertEqual(len(c.half_edges), 8)
+        self.assertEqual(len(c.hedges), 8)
         self.assertEqual(len(c.faces), 2)
 
     def test_load_3_squares(self):
@@ -68,7 +68,7 @@ class ContentTestCase(unittest.TestCase):
         # Assert results.
         self.assertEqual(len(c.nodes), 8)
         self.assertEqual(len(c.edges), 10)
-        self.assertEqual(len(c.half_edges), 12)
+        self.assertEqual(len(c.hedges), 12)
         self.assertEqual(len(c.faces), 3)
 
     def test_load_4_squares(self):
@@ -89,5 +89,5 @@ class ContentTestCase(unittest.TestCase):
         # Assert results.
         self.assertEqual(len(c.nodes), 9)
         self.assertEqual(len(c.edges), 12)
-        self.assertEqual(len(c.half_edges), 16)
+        self.assertEqual(len(c.hedges), 16)
         self.assertEqual(len(c.faces), 4)

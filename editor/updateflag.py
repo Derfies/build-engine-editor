@@ -3,6 +3,6 @@ from enum import Flag, auto
 
 class UpdateFlag(Flag):
 
-    GRAPH = auto()
+    CONTENT = auto()
     SELECTION = auto()
     SETTINGS = auto()

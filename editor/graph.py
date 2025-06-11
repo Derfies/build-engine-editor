@@ -1,9 +1,12 @@
+from __future__ import annotations
 import abc
 import io
 import logging
 from collections import defaultdict
+from typing import Any
 
 import networkx as nx
+from PySide6.QtCore import QPointF
 
 from applicationframework.contentbase import ContentBase
 from gameengines.build.duke3d import MapReader as Duke3dMapReader, MapWriter, Map
@@ -25,8 +28,6 @@ class Element(metaclass=abc.ABCMeta):
         return hash(self.data)
 
     def __eq__(self, other):
-        if not isinstance(other, self.__class__):
-            return self.data == other
         return hash(self) == hash(other)
 
     @abc.abstractmethod
@@ -63,25 +64,21 @@ class Node(Element):
     def node(self):
         return self.graph.get_node(self.data)
 
+    # @property
+    # def nodes(self) -> tuple:
+    #     return (self.node, )
     @property
     def nodes(self) -> tuple:
-        return (self.node, )
+        # TODO: SOrt this out with property above.
+        return (self.node,)
 
     @property
-    def x(self):
-        return self.get_attribute('x')
+    def pos(self) -> QPointF:
+        return self.get_attribute('pos')
 
-    @x.setter
-    def x(self, x: float):
-        self.set_attribute('x', x)
-
-    @property
-    def y(self):
-        return self.get_attribute('y')
-
-    @y.setter
-    def y(self, y: float):
-        self.set_attribute('y', y)
+    @pos.setter
+    def pos(self, pos: QPointF):
+        self.set_attribute('pos', pos)
 
 
 class Edge(Element):
@@ -100,12 +97,37 @@ class Edge(Element):
     def tail(self):
         return self.graph.get_node(self.data[1])
 
+    # @property
+    # def nodes(self) -> tuple:
+    #     return self.data
     @property
     def nodes(self) -> tuple:
-        return self.data
+
+        # TODO: SOrt this out with property above.
+        return tuple([self.graph.get_node(node) for node in self.data])
+
+    @property
+    def hedges(self) -> set:
+
+        # TODO: Replace with hashmap on graph obj?
+        hedges = set()
+        head, tail = self.data
+        if self.graph.has_hedge((head, tail)):
+            hedges.add(self.graph.get_hedge((head, tail)))
+        if self.graph.has_hedge((tail, head)):
+            hedges.add(self.graph.get_hedge((tail, head)))
+        # head, tail = self.data
+        # if (head, tail) in self.graph.data.edges:
+        #     hedges.append(Hedge(self.graph, (head, tail)))
+        # if (tail, head) in self.graph.data.edges:
+        #     hedges.append(Hedge(self.graph, (tail, head)))
+        return hedges
+    #
+    # @property
+    # def faces
 
 
-class HalfEdge(Edge):
+class Hedge(Edge):
 
     def get_attribute(self, key, default=None):
         return self.graph.data.edges[self.data].get(key, default)
@@ -113,8 +135,26 @@ class HalfEdge(Edge):
     def set_attribute(self, key, value):
         self.graph.data.edges[self.data][key] = value
 
+    @property
+    def face(self) -> Face | None:
+
+        # TODO: Cache property.
+        #return Face(self.graph, face)
+        return next((face for face in self.graph.faces if self in face), None)
+
 
 class Face(Element):
+
+    # def __in__(self, obj: Hedge):
+    #     if not isinstance(obj, Hedge):
+    #         raise
+    #     return obj in self.hedges
+    def __contains__(self, item):
+
+        if not isinstance(item, Hedge):
+            raise
+        return item in self.hedges
+
 
     def get_attribute(self, key, default=None):
         return self.graph._faces[self].get(key, default)
@@ -122,18 +162,25 @@ class Face(Element):
     def set_attribute(self, key, value):
         self.graph._faces[self][key] = value
 
+    # @property
+    # def nodes(self) -> tuple:
+    #     return self.data
+
     @property
     def nodes(self) -> tuple:
-        return self.data
+
+        # TODO: SOrt this out with property above.
+        return tuple([self.graph.get_node(node) for node in self.data])
 
     @property
-    def edges(self):
-        edges = []
-        for i in range(len(self.data)):
-            edge = (self.data[i], self.data[(i + 1) % len(self.data)])
-            edges.append(self.graph.get_edge(edge))
-        return edges
+    def hedges(self) -> tuple[Hedge]:
 
+        # TODO: Cache property
+        hedges = []
+        for i in range(len(self.data)):
+            hedge = (self.data[i], self.data[(i + 1) % len(self.data)])
+            hedges.append(self.graph.get_hedge(hedge))
+        return tuple(hedges)
 
 
 class Graph(ContentBase):
@@ -154,8 +201,8 @@ class Graph(ContentBase):
         return {self.get_edge(edge) for edge in self.undirected_data.edges}
 
     @property
-    def half_edges(self) -> set[HalfEdge]:
-        return {self.get_half_edge(edge) for edge in self.data.edges}
+    def hedges(self) -> set[Hedge]:
+        return {self.get_hedge(edge) for edge in self.data.edges}
 
     @property
     def faces(self) -> set[Face]:
@@ -165,17 +212,29 @@ class Graph(ContentBase):
         assert node in self.data, f'Node not found: {node}'
         return Node(self, node)
 
-    def get_edge(self, edge) -> Edge:
+    def get_edge(self, edge: tuple[Any, Any]) -> Edge:
         assert edge in self.undirected_data.edges, f'Edge not found: {edge}'
         return Edge(self, edge)
 
-    def get_half_edge(self, edge) -> HalfEdge:
+    def get_hedge(self, edge) -> Hedge:
         assert edge in self.data.edges, f'Half edge not found: {edge}'
-        return HalfEdge(self, edge)
+        return Hedge(self, edge)
 
-    def get_face(self, face) -> Face:
+    def get_face(self, face: tuple) -> Face:
         assert face in self._faces, f'Face not found: {face}'
         return Face(self, face)
+
+    def has_hedge(self, hedge: tuple[Any, Any]):
+        return hedge in self.data.edges
+
+    def add_face(self, face: tuple, **face_attrs):
+        edges = []
+        for i in range(len(face)):
+            head = face[i]
+            tail = face[(i + 1) % len(face)]
+            edges.append((head, tail))
+        self.data.add_edges_from(edges)
+        self._faces[face] = face_attrs
 
     def update_undirected(self):
         self.undirected_data = self.data.to_undirected()
@@ -242,8 +301,9 @@ class Graph(ContentBase):
             self.data.add_edge(head, tail)
 
             # Need to set the head data.
-            self.data.nodes[head]['x'] = wall_data.x
-            self.data.nodes[head]['y'] = wall_data.y
+            #self.data.nodes[head]['x'] = wall_data.x
+            #self.data.nodes[head]['y'] = wall_data.y
+            self.data.nodes[head]['pos'] = QPointF(wall_data.x, wall_data.y)
             self.data.edges[(head, tail)]['wall'] = wall_data
 
 
@@ -279,6 +339,13 @@ class Graph(ContentBase):
         print('\nfaces:', len(self.faces))
         for face in self.faces:
             print(face)
+        #
+        # # Create a mapping from old node names to ordinal numbers
+        # mapping = {old_label: new_label for new_label, old_label in
+        #            enumerate(self.data.nodes())}
+        #
+        # # Relabel the graph
+        # self.data = nx.relabel_nodes(self.data, mapping)
 
 
         '''
@@ -293,6 +360,19 @@ class Graph(ContentBase):
         '''
 
         self.update_undirected()
+
+        print('\nnodes:')
+        for node in self.nodes:
+            print('    ->', node, node.pos)
+        print('\nedges:')
+        for edge in self.edges:
+            print('    ->', edge)
+        print('\nhedges:')
+        for hedge in self.hedges:
+            print('    ->', hedge, '->', hedge.face)
+        print('\nfaces:')
+        for face in self.faces:
+            print('    ->', face)
 
 
     def save(self, file_path: str):
@@ -324,17 +404,17 @@ class Graph(ContentBase):
 
 
             #wall = 0
-            for i, edge in enumerate(face.edges):
+            for i, edge in enumerate(face.hedges):
 
                 wall_data = edge.get_attribute('wall')
-                wall_data.x = int(edge.head.x)
-                wall_data.y = int(edge.head.y)
+                wall_data.x = int(edge.head.pos.x())
+                wall_data.y = int(edge.head.pos.y())
                 wall_to_edge.append(edge)
                 edges.append(edge)
                 m.walls.append(wall_data)
                 #wall += 1
 
-                edge_map[edge] = face.edges[(i + 1) % len(face.edges)]
+                edge_map[edge] = face.hedges[(i + 1) % len(face.hedges)]
 
 
 

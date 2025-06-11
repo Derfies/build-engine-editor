@@ -17,19 +17,20 @@ class GraphEditData:
     face_attrs: dict[tuple[tuple]]
 
 
-class GraphEditBase(Edit):
+class AddRemoveBase(Edit):
 
-    def __init__(self, nodes: tuple, edges: tuple[tuple], faces: tuple[tuple], *args, **kwargs):
+    # Should these deal with raw networkx data or the wrapper?
+
+    def __init__(self, *args, **kwargs):
+        self.nodes = kwargs.pop('nodes', tuple())
+        self.edges = kwargs.pop('edges', tuple())
+        self.faces = kwargs.pop('faces', tuple())
         self.node_attrs = kwargs.pop('node_attrs', {})
         self.edge_attrs = kwargs.pop('edge_attrs', {})
         self.face_attrs = kwargs.pop('face_attrs', {})
         super().__init__(*args, **kwargs)
 
-        self.nodes = nodes
-        self.edges = edges
-        self.faces = faces
-
-    def undo(self):
+    def remove(self):
 
         # TODO: Use nicer interface.
         # TODO: Needs to handle all node / edge / face with attr combos.
@@ -41,11 +42,41 @@ class GraphEditBase(Edit):
             self.obj.data.remove_node(node)
         self.obj.update_undirected()
 
-    def redo(self):
+    def add(self):
         for node in self.nodes:
-            self.obj.data.add_node(node, **self.node_attrs.get(node, {}))
+            #print('ADD:', node, '->', self.node_attrs.get(node, {}))
+            self.obj.data.add_node(node)
+
         for edge in self.edges:
             self.obj.data.add_edge(*edge, **self.edge_attrs.get(edge, {}))
         for face in self.faces:
-            self.obj._faces[face] = self.face_attrs.get(face, {})
+            #self.obj._faces[face] = self.face_attrs.get(face, {})
+            self.obj.add_face(face, **self.face_attrs.get(face, {}))
+
+        for node, node_attr in self.node_attrs.items():
+            for key, value in node_attr.items():
+                wrapped = self.obj.get_node(node)
+                wrapped.set_attribute(key, value)
+                #self.obj.data.nodes[node][key] = value
+                #print('SET ATTR:', node, key, value)
+
+
         self.obj.update_undirected()
+
+
+class Add(AddRemoveBase):
+
+    def undo(self):
+        self.remove()
+
+    def redo(self):
+        self.add()
+
+
+class Remove(AddRemoveBase):
+
+    def undo(self):
+        self.add()
+
+    def redo(self):
+        self.remove()

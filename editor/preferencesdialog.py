@@ -40,7 +40,6 @@ class ColourPicker(QWidget):
         self.set_colour(QColor())
 
     def show_colour_dialog(self):
-        print(self._colour)
         dialog = QColorDialog(self._colour)
         dialog.set_option(QColorDialog.ShowAlphaChannel, True)
         if dialog.exec():

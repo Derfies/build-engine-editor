@@ -11,7 +11,7 @@ from __feature__ import snake_case
 
 NODE_RADIUS = 2
 NODE_COLLISION_RADIUS = 6
-WALL_COLLISION_THICKNESS = 7
+WALL_COLLISION_THICKNESS = 10
 
 
 class GraphicsItemBaseMixin:
@@ -62,8 +62,9 @@ class NodeGraphicsItem(GraphicsItemBaseMixin, QGraphicsRectItem):
 
         self.setZValue(100)
         self.set_flag(QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations)
-        p = QPointF(self.element().x, self.element().y)
-        self.set_pos(p)
+        #print(self.element(), self.element().x, self.element().y)
+        #p = QPointF(self.element().x, self.element().y)
+        self.set_pos(self.element().pos)
 
     def update_pen(self):
 
@@ -83,6 +84,7 @@ class NodeGraphicsItem(GraphicsItemBaseMixin, QGraphicsRectItem):
         scale = self.scene().views()[0].transform().m11()
 
         # Create a larger clickable shape.
+        # Wait, why are we using paint path? Can't I just use a vanilla rect?
         path = QPainterPath()
         path.add_rect(
             -NODE_COLLISION_RADIUS / scale,
@@ -107,10 +109,12 @@ class EdgeGraphicsItem(GraphicsItemBaseMixin, QGraphicsLineItem):
     def __init__(self, edge: Edge):
         super().__init__(edge)
 
+        #print('edge graph:', edge.graph)
+
         self.setZValue(50)
-        p1 = QPointF(self.element().head.x, self.element().head.y)
-        p2 = QPointF(self.element().tail.x, self.element().tail.y)
-        self.set_line(QLineF(p1, p2))
+        #p1 = QPointF(self.element().head.x, self.element().head.y)
+        #p2 = QPointF(self.element().tail.x, self.element().tail.y)
+        self.set_line(QLineF(self.element().head.pos, self.element().tail.pos))
 
     def update_pen(self):
 
@@ -154,7 +158,7 @@ class FaceGraphicsItem(GraphicsItemBaseMixin, QGraphicsPolygonItem):
         poly = []
         for node in face.data:
             node_ = face.graph.get_node(node)
-            poly.append(QPointF(node_.x, node_.y))
+            poly.append(node_.pos)#QPointF(node_.x, node_.y))
 
         self.set_polygon(poly)
         self.setZValue(0)

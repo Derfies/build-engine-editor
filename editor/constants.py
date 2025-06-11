@@ -1,18 +1,19 @@
-from enum import IntEnum
+from enum import IntEnum, auto
 
 
 class ModalTool(IntEnum):
 
-    SELECT = 0
-    MOVE = 1
-    ROTATE = 2
-    SCALE = 3
-    CREATE_POLY = 4
-    CREATE_FREEFORM_POLY = 5
+    SELECT = auto()
+    MOVE = auto()
+    ROTATE = auto()
+    SCALE = auto()
+    CREATE_POLY = auto()
+    CREATE_FREEFORM_POLY = auto()
+    SPLIT_FACE = auto()
 
 
 class SelectionMode(IntEnum):
 
-    NODE = 0
-    EDGE = 1
-    POLY = 2
+    NODE = auto()
+    EDGE = auto()
+    POLY = auto()
