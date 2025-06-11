@@ -349,13 +349,18 @@ class SplitFaceTool(GraphicsSceneToolBase):
             if len(self._edges) > 1:
                 a, b = self._get_face()
                 self._splits.append((a, percentage_along_line(a.head.pos, a.tail.pos, self._points[-2])))
+                self._splits.append((b, percentage_along_line(b.head.pos, b.tail.pos, self._points[-1])))
             self._start_point = pos
 
         elif event.button() == Qt.RightButton:
 
             # TODO: Support splitting *just* an edge, ie no new bridge.
-            a, b = self._get_face()
-            self._splits.append((b, percentage_along_line(b.head.pos, b.tail.pos, self._points[-1])))
+            # if len(self._edges) > 1:
+            #     a, b = self._get_face()
+            #     self._splits.append((b, percentage_along_line(b.head.pos, b.tail.pos, self._points[-1])))
+            # else:
+            #     h = next(iter(self._edges[-1].hedges))
+            #     self._splits.append((h, percentage_along_line(h.head.pos,  h.tail.pos, self._points[-1])))
             splits = self._splits[:]
             self.cancel()
             commands.split_face(*splits)
@@ -369,6 +374,8 @@ class SplitFaceTool(GraphicsSceneToolBase):
             self.preview.set_line(QLineF(self._start_point, pos))
 
     def cancel(self):
+
+        # TODO: Remove all cut lines.
         super().cancel()
         self._start_point = None
         self._splits.clear()

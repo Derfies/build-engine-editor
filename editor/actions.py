@@ -50,7 +50,8 @@ class AddRemoveBase(Edit):
         for edge in self.edges:
             self.obj.data.add_edge(*edge, **self.edge_attrs.get(edge, {}))
         for face in self.faces:
-            self.obj._faces[face] = self.face_attrs.get(face, {})
+            #self.obj._faces[face] = self.face_attrs.get(face, {})
+            self.obj.add_face(face, **self.face_attrs.get(face, {}))
 
         for node, node_attr in self.node_attrs.items():
             for key, value in node_attr.items():

@@ -12,6 +12,8 @@ pyqtdarktheme = "^2.1.0"
 marshmallow = "^4.0.0"
 marshmallow-dataclass = "^8.7.1"
 networkx = "3.3"
+shapely = "^2.1.1"
+numpy = "<2"
 
 
 [build-system]

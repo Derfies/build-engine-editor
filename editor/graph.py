@@ -64,9 +64,13 @@ class Node(Element):
     def node(self):
         return self.graph.get_node(self.data)
 
+    # @property
+    # def nodes(self) -> tuple:
+    #     return (self.node, )
     @property
     def nodes(self) -> tuple:
-        return (self.node, )
+        # TODO: SOrt this out with property above.
+        return (self.node,)
 
     @property
     def pos(self) -> QPointF:
@@ -93,9 +97,14 @@ class Edge(Element):
     def tail(self):
         return self.graph.get_node(self.data[1])
 
+    # @property
+    # def nodes(self) -> tuple:
+    #     return self.data
     @property
     def nodes(self) -> tuple:
-        return self.data
+
+        # TODO: SOrt this out with property above.
+        return tuple([self.graph.get_node(node) for node in self.data])
 
     @property
     def hedges(self) -> set:
@@ -153,9 +162,15 @@ class Face(Element):
     def set_attribute(self, key, value):
         self.graph._faces[self][key] = value
 
+    # @property
+    # def nodes(self) -> tuple:
+    #     return self.data
+
     @property
     def nodes(self) -> tuple:
-        return self.data
+
+        # TODO: SOrt this out with property above.
+        return tuple([self.graph.get_node(node) for node in self.data])
 
     @property
     def hedges(self) -> tuple[Hedge]:
@@ -211,6 +226,15 @@ class Graph(ContentBase):
 
     def has_hedge(self, hedge: tuple[Any, Any]):
         return hedge in self.data.edges
+
+    def add_face(self, face: tuple, **face_attrs):
+        edges = []
+        for i in range(len(face)):
+            head = face[i]
+            tail = face[(i + 1) % len(face)]
+            edges.append((head, tail))
+        self.data.add_edges_from(edges)
+        self._faces[face] = face_attrs
 
     def update_undirected(self):
         self.undirected_data = self.data.to_undirected()
@@ -336,6 +360,19 @@ class Graph(ContentBase):
         '''
 
         self.update_undirected()
+
+        print('\nnodes:')
+        for node in self.nodes:
+            print('    ->', node, node.pos)
+        print('\nedges:')
+        for edge in self.edges:
+            print('    ->', edge)
+        print('\nhedges:')
+        for hedge in self.hedges:
+            print('    ->', hedge, '->', hedge.face)
+        print('\nfaces:')
+        for face in self.faces:
+            print('    ->', face)
 
 
     def save(self, file_path: str):
