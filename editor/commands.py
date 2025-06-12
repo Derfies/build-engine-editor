@@ -1,6 +1,7 @@
 import math
 import uuid
 from collections import defaultdict
+from typing import Iterable
 
 from PySide6.QtCore import QPointF
 from PySide6.QtWidgets import QApplication
@@ -10,7 +11,7 @@ from shapely.ops import split as split_ops
 
 from applicationframework.actions import Composite, SetAttribute
 from editor.actions import Add, Remove
-from editor.graph import Edge, Hedge, Node
+from editor.graph import Edge, Face, Hedge, Node
 from editor.maths import lerp
 from editor.updateflag import UpdateFlag
 from gameengines.build.map import Sector, Wall
@@ -19,54 +20,89 @@ from gameengines.build.map import Sector, Wall
 from __feature__ import snake_case
 
 
-def select_elements(elements: set[Node] | set[Edge]):
-    deselect = Composite([
-        SetAttribute('is_selected', False, element)
-        for element in QApplication.instance().doc.selected_elements
-    ])
-    select = Composite([
-        SetAttribute('is_selected', True, element)
-        for element in elements
-    ])
-    action = Composite([
-        deselect,
-        select,
-        #DeselectElements(QApplication.instance().doc.selected_elements),
-        #SelectElements(elements)
-    ], flags=UpdateFlag.SELECTION)
+def select_elements(elements: Iterable[Node] | Iterable[Edge] | Iterable[Face]):
+    actions = []
+    for element in QApplication.instance().doc.selected_elements:
+        actions.append(SetAttribute('is_selected', False, element))
+    for element in elements:
+        actions.append(SetAttribute('is_selected', True, element))
+    action = Composite(actions, flags=UpdateFlag.SELECTION)
+    QApplication.instance().action_manager.push(action)
+    QApplication.instance().doc.updated(action(), dirty=False)
+
+
+def remove_elements(elements: set[Node] | set[Edge] | set[Face]):
+
+    # TODO: Set selection back.
+    node_attrs = {}
+    rem_nodes, rem_edges, rem_faces = set(), set(), set()
+    for element in elements:
+        if isinstance(element, Node):
+            rem_nodes.add(element)
+            rem_edges.update(element.hedges)
+            rem_faces.update(element.faces)
+            node_attrs.setdefault(element, {})['pos'] = element.pos
+        if isinstance(element, Edge):
+            rem_edges.update(element.hedges)
+            rem_faces.update(element.faces)
+        if isinstance(element, Face):
+            rem_faces.add(element)
+
+    print('rem_nodes:', rem_nodes)
+    print('rem_edges:', rem_edges)
+    print('rem_faces:', rem_faces)
+    print('node_attrs', node_attrs)
+
+    action = Remove(
+        QApplication.instance().doc.content,
+        nodes=[n.data for n in rem_nodes],
+        edges=[n.data for n in rem_edges],
+        faces=[n.data for n in rem_faces],
+        node_attrs=node_attrs,
+    )
     QApplication.instance().action_manager.push(action)
     QApplication.instance().doc.updated(action(), dirty=False)
 
 
 def transform_node_items(node_items):
-    actions = []
-    for node_item in node_items:
-        actions.append(SetAttribute('pos', node_item.pos(), node_item.element()))
-    action = Composite(actions, flags=UpdateFlag.CONTENT)
+    action = Composite([
+        SetAttribute('pos', node_item.pos(), node_item.element())
+        for node_item in node_items
+    ], flags=UpdateFlag.CONTENT)
     QApplication.instance().action_manager.push(action)
     QApplication.instance().doc.updated(action(), dirty=False)
 
 
-def add_face(nodes: tuple[tuple], **kwargs):
-    # TODO: Make func sig a little more sensical
+def add_face(points: Iterable[tuple]):
 
-    face = []
+    # Ensure winding order is consistent.
+    poly = orient(Polygon(points), sign=1.0)
+    coords = poly.exterior.coords[:-1]
+
+    # TODO: Factory for default data? How else do walls / sectors get here
+    # without knowing the build data requirements?
+    node_attrs = defaultdict(dict)
+    edge_attrs = defaultdict(dict)
+    face_attrs = defaultdict(dict)
+    nodes = [str(uuid.uuid4()) for _ in range(len(coords))]
     edges = []
+    face = tuple(nodes)
     for i in range(len(nodes)):
         head = nodes[i]
         tail = nodes[(i + 1) % len(nodes)]
         edges.append((head, tail))
-        face.append(head)
+        node_attrs[nodes[i]]['pos'] = QPointF(*coords[i])
+        edge_attrs[(head, tail)]['wall'] = Wall()
+    face_attrs[face]['sector'] = Sector()
 
-    graph = QApplication.instance().doc.content
-
-    # TODO: Factory for default data? How else does the next sector get in here?
     action = Add(
-        graph,
+        QApplication.instance().doc.content,
         nodes=nodes,
-        edges=tuple(edges),
-        faces=(tuple(face),),
-        **kwargs
+        edges=edges,
+        faces=[face],
+        node_attrs=node_attrs,
+        edge_attrs=edge_attrs,
+        face_attrs=face_attrs,
     )
     QApplication.instance().action_manager.push(action)
     QApplication.instance().doc.updated(action(), dirty=True)
@@ -101,9 +137,9 @@ def split_face(*splits: tuple[Hedge, float]):
     # Remove those edges to be split.
     del_hedges = set()
     del_faces = set()
-    new_nodes = []
-    new_edges = []
-    new_faces = []
+    add_nodes = set()
+    add_edges = set()
+    add_faces = []
     node_attrs = defaultdict(dict)
     edge_attrs = defaultdict(dict)
     face_attrs = defaultdict(dict)
@@ -118,7 +154,7 @@ def split_face(*splits: tuple[Hedge, float]):
         del_hedges.add(hedge.data)
 
         if hedge.face is not None:
-            del_faces.add(hedge.face)
+            del_faces.add(hedge.face.data)
 
         #if i > 0:
         if i % 2:
@@ -166,6 +202,8 @@ def split_face(*splits: tuple[Hedge, float]):
             # rotate faces to align.
             for i, (h1, t1) in enumerate(edges1):
                 if (t1, h1) in edges2:
+                    #add_edges.append((h1, t1))
+                    #add_edges.append((t1, h1))
                     break
 
             cut_nodes = edges1[i]
@@ -213,10 +251,24 @@ def split_face(*splits: tuple[Hedge, float]):
             for k, v in face2.items():
                 print(k, '->', v)
 
-            new_faces.append(tuple(face1.keys()))
-            new_faces.append(tuple(face2.keys()))
+            # TODO: I think I need to remove the edges that were already here...
+            nodes1 = list(face1.keys())
+            nodes2 = list(face2.keys())
+            add_nodes.update(nodes1)
+            add_nodes.update(nodes2)
+            add_faces.append(tuple(face1.keys()))
+            add_faces.append(tuple(face2.keys()))
             node_attrs.update(face1)
             node_attrs.update(face2)
+
+            add_edges.update([
+                (nodes1[i], nodes1[(i + 1) % len(nodes1)]) for i in range(len(nodes1))
+            ])
+            add_edges.update([
+                (nodes2[i], nodes2[(i + 1) % len(nodes2)]) for i in
+                range(len(nodes2))
+            ])
+
 
         last_cut_point = cut_point
 
@@ -224,23 +276,32 @@ def split_face(*splits: tuple[Hedge, float]):
     for hedge in del_hedges:
         print('    ->', hedge)
 
+    print('\nadd_edges:')
+    for add_edge in add_edges:
+        print('    ->', add_edge)
+
+    print('\nadd_faces:')
+    for add_face in add_faces:
+        print('    ->', add_face)
+
+    # Face attrs.
     action = Composite([
-        Remove(content, edges=del_hedges, faces=[f.data for f in del_faces]),
-        Add(content, faces=new_faces, node_attrs=node_attrs),
+        Remove(content, edges=del_hedges, faces=del_faces),
+        Add(content, nodes=add_nodes, edges=add_edges, faces=add_faces, node_attrs=node_attrs),
     ], flags=UpdateFlag.CONTENT)
     QApplication.instance().action_manager.push(action)
     QApplication.instance().doc.updated(action(), dirty=False)
 
-
-    print('\nnodes:')
-    for node in content.nodes:
-        print('    ->', node)
-    print('\nedges:')
-    for edge in content.edges:
-        print('    ->', edge)
-    print('\nhedges:')
-    for hedge in content.hedges:
-        print('    ->', hedge, '->', hedge.face)
-    print('\nfaces:')
-    for face in content.faces:
-        print('    ->', face)
+    #
+    # print('\nnodes:')
+    # for node in content.nodes:
+    #     print('    ->', node)
+    # print('\nedges:')
+    # for edge in content.edges:
+    #     print('    ->', edge)
+    # print('\nhedges:')
+    # for hedge in content.hedges:
+    #     print('    ->', hedge, '->', hedge.face)
+    # print('\nfaces:')
+    # for face in content.faces:
+    #     print('    ->', face)

@@ -48,6 +48,7 @@ class HotkeySettings:
     move: str = 'W'
     rotate: str = 'E'
     scale: str = 'R'
+    remove: str = 'Backspace'
     frame_selection: str = 'F'
     grid_snap: str = 'X'
     vertex_snap: str = 'V'

@@ -20,6 +20,16 @@ class GraphEditData:
 class AddRemoveBase(Edit):
 
     # Should these deal with raw networkx data or the wrapper?
+    # Bit of a rant.
+    # We don't have a wrapper of something when we want to create it, since
+    # wrapping an object happens on retrieval. Which means we would be using a
+    # mix of wrappers to delete and non-wrapped objects to create (yuk). So that's
+    # some non-symmetry that I don't like.
+    # Further, because of undo adding and removing things are two sides of the
+    # same coin - you don't get one without the possibility of the other. So
+    # any objects assigned to an action need to be able to pass the api of the
+    # content object with both.
+    # TODO: Are these just done with SetAttr actions, or is that just too granular?
 
     def __init__(self, *args, **kwargs):
         self.nodes = kwargs.pop('nodes', tuple())
@@ -31,37 +41,22 @@ class AddRemoveBase(Edit):
         super().__init__(*args, **kwargs)
 
     def remove(self):
-
-        # TODO: Use nicer interface.
-        # TODO: Needs to handle all node / edge / face with attr combos.
         for face in self.faces:
-            del self.obj._faces[face]
+            self.obj.remove_face(face)
         for edge in self.edges:
-            self.obj.data.remove_edge(*edge)
+            self.obj.remove_hedge(edge)
         for node in self.nodes:
-            self.obj.data.remove_node(node)
-        self.obj.update_undirected()
+            self.obj.remove_node(node)
+        self.obj.update()
 
     def add(self):
         for node in self.nodes:
-            #print('ADD:', node, '->', self.node_attrs.get(node, {}))
-            self.obj.data.add_node(node)
-
+            self.obj.add_node(node, **self.node_attrs.get(node, {}))
         for edge in self.edges:
-            self.obj.data.add_edge(*edge, **self.edge_attrs.get(edge, {}))
+            self.obj.add_hedge(edge, **self.edge_attrs.get(edge, {}))
         for face in self.faces:
-            #self.obj._faces[face] = self.face_attrs.get(face, {})
             self.obj.add_face(face, **self.face_attrs.get(face, {}))
-
-        for node, node_attr in self.node_attrs.items():
-            for key, value in node_attr.items():
-                wrapped = self.obj.get_node(node)
-                wrapped.set_attribute(key, value)
-                #self.obj.data.nodes[node][key] = value
-                #print('SET ATTR:', node, key, value)
-
-
-        self.obj.update_undirected()
+        self.obj.update()
 
 
 class Add(AddRemoveBase):

@@ -21,21 +21,21 @@ HIT_MARK_SIZE = 5
 NODE_RADIUS = 2
 
 
-def create_foobar(points: tuple[QPointF]):
-
-    # TODO: Clean this up and properly define how we add new graph elements.
-    nodes = tuple([str(uuid.uuid4()) for node in points])
-    node_attrs = {
-        nodes[i]: {'pos': point}
-        for i, point in enumerate(points)
-    }
-    edge_attrs = {}
-    for i in range(len(nodes)):
-        head = nodes[i]
-        tail = nodes[(i + 1) % len(nodes)]
-        edge_attrs[(head, tail)] = {'wall': Wall()}
-    face_attrs = {nodes: {'sector': Sector()}}
-    return nodes, tuple(), tuple(), node_attrs, edge_attrs, face_attrs
+# def create_foobar(points: tuple[QPointF]):
+#
+#     # TODO: Clean this up and properly define how we add new graph elements.
+#     nodes = tuple([str(uuid.uuid4()) for node in points])
+#     node_attrs = {
+#         nodes[i]: {'pos': point}
+#         for i, point in enumerate(points)
+#     }
+#     edge_attrs = {}
+#     for i in range(len(nodes)):
+#         head = nodes[i]
+#         tail = nodes[(i + 1) % len(nodes)]
+#         edge_attrs[(head, tail)] = {'wall': Wall()}
+#     face_attrs = {nodes: {'sector': Sector()}}
+#     return nodes, tuple(), tuple(), node_attrs, edge_attrs, face_attrs
 
 
 class HitMark(QGraphicsItem):
@@ -276,9 +276,12 @@ class CreatePolygonTool(GraphicsSceneToolBase):
 
     def mouse_release_event(self, event):
         if event.button() == Qt.LeftButton:
-            nodes, _, _, node_attrs, edge_attrs, face_attrs = create_foobar(self.preview.polygon())
+            points = [p.to_tuple() for p in self.preview.polygon()]
             self.cancel()
-            commands.add_face(nodes, node_attrs=node_attrs, edge_attrs=edge_attrs, face_attrs=face_attrs)
+            commands.add_face(points)
+            #nodes, _, _, node_attrs, edge_attrs, face_attrs = create_foobar(self.preview.polygon())
+            #self.cancel()
+            #commands.add_face(nodes, node_attrs=node_attrs, edge_attrs=edge_attrs, face_attrs=face_attrs)
 
 
 class CreateFreeformPolygonTool(GraphicsSceneToolBase):
@@ -302,9 +305,10 @@ class CreateFreeformPolygonTool(GraphicsSceneToolBase):
             if len(self._points) < 3:
                 self.cancel()
                 return
-            nodes, _, _, node_attrs, edge_attrs, face_attrs = create_foobar(self._points)
+            #nodes, _, _, node_attrs, edge_attrs, face_attrs = create_foobar(self._points)
+            points = [p.to_tuple() for p in self._points]
             self.cancel()
-            commands.add_face(nodes, node_attrs=node_attrs, edge_attrs=edge_attrs, face_attrs=face_attrs)
+            commands.add_face(points)#nodes, node_attrs=node_attrs, edge_attrs=edge_attrs, face_attrs=face_attrs)
 
     def mouse_move_event(self, event):
         if self._points:

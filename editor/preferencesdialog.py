@@ -103,6 +103,7 @@ class HotkeysWidget(PreferenceWidgetBase):
             'Move',
             'Rotate',
             'Scale',
+            'Remove',
             'Frame Selection',
             'Grid Snap',
             'Vertex Snap',

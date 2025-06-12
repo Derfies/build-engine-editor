@@ -225,13 +225,12 @@ class GraphicsScene(QGraphicsScene):
             # self._node_to_items.clear()
             # self._node_to_node_item.clear()
             for item in self.items():
+
                 item_nodes = item.element().nodes
                 self._item_to_nodes[item] = set(item_nodes)
                 for node in item_nodes:
                     self._node_to_items[node].add(item)
 
-                #if isinstance(item, NodeGraphicsItem):
-                   # self._node_to_node_item[node] = item
         else:
 
             # Update selected pen.

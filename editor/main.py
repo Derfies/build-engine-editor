@@ -12,6 +12,7 @@ from PySide6.QtWidgets import QSplitter, QVBoxLayout, QWidget
 from applicationframework.application import Application
 from applicationframework.document import Document
 from applicationframework.mainwindow import MainWindow as MainWindowBase
+from editor import commands
 from editor.constants import ModalTool, SelectionMode
 from editor.editorpropertygrid import PropertyGrid
 from editor.graph import Graph
@@ -88,7 +89,7 @@ class MainWindow(MainWindowBase):
         #self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\test.map')
         #self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\LL-SEWER.MAP')
         #self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\1.MAP')
-        self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\editor\tests\data\1_squares.map')
+        self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\editor\tests\data\3_squares.map')
         #self.app().doc.updated(dirty=False)
 
         #self.app().doc.file_path = r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\out.map'
@@ -149,6 +150,7 @@ class MainWindow(MainWindowBase):
         self.select_poly_action.set_checkable(True)
 
         # Misc actions.
+        self.remove_action = QAction(self.get_icon('cross', icons_path=self.local_icons_path), '&Remove', self)
         self.frame_selection_action = QAction(self.get_icon('image-instagram-frame', icons_path=self.local_icons_path), '&Frame Selection', self)
         self.play_action = QAction(self.get_icon('control', icons_path=self.local_icons_path), '&Play', self)
 
@@ -179,6 +181,7 @@ class MainWindow(MainWindowBase):
         self.show_preferences_action.triggered.connect(self.show_preferences)
 
         # Misc actions.
+        self.remove_action.triggered.connect(self.remove)
         self.frame_selection_action.triggered.connect(self.frame_selection)
         self.play_action.triggered.connect(self.play)
 
@@ -193,6 +196,7 @@ class MainWindow(MainWindowBase):
         self.scale_action.set_shortcut(QKeySequence(hotkeys.scale))
 
         # Misc actions.
+        self.remove_action.set_shortcut(hotkeys.remove)
         self.frame_selection_action.set_shortcut(hotkeys.frame_selection)
 
     def create_menu_bar(self):
@@ -200,6 +204,7 @@ class MainWindow(MainWindowBase):
 
         # Edit actions.
         self.edit_menu.add_separator()
+        self.edit_menu.add_action(self.remove_action)
         self.edit_menu.add_action(self.frame_selection_action)
         self.edit_menu.add_separator()
         self.edit_menu.add_action(self.show_preferences_action)
@@ -235,15 +240,6 @@ class MainWindow(MainWindowBase):
     def show_preferences(self):
 
         # Collect settings.
-        # colour_schema = marshmallow_dataclass.class_schema(ColourSettings)()
-        # grid_schema = marshmallow_dataclass.class_schema(GridSettings)()
-        # hotkey_schema = marshmallow_dataclass.class_schema(HotkeySettings)()
-        # preferences = {
-        #     'colours': colour_schema.dump(self.app().colour_settings),
-        #     'grid': grid_schema.dump(self.app().grid_settings),
-        #     'hotkeys': hotkey_schema.dump(self.app().hotkey_settings),
-        # }
-
         preferences = {}
         for name, dataclass in {
             'colours': self.app().colour_settings,
@@ -261,13 +257,6 @@ class MainWindow(MainWindowBase):
             return
 
         # Deserialize back to data objects and set.
-        # for k, v in dialog.preferences['colours'].items():
-        #     setattr(self.app().colour_settings, k, v)
-        # for k, v in dialog.preferences['grid'].items():
-        #     setattr(self.app().grid_settings, k, v)
-        # for k, v in dialog.preferences['hotkeys'].items():
-        #     setattr(self.app().hotkey_settings, k, v)
-
         for name, dataclass in {
             'colours': self.app().colour_settings,
             'grid': self.app().grid_settings,
@@ -279,6 +268,9 @@ class MainWindow(MainWindowBase):
 
         # Don't treat modification of prefs as a content change.
         self.app().doc.updated(UpdateFlag.SETTINGS, dirty=False)
+
+    def remove(self):
+        commands.remove_elements(self.app().doc.selected_elements)
 
     def frame_selection(self):
 
