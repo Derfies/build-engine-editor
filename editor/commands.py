@@ -1,8 +1,8 @@
-import math
 import uuid
 from collections import defaultdict
 from typing import Iterable
 
+import numpy as np
 from PySide6.QtCore import QPointF
 from PySide6.QtWidgets import QApplication
 from shapely.geometry import LineString, Polygon
@@ -10,9 +10,10 @@ from shapely.geometry.polygon import orient
 from shapely.ops import split as split_ops
 
 from applicationframework.actions import Composite, SetAttribute
+from editor import maths
 from editor.actions import Add, Remove
 from editor.graph import Edge, Face, Hedge, Node
-from editor.maths import lerp
+from editor.maths import lerp, long_line_through, midpoint
 from editor.updateflag import UpdateFlag
 from gameengines.build.map import Sector, Wall
 
@@ -20,7 +21,10 @@ from gameengines.build.map import Sector, Wall
 from __feature__ import snake_case
 
 
-def select_elements(elements: Iterable[Node] | Iterable[Edge] | Iterable[Face]):
+TOLERANCE = 1e-6
+
+
+def select_elements(elements: Iterable[Node] | Iterable[Edge] | Iterable[Hedge] | Iterable[Face]):
     actions = []
     for element in QApplication.instance().doc.selected_elements:
         actions.append(SetAttribute('is_selected', False, element))
@@ -106,25 +110,6 @@ def add_face(points: Iterable[tuple]):
     )
     QApplication.instance().action_manager.push(action)
     QApplication.instance().doc.updated(action(), dirty=True)
-
-
-def long_line_through(p1, p2, buffer=1000):
-    """
-    Extend a line between p1 and p2 to a long line that exceeds the given bounds.
-    """
-    x1, y1 = p1
-    x2, y2 = p2
-    dx = x2 - x1
-    dy = y2 - y1
-    length = math.hypot(dx, dy)
-    dx /= length
-    dy /= length
-
-    # Extend well beyond polygon bounds
-    extended_p1 = (x1 - dx * buffer, y1 - dy * buffer)
-    extended_p2 = (x2 + dx * buffer, y2 + dy * buffer)
-
-    return LineString([extended_p1, extended_p2])
 
 
 def split_face(*splits: tuple[Hedge, float]):
@@ -305,3 +290,75 @@ def split_face(*splits: tuple[Hedge, float]):
     # print('\nfaces:')
     # for face in content.faces:
     #     print('    ->', face)
+
+
+def join_edges(*edges: Iterable[Edge] | Iterable[Hedge]):
+
+    # TODO: Decide what func sig should look like. Does it take hedges or edges?
+    # If this is meant to be a programmer's interface, it should probably not be ambiguous
+    # Only joins faces to other faces. Even though the editor techincally supports
+    # face-less edges, for the purposes of joining edges that feels like a restriction
+    # we can make.
+
+    all_hedges = set()
+    for edge in edges:
+        if isinstance(edge, Edge):
+            all_hedges.update(edge.hedges)
+        else:
+            all_hedges.add(edge)
+
+    hedges = set()
+    for hedge in all_hedges:
+        print('hedge:', hedge, '->', hedge.face)
+        if hedge.face is not None:
+            hedges.add(hedge)
+
+    print('hedges:', hedges)
+
+    unmatched = list(hedges)
+    groups = []
+
+
+    MAX_DISTANCE = 1000.0
+
+
+    while unmatched:
+        base = unmatched.pop()
+        n1 = maths.edge_normal(base.head.pos.to_tuple(), base.tail.pos.to_tuple())
+        base_mid = LineString((base.head.pos.to_tuple(), base.tail.pos.to_tuple())).interpolate(0.5, normalized=True)
+
+        best_match = None
+        best_dist = float("inf")
+
+        for i, other in enumerate(unmatched):
+            n2 = maths.edge_normal(other.head.pos.to_tuple(), other.tail.pos.to_tuple())
+            if np.dot(n1, n2) < 0:#-1 + TOLERANCE:  # opposing normals
+                other_mid = LineString((other.head.pos.to_tuple(), other.tail.pos.to_tuple())).interpolate(0.5, normalized=True)
+                dist = base_mid.distance(other_mid)
+
+                print('dist:', dist)
+
+                if dist < best_dist and dist <= MAX_DISTANCE:
+                    best_match = (i, other)
+                    best_dist = dist
+
+        if best_match:
+            i, other = best_match
+            groups.append((base, other))
+            unmatched.pop(i)
+
+    print('groups:', groups)
+
+    for edge1, edge2 in groups:
+        mid = midpoint(edge1.head.pos.to_tuple(), edge2.tail.pos.to_tuple())
+        edge1.head.pos = QPointF(*mid)
+        edge2.tail.pos = QPointF(*mid)
+
+        mid = midpoint(edge1.tail.pos.to_tuple(), edge2.head.pos.to_tuple())
+        edge1.tail.pos = QPointF(*mid)
+        edge2.head.pos = QPointF(*mid)
+
+    # Rewar
+
+
+    QApplication.instance().doc.updated(dirty=True)

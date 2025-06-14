@@ -62,8 +62,6 @@ class NodeGraphicsItem(GraphicsItemBaseMixin, QGraphicsRectItem):
 
         self.setZValue(100)
         self.set_flag(QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations)
-        #print(self.element(), self.element().x, self.element().y)
-        #p = QPointF(self.element().x, self.element().y)
         self.set_pos(self.element().pos)
 
     def update_pen(self):

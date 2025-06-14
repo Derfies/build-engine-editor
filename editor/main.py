@@ -7,7 +7,7 @@ import marshmallow_dataclass
 import qdarktheme
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QActionGroup, QKeySequence
-from PySide6.QtWidgets import QSplitter, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QSplitter, QTabWidget, QVBoxLayout, QWidget
 
 from applicationframework.application import Application
 from applicationframework.document import Document
@@ -20,7 +20,7 @@ from editor.graphicsscene import GraphicsScene
 from editor.graphicsview import GraphicsView
 from editor.mapdocument import MapDocument
 from editor.preferencesdialog import PreferencesDialog
-from editor.settings import ColourSettings, GridSettings, HotkeySettings, PlaySettings
+from editor.settings import ColourSettings, GeneralSettings, GridSettings, HotkeySettings, PlaySettings
 from editor.updateflag import UpdateFlag
 
 # noinspection PyUnresolvedReferences
@@ -44,6 +44,7 @@ class MainWindow(MainWindowBase):
     def __init__(self, *args, **kwargs):
 
         # TODO: Create custom app instance.
+        self.app().general_settings = GeneralSettings()
         self.app().colour_settings = ColourSettings()
         self.app().grid_settings = GridSettings()
         self.app().hotkey_settings = HotkeySettings()
@@ -56,11 +57,15 @@ class MainWindow(MainWindowBase):
 
         self.scene = GraphicsScene()
         self.view = GraphicsView(self.scene)
+
+        self.tabs = QTabWidget()
         self.property_grid = PropertyGrid()
+        self.tabs.add_tab(self.property_grid, 'Properties')
+        self.tabs.add_tab(QWidget(), 'Tool Settings')
 
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
         self.splitter.add_widget(self.view)
-        self.splitter.add_widget(self.property_grid)
+        self.splitter.add_widget(self.tabs)
 
         self.layout = QVBoxLayout(self)
         self.layout.add_widget(self.splitter)
@@ -71,25 +76,25 @@ class MainWindow(MainWindowBase):
 
         self.app().preferences_manager.register_widget('main_splitter', self.splitter)
         for name, dataclass in {
+            'general_settings': self.app().general_settings,
             'colour_settings': self.app().colour_settings,
             'grid_settings': self.app().grid_settings,
             'hotkey_settings': self.app().hotkey_settings,
             'play_settings': self.app().play_settings,
         }.items():
             self.app().preferences_manager.register_dataclass(name, dataclass)
-        # self.app().preferences_manager.register_dataclass('grid_settings', self.app().grid_settings)
-        # self.app().preferences_manager.register_dataclass('hotkey_settings', self.app().hotkey_settings)
-        # self.app().preferences_manager.register_dataclass('play_settings', self.app().play_settings)
 
         self.select_action.set_checked(True)
-        self.select_node_action.set_checked(True)
+        self.no_filter_action.set_checked(True)
         self.on_tool_action_group()
         self.on_select_action_group()
 
         #self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\test.map')
         #self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\LL-SEWER.MAP')
         #self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\1.MAP')
-        self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\editor\tests\data\3_squares.map')
+        #self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\editor\tests\data\2_squares.map')
+        self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\test.map')
+
         #self.app().doc.updated(dirty=False)
 
         #self.app().doc.file_path = r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\out.map'
@@ -129,16 +134,22 @@ class MainWindow(MainWindowBase):
         self.scale_action.set_data(ModalTool.SCALE)
         self.scale_action.set_checkable(True)
         self.create_poly_action = QAction(self.get_icon('layer-shape', icons_path=self.local_icons_path), '&Draw Poly', self)
-        self.create_poly_action.set_data(ModalTool.CREATE_POLY)
+        self.create_poly_action.set_data(ModalTool.CREATE_POLYGON)
         self.create_poly_action.set_checkable(True)
         self.create_freeform_poly_action = QAction(self.get_icon('layer-shape-polygon', icons_path=self.local_icons_path), '&Draw Poly', self)
-        self.create_freeform_poly_action.set_data(ModalTool.CREATE_FREEFORM_POLY)
+        self.create_freeform_poly_action.set_data(ModalTool.CREATE_FREEFORM_POLYGON)
         self.create_freeform_poly_action.set_checkable(True)
         self.split_face_action = QAction(self.get_icon('face-split', icons_path=self.local_icons_path), '&Split Face', self)
-        self.split_face_action.set_data(ModalTool.SPLIT_FACE)
+        self.split_face_action.set_data(ModalTool.SPLIT_FACES)
         self.split_face_action.set_checkable(True)
+        self.slice_action = QAction(self.get_icon('cutter', icons_path=self.local_icons_path), '&Split Face', self)
+        self.slice_action.set_data(ModalTool.SLICE_FACES)
+        self.slice_action.set_checkable(True)
 
         # Select actions.
+        self.no_filter_action = QAction(self.get_icon('funnel--cross', icons_path=self.local_icons_path), '&No Selection Filter', self)
+        self.no_filter_action.set_data(SelectionMode.ALL)
+        self.no_filter_action.set_checkable(True)
         self.select_node_action = QAction(self.get_icon('layer-select-point', icons_path=self.local_icons_path), '&Select Node', self)
         self.select_node_action.set_data(SelectionMode.NODE)
         self.select_node_action.set_checkable(True)
@@ -146,12 +157,14 @@ class MainWindow(MainWindowBase):
         self.select_edge_action.set_data(SelectionMode.EDGE)
         self.select_edge_action.set_checkable(True)
         self.select_poly_action = QAction(self.get_icon('layer-select-polygon', icons_path=self.local_icons_path), '&Select Poly', self)
-        self.select_poly_action.set_data(SelectionMode.POLY)
+        self.select_poly_action.set_data(SelectionMode.FACE)
         self.select_poly_action.set_checkable(True)
 
         # Misc actions.
-        self.remove_action = QAction(self.get_icon('cross', icons_path=self.local_icons_path), '&Remove', self)
+        self.join_edges_action = QAction( self.get_icon('join-edge', icons_path=self.local_icons_path), '&Join Edges', self)
+        self.split_edges_action = QAction(self.get_icon('split-edge', icons_path=self.local_icons_path),'&Split Edges', self)
         self.frame_selection_action = QAction(self.get_icon('image-instagram-frame', icons_path=self.local_icons_path), '&Frame Selection', self)
+        self.remove_action = QAction(self.get_icon('cross', icons_path=self.local_icons_path), '&Remove', self)
         self.play_action = QAction(self.get_icon('control', icons_path=self.local_icons_path), '&Play', self)
 
         # Tool action group.
@@ -164,11 +177,13 @@ class MainWindow(MainWindowBase):
         self.tool_action_group.add_action(self.create_poly_action)
         self.tool_action_group.add_action(self.create_freeform_poly_action)
         self.tool_action_group.add_action(self.split_face_action)
+        self.tool_action_group.add_action(self.slice_action)
         self.tool_action_group.triggered.connect(self.on_tool_action_group)
 
         # Select action group.
         self.select_action_group = QActionGroup(self)
         self.select_action_group.set_exclusive(True)
+        self.select_action_group.add_action(self.no_filter_action)
         self.select_action_group.add_action(self.select_node_action)
         self.select_action_group.add_action(self.select_edge_action)
         self.select_action_group.add_action(self.select_poly_action)
@@ -181,8 +196,10 @@ class MainWindow(MainWindowBase):
         self.show_preferences_action.triggered.connect(self.show_preferences)
 
         # Misc actions.
-        self.remove_action.triggered.connect(self.remove)
+        self.join_edges_action.triggered.connect(self.join_edges)
+        self.split_edges_action.triggered.connect(self.split_edges)
         self.frame_selection_action.triggered.connect(self.frame_selection)
+        self.remove_action.triggered.connect(self.remove)
         self.play_action.triggered.connect(self.play)
 
     def connect_hotkeys(self):
@@ -196,16 +213,20 @@ class MainWindow(MainWindowBase):
         self.scale_action.set_shortcut(QKeySequence(hotkeys.scale))
 
         # Misc actions.
-        self.remove_action.set_shortcut(hotkeys.remove)
+        self.join_edges_action.set_shortcut(hotkeys.join_edges)
+        self.split_edges_action.set_shortcut(hotkeys.split_edges)
         self.frame_selection_action.set_shortcut(hotkeys.frame_selection)
+        self.remove_action.set_shortcut(hotkeys.remove)
 
     def create_menu_bar(self):
         super().create_menu_bar()
 
         # Edit actions.
         self.edit_menu.add_separator()
-        self.edit_menu.add_action(self.remove_action)
+        self.edit_menu.add_action(self.join_edges_action)
+        self.edit_menu.add_action(self.split_edges_action)
         self.edit_menu.add_action(self.frame_selection_action)
+        self.edit_menu.add_action(self.remove_action)
         self.edit_menu.add_separator()
         self.edit_menu.add_action(self.show_preferences_action)
 
@@ -219,7 +240,14 @@ class MainWindow(MainWindowBase):
         tool_bar.add_action(self.create_poly_action)
         tool_bar.add_action(self.create_freeform_poly_action)
         tool_bar.add_action(self.split_face_action)
+        tool_bar.add_action(self.slice_action)
         tool_bar.add_separator()
+        tool_bar.add_action(self.join_edges_action)
+        tool_bar.add_action(self.split_edges_action)
+        tool_bar.add_action(self.frame_selection_action)
+        tool_bar.add_action(self.remove_action)
+        tool_bar.add_separator()
+        tool_bar.add_action(self.no_filter_action)
         tool_bar.add_action(self.select_node_action)
         tool_bar.add_action(self.select_edge_action)
         tool_bar.add_action(self.select_poly_action)
@@ -242,6 +270,7 @@ class MainWindow(MainWindowBase):
         # Collect settings.
         preferences = {}
         for name, dataclass in {
+            #general': self.app().general_settings,
             'colours': self.app().colour_settings,
             'grid': self.app().grid_settings,
             'hotkeys': self.app().hotkey_settings,
@@ -258,6 +287,7 @@ class MainWindow(MainWindowBase):
 
         # Deserialize back to data objects and set.
         for name, dataclass in {
+            #'general': self.app().general_settings,
             'colours': self.app().colour_settings,
             'grid': self.app().grid_settings,
             'hotkeys': self.app().hotkey_settings,
@@ -271,6 +301,12 @@ class MainWindow(MainWindowBase):
 
     def remove(self):
         commands.remove_elements(self.app().doc.selected_elements)
+
+    def join_edges(self):
+        commands.join_edges(*self.app().doc.selected_edges)
+
+    def split_edges(self):
+        print('split')
 
     def frame_selection(self):
 

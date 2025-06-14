@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from decimal import Decimal
 
 from PySide6.QtGui import QColor
 from marshmallow import fields
@@ -18,6 +19,15 @@ QColourType = NewType('QColour', QColor, QColorField)
 
 
 @dataclass
+class GeneralSettings:
+
+    snap_tolerance: int = 16
+    rubberband_drag_tolerance = 4
+    node_selectable_thickness = 6
+    edge_selectable_thickness = 10
+
+
+@dataclass
 class ColourSettings:
 
     node: QColourType = field(default_factory=lambda: QColor(127, 127, 127, 255))
@@ -33,7 +43,7 @@ class GridSettings:
 
     visible: bool = True
     snap: bool = False
-    zoom_threshold: float = 0.02
+    zoom_threshold: Decimal = 0.02
     minor_spacing: int = 64
     minor_colour: QColourType = field(default_factory=lambda: QColor(50, 50, 50))
     major_spacing: int = 512
@@ -48,8 +58,10 @@ class HotkeySettings:
     move: str = 'W'
     rotate: str = 'E'
     scale: str = 'R'
-    remove: str = 'Backspace'
+    join_edges: str = 'J'
+    split_edges: str = 'K'
     frame_selection: str = 'F'
+    remove: str = 'Backspace'
     grid_snap: str = 'X'
     vertex_snap: str = 'V'
 

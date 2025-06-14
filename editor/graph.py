@@ -10,7 +10,8 @@ import networkx as nx
 from PySide6.QtCore import QPointF
 
 from applicationframework.contentbase import ContentBase
-from gameengines.build.duke3d import MapReader as Duke3dMapReader, MapWriter, Map
+from gameengines.build.duke3d import MapReader as Duke3dMapReader, Map, MapWriter
+from gameengines.build.map import Sector, Wall
 
 
 logger = logging.getLogger(__name__)
@@ -93,7 +94,6 @@ class Edge(Element):
 
     @singledispatchmethod
     def __contains__(self, node: Node):
-        print("node:", node)
         return node in self.nodes
 
     def get_attribute(self, key, default=None):
@@ -125,14 +125,8 @@ class Edge(Element):
 
 class Hedge(Element):
 
-    # TODO: Dont inherit.
-
-    # def __hash__(self):
-    #     return hash(self.data)
-
     @singledispatchmethod
     def __contains__(self, node: Node):
-        print("node:", node)
         return node in self.nodes
 
     def get_attribute(self, key, default=None):
@@ -166,17 +160,14 @@ class Face(Element):
 
     @singledispatchmethod
     def __contains__(self, node: Node):
-        print("node:", node)
         return node in self.nodes
 
     @__contains__.register
     def _(self, edge: Edge):
-        print("edge:", edge, type(edge))
         return edge in self.edges
 
     @__contains__.register
     def _(self, hedge: Hedge):
-        print("hedge:", hedge, type(hedge))
         return hedge in self.hedges
 
     def get_attribute(self, key, default=None):
@@ -204,7 +195,6 @@ class Graph(ContentBase):
 
         # TODO: Allow setting of whatever kind of graph we like.
         self.data = nx.DiGraph()
-        #self.update_undirected()
         self._faces = {}
 
         # Maps.
@@ -325,9 +315,6 @@ class Graph(ContentBase):
     def has_hedge(self, head, tail):
         return (head, tail) in self.data.edges
 
-
-
-
     def add_node(self, node: Any, **node_attrs):
         self.data.add_node(node, **node_attrs)
 
@@ -337,9 +324,6 @@ class Graph(ContentBase):
     def add_face(self, face: tuple[Any, ...], **face_attrs):
         self._faces[face] = face_attrs
 
-
-
-
     def remove_node(self, node: Any):
         self.data.remove_node(node)
 
@@ -348,74 +332,6 @@ class Graph(ContentBase):
 
     def remove_face(self, face: tuple[Any, ...]):
         del self._faces[face]
-    '''
-
-
-    @singledispatchmethod
-    def add_node(self, node_id: Any, **node_attrs):
-        self.data.add_node(node_id, **node_attrs)
-
-    @add_node.register
-    def _(self, node: Node, **node_attrs):
-        self.add_node(node.data, **node_attrs)
-
-    @singledispatchmethod
-    def add_edge(self, edge: tuple[Any, Any], **edge_attrs):
-        self.data.add_edge(*edge, **edge_attrs)
-
-    @add_edge.register
-    def _(self, edge: Edge, **edge_attrs):
-        self.add_edge(edge.data, **edge_attrs)
-
-
-
-
-    #def add_edge(self, edge: Edge, **edge_attrs):
-    #    self.data.add_edge(*edge.data, **edge_attrs)
-
-    @singledispatchmethod
-    def add_face(self, face: tuple, **face_attrs):
-
-        # def add_face(self, face: Face | tuple, **face_attrs):
-        # if isinstance(face, Face):
-        #
-        # edges = []
-        # for i in range(len(face)):
-        #     head = face[i]
-        #     tail = face[(i + 1) % len(face)]
-        #     edges.append((head, tail))
-        # self.data.add_edges_from(edges)
-        self._faces[face] = face_attrs
-
-    @add_face.register
-    def _(self, face: Face, **face_attrs):
-        self.add_face(face.data)
-
-    @singledispatchmethod
-    def remove_node(self, node: Any):
-        self.data.remove_node(node)
-
-    @remove_node.register
-    def _(self, node: Node):
-        self.remove_node(node.data)
-
-    @singledispatchmethod
-    def remove_hedge(self, hedge: tuple[Any, Any]):
-        self.data.remove_edge(*hedge)
-
-    @remove_hedge.register
-    def _(self, hedge: Hedge):
-        self.remove_hedge(hedge.data)
-
-    @singledispatchmethod
-    def remove_face(self, face: tuple[Any, ...]):
-        del self._faces[face]
-
-    @remove_face.register
-    def _(self, face: Face):
-        self.remove_face(face.data)
-
-    '''
 
     def load(self, file_path: str):
 
@@ -512,32 +428,7 @@ class Graph(ContentBase):
 
             self._faces[tuple(poly_nodes)] = {'sector': sector_data}
 
-        #'''
 
-        print('\nfaces:', len(self.faces))
-        for face in self.faces:
-            print(face)
-        #
-        # # Create a mapping from old node names to ordinal numbers
-        # mapping = {old_label: new_label for new_label, old_label in
-        #            enumerate(self.data.nodes())}
-        #
-        # # Relabel the graph
-        # self.data = nx.relabel_nodes(self.data, mapping)
-
-
-        '''
-        wall_to_walls = defaultdict(set)
-        for i, wall_data in enumerate(m.walls):
-            wall_to_walls[i].add(i)
-            if wall_data.nextwall > -1:
-                nextwall_data = m.walls[wall_data.nextwall]
-                wall_set = wall_to_walls.get(nextwall_data.point2, wall_to_walls[i])
-                wall_set.add(i)
-                wall_to_walls[i] = wall_to_walls[nextwall_data.point2] = wall_set
-        '''
-
-        #self.update_undirected()
         self.update()
 
         print('\nnodes:')
@@ -561,65 +452,69 @@ class Graph(ContentBase):
 
         m = Map()
 
-        print('')
-
-
-        wall_to_edge = []
-
-        edges = []
-
-        edge_map = {}
-
+        hedges = []
+        edge_to_next_edge = {}
 
         wallptr = 0
         sector = 0
-        for face in self.faces:
+        faces = list(self.faces)
+        for face in faces:
 
             sector_data = face.get_attribute('sector')
+
+            # HAXX. If the face has no sector data, give it some.
+            if sector_data is None:
+                sector_data = Sector()
+                face.set_attribute('sector', sector_data)
+
             sector_data.floorz = 0
             sector_data.ceilingz = -HEIGHT * 16
             sector_data.wallptr = wallptr
             sector_data.wallnum = len(face.data)
 
+            for i, hedge in enumerate(face.hedges):
 
-            #wall = 0
-            for i, edge in enumerate(face.hedges):
+                wall_data = hedge.get_attribute('wall')
 
-                wall_data = edge.get_attribute('wall')
-                wall_data.x = int(edge.head.pos.x())
-                wall_data.y = int(edge.head.pos.y())
-                wall_to_edge.append(edge)
-                edges.append(edge)
+                # HAXX. If the edge has no wall data, give it some.
+                if wall_data is None:
+                    wall_data = Wall()
+                    hedge.set_attribute('wall', wall_data)
+
+                wall_data.x = int(hedge.head.pos.x())
+                wall_data.y = int(hedge.head.pos.y())
+                hedges.append(hedge)
                 m.walls.append(wall_data)
-                #wall += 1
 
-                edge_map[edge] = face.hedges[(i + 1) % len(face.hedges)]
-
-
-
+                edge_to_next_edge[hedge] = face.hedges[(i + 1) % len(face.hedges)]
 
             m.sectors.append(sector_data)
             sector += 1
+            wallptr += len(face.nodes)
 
         m.cursectnum = 0
 
-        print('\nedge_map:')
-        for foo, bar in edge_map.items():
-            print(foo, '->', bar)
+        # print('\nedge_map:')
+        # for foo, bar in edge_map.items():
+        #     print(foo, '->', bar)
 
         # Now we have all walls, go back through and fixup the point2.
-        for wall, edge in enumerate(wall_to_edge):
+        for wall, hedge in enumerate(hedges):
             wall_data = m.walls[wall]
+            next_edge = edge_to_next_edge[hedge]
+            wall_data.point2 = hedges.index(next_edge)
 
-            next_edge = edge_map[edge]
-            wall_data.point2 = edges.index(next_edge)#wall_to_edge.index(next_edge.get_attribute('wall'))
+        # Do portals.
+        for wall, hedge in enumerate(hedges):
 
-            #print('edge.tail.data:', edge.tail.data)
-            #out_edges = self.data.out_edges(edge.tail.data)
-            #print('out_edges:', out_edges)
-            #point2 = self.data.edges(out)
-            #print('point2:', point2)
-            #wall_data.point2 = m.walls.index(edge.tail.get_attribute('wall'))
+            head, tail = hedge.head, hedge.tail
+            if self.has_hedge(tail, head):
+                rhedge = self.get_hedge(tail, head)
+                next_sector = faces.index(rhedge.face)
+
+                wall_data = m.walls[wall]
+                wall_data.nextsector = next_sector
+                wall_data.nextwall = hedges.index(rhedge)
 
         print('\nheader')
         print(m.header)
@@ -635,6 +530,4 @@ class Graph(ContentBase):
         output = io.BytesIO()
         MapWriter()(m, output)
         with open(file_path, 'wb') as f:
-            #print(MAP_EXPORT_DIR_PATH)
             f.write(output.getbuffer())
-

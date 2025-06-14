@@ -1,6 +1,5 @@
 from PySide6.QtCore import Qt, QRectF
 from PySide6.QtWidgets import QGraphicsItem, QGraphicsView
-from PySide6.QtGui import QTransform
 
 
 # noinspection PyUnresolvedReferences

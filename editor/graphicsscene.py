@@ -10,11 +10,13 @@ from applicationframework.document import Document
 from editor.constants import ModalTool, SelectionMode
 from editor.graphicsitems import EdgeGraphicsItem, NodeGraphicsItem, FaceGraphicsItem
 from editor.graphicsscenetools import (
-    CreatePolygonTool,
     CreateFreeformPolygonTool,
-    MoveGraphicsSceneTool,
-    SelectGraphicsSceneTool,
-    SplitFaceTool,
+    CreatePolygonTool,
+    MoveTool,
+    RotateTool,
+    SelectTool,
+    SliceFacesTool,
+    SplitFacesTool,
 )
 from editor.updateflag import UpdateFlag
 
@@ -123,11 +125,13 @@ class GraphicsScene(QGraphicsScene):
 
     def set_modal_tool(self, modal_tool: ModalTool):
         tool_cls = {
-            ModalTool.SELECT: SelectGraphicsSceneTool,
-            ModalTool.MOVE: MoveGraphicsSceneTool,
-            ModalTool.CREATE_POLY: CreatePolygonTool,
-            ModalTool.CREATE_FREEFORM_POLY: CreateFreeformPolygonTool,
-            ModalTool.SPLIT_FACE: SplitFaceTool,
+            ModalTool.SELECT: SelectTool,
+            ModalTool.MOVE: MoveTool,
+            ModalTool.ROTATE: RotateTool,
+            ModalTool.CREATE_POLYGON: CreatePolygonTool,
+            ModalTool.CREATE_FREEFORM_POLYGON: CreateFreeformPolygonTool,
+            ModalTool.SPLIT_FACES: SplitFacesTool,
+            ModalTool.SLICE_FACES: SliceFacesTool,
         }[modal_tool]
 
         # TODO: Noop tool?

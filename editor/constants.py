@@ -7,13 +7,15 @@ class ModalTool(IntEnum):
     MOVE = auto()
     ROTATE = auto()
     SCALE = auto()
-    CREATE_POLY = auto()
-    CREATE_FREEFORM_POLY = auto()
-    SPLIT_FACE = auto()
+    CREATE_POLYGON = auto()
+    CREATE_FREEFORM_POLYGON = auto()
+    SPLIT_FACES = auto()
+    SLICE_FACES = auto()
 
 
 class SelectionMode(IntEnum):
 
+    ALL = auto()
     NODE = auto()
     EDGE = auto()
-    POLY = auto()
+    FACE = auto()

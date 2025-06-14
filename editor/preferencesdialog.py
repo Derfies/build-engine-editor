@@ -53,6 +53,54 @@ class ColourPicker(QWidget):
         self.button.set_style_sheet(f'background-color: {self.colour().name()};')
 
 
+class GeneralWidget(PreferenceWidgetBase):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        layout = QGridLayout()
+
+        self.snap_tolerance = QCheckBox()
+        self.rubberband_drag_tolerance = QLineEdit()
+        self.node_selectable_thickness = QLineEdit()
+        self.edge_selectable_thickness = ColourPicker()
+
+        i = 0
+        for text, widget in {
+            'Snap Tolerance': self.snap_tolerance,
+            'Rubberband Drag Tolerance': self.rubberband_drag_tolerance,
+            'Node Selectable Thickness': self.node_selectable_thickness,
+            'Edge Selectable Thickness': self.edge_selectable_thickness,
+        }.items():
+            layout.add_widget(QLabel(text), i, 0)
+            layout.add_widget(widget, i, 1)
+            i += 1
+
+        int_validator = QIntValidator()
+        self.minor_spacing.set_validator(int_validator)
+        self.major_spacing.set_validator(int_validator)
+
+        double_validator = QDoubleValidator()
+        self.zoom_threshold.set_validator(double_validator)
+
+        self.layout.add_layout(layout)
+        self.layout.add_stretch()
+
+    def preferences(self) -> dict:
+        return {
+            'snap_tolerance': self.visible.is_checked(),
+            'rubberband_drag_tolerance': float(self.zoom_threshold.text()),
+            'node_selectable_thickness': int(self.minor_spacing.text()),
+            'edge_selectable_thickness': self.minor_colour.colour(),
+        }
+
+    def set_preferences(self, data: dict):
+        self.snap_tolerance.set_text(str(data['snap_tolerance']))
+        self.rubberband_drag_tolerance.set_text(str(data['rubberband_drag_tolerance']))
+        self.node_selectable_thickness.set_colour(QColor(*data['node_selectable_thickness']))
+        self.edge_selectable_thickness.set_colour(QColor(*data['edge_selectable_thickness']))
+
+
 class ColoursWidget(PreferenceWidgetBase):
 
     def __init__(self, *args, **kwargs):
@@ -86,9 +134,7 @@ class ColoursWidget(PreferenceWidgetBase):
         }
 
     def set_preferences(self, data: dict):
-        #for key, value in data.items():
         for text, widget in self.colour_pickers.items():
-            #widget = self.colour_pickers[text]
             widget.set_colour(QColor(*data[text]))
 
 
@@ -103,6 +149,8 @@ class HotkeysWidget(PreferenceWidgetBase):
             'Move',
             'Rotate',
             'Scale',
+            'Join Edges',
+            'Split Edges',
             'Remove',
             'Frame Selection',
             'Grid Snap',

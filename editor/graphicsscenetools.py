@@ -1,15 +1,16 @@
 import math
-import uuid
 from itertools import product
 
 from PySide6.QtCore import QCoreApplication, QLineF, QPointF, QRectF, Qt
 from PySide6.QtGui import QColorConstants, QPainter, QPen, QPolygonF, QTransform
 from PySide6.QtWidgets import QApplication, QGraphicsItem, QGraphicsLineItem, QGraphicsPolygonItem, QGraphicsScene
+from shapely import box, LineString, Point
 
 from editor import commands
+from editor.constants import SelectionMode
+from editor.graph import Edge, Face, Hedge, Node
 from editor.graphicsitems import EdgeGraphicsItem
-from editor.maths import project_point_onto_segment, percentage_along_line
-from gameengines.build.map import Sector, Wall
+from editor.maths import percentage_along_line
 from rubberband import RubberBandGraphicsItem
 
 # noinspection PyUnresolvedReferences
@@ -17,25 +18,7 @@ from __feature__ import snake_case
 
 
 DRAG_TOLERANCE = 4
-HIT_MARK_SIZE = 5
 NODE_RADIUS = 2
-
-
-# def create_foobar(points: tuple[QPointF]):
-#
-#     # TODO: Clean this up and properly define how we add new graph elements.
-#     nodes = tuple([str(uuid.uuid4()) for node in points])
-#     node_attrs = {
-#         nodes[i]: {'pos': point}
-#         for i, point in enumerate(points)
-#     }
-#     edge_attrs = {}
-#     for i in range(len(nodes)):
-#         head = nodes[i]
-#         tail = nodes[(i + 1) % len(nodes)]
-#         edge_attrs[(head, tail)] = {'wall': Wall()}
-#     face_attrs = {nodes: {'sector': Sector()}}
-#     return nodes, tuple(), tuple(), node_attrs, edge_attrs, face_attrs
 
 
 class HitMark(QGraphicsItem):
@@ -117,12 +100,12 @@ class GraphicsSceneToolBase:
         self.remove_preview()
 
 
-class SelectGraphicsSceneTool(GraphicsSceneToolBase):
+class SelectTool(GraphicsSceneToolBase):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self._mouse_origin = None
+        self._start_point = None
         self._rubber_band = None
 
     def add_rubber_band(self):
@@ -134,20 +117,20 @@ class SelectGraphicsSceneTool(GraphicsSceneToolBase):
         self._rubber_band = None
 
     def mouse_press_event(self, event):
-        self._mouse_origin = event.scene_pos()
+        self._start_point = event.scene_pos()
 
     def mouse_move_event(self, event):
-        if not self._mouse_origin:
+        if not self._start_point:
             return
 
         # Stop micro-movements from engaging the rubber band.
         view = self.scene.views()[0]
-        delta_pos = (view.map_from_scene(event.scene_pos()) - view.map_from_scene(self._mouse_origin)).manhattan_length()
-        if delta_pos > DRAG_TOLERANCE:
+        delta = (view.map_from_scene(event.scene_pos()) - view.map_from_scene(self._start_point)).manhattan_length()
+        if delta > DRAG_TOLERANCE:
             if self._rubber_band is None:
                 self.add_rubber_band()
             else:
-                rect = QRectF(self._mouse_origin, event.scene_pos()).normalized()
+                rect = QRectF(self._start_point, event.scene_pos()).normalized()
                 self._rubber_band.set_rect(rect)
         elif self._rubber_band is not None:
             self.remove_rubber_band()
@@ -155,7 +138,7 @@ class SelectGraphicsSceneTool(GraphicsSceneToolBase):
     def mouse_release_event(self, event):
 
         # Resolve items within rubber band bounds or directly under mouse.
-        hit_item = self.scene.item_at(self._mouse_origin, QTransform())
+        hit_item = self.scene.item_at(self._start_point, QTransform())
         items = set()
         if self._rubber_band is not None:
             rubber_band_bb = self._rubber_band.bounding_rect()
@@ -167,13 +150,23 @@ class SelectGraphicsSceneTool(GraphicsSceneToolBase):
         elif hit_item is not None:
             items = {hit_item}
 
+        # Filter.
+        for item in set(items):
+            if self.scene.selection_mode == SelectionMode.NODE and not isinstance(item.element(), Node):
+                items.remove(item)
+            elif self.scene.selection_mode == SelectionMode.EDGE and not isinstance(item.element(), Edge):
+                items.remove(item)
+            elif self.scene.selection_mode == SelectionMode.FACE and not isinstance(item.element(), Face):
+                items.remove(item)
+
         # Resolve mode based on ctrl / shift modifiers.
         modifiers = event.modifiers()
         add = modifiers & Qt.ShiftModifier
         toggle = modifiers & Qt.ControlModifier
 
         # Resolve selected elements using modifiers.
-        select_elements = self.app().doc.selected_elements.copy() if add or toggle else set()
+        select_elements = self.app().doc.selected_elements
+        select_elements = select_elements.copy() if add or toggle else set()
         for item in items:
             element = item.element()
             if toggle:
@@ -181,18 +174,17 @@ class SelectGraphicsSceneTool(GraphicsSceneToolBase):
             else:
                 select_elements.add(element)
 
-        self._mouse_origin = None
+        self._start_point = None
         self.remove_rubber_band()
 
         commands.select_elements(select_elements)
 
 
-class MoveGraphicsSceneTool(SelectGraphicsSceneTool):
+class MoveTool(SelectTool):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
-        self._last_scene_pos = None
+        self._last_point = None
 
     def mouse_press_event(self, event):
 
@@ -204,7 +196,7 @@ class MoveGraphicsSceneTool(SelectGraphicsSceneTool):
         scene_pos = event.scene_pos()
         item = self.scene.item_at(scene_pos, QTransform())
         if item is not None and item.element().is_selected and not(add or toggle):
-            self._last_scene_pos = scene_pos
+            self._last_point = scene_pos
 
             # TODO: Not all nodes are affected!!!
             self.affected_nodes = set()
@@ -218,30 +210,63 @@ class MoveGraphicsSceneTool(SelectGraphicsSceneTool):
             super().mouse_press_event(event)
 
     def mouse_move_event(self, event):
-        if self._last_scene_pos is not None:
+        if self._last_point is not None:
 
             # Update the graphics view. Note this doesn't change any content data
             # just yet.
             # TODO: Can probably work out a neat way to do the set intersection
             # earlier.
-            scene_pos = event.scene_pos()
-            delta_pos = scene_pos - self._last_scene_pos
+            scene_pos = self.scene.apply_snapping(event.scene_pos())
+            delta_pos = scene_pos - self._last_point
             for item in self.affected_items:
                 item.update_nodes(self.scene._item_to_nodes[item] & self.affected_nodes, delta_pos)
-
-            self._last_scene_pos = scene_pos
+            self._last_point = scene_pos
         else:
             super().mouse_move_event(event)
 
     def mouse_release_event(self, event):
-        if self._last_scene_pos is not None:
+        if self._last_point is not None:
             commands.transform_node_items([
                 self.scene._node_to_node_item[node]
                 for node in self.affected_nodes
             ])
-            self._last_scene_pos = None
+            self._last_point = None
         else:
             super().mouse_release_event(event)
+
+
+class RotateTool(GraphicsSceneToolBase):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._start_point = None
+
+    def mouse_press_event(self, event):
+        if event.button() == Qt.LeftButton:
+            self._start_point = self.scene.apply_snapping(event.scene_pos())
+
+    def mouse_move_event(self, event):
+        if self._start_point is not None:
+            end_point = self.scene.apply_snapping(event.scene_pos())
+            delta = end_point - self._start_point
+            radians = math.atan2(delta.y(), delta.x())
+            print('radians:', radians)
+
+            # TODO: Not all nodes are affected!!!
+            self.affected_nodes = set()
+            for element in self.app().doc.selected_elements:
+                self.affected_nodes.update(element.nodes)
+            self.affected_items = set()
+            for node in self.affected_nodes:
+                self.affected_items.update(self.scene._node_to_items[node])
+
+
+    def mouse_release_event(self, event):
+        self.cancel()
+
+    def cancel(self):
+        super().cancel()
+        self._start_point = None
 
 
 class CreatePolygonTool(GraphicsSceneToolBase):
@@ -252,8 +277,8 @@ class CreatePolygonTool(GraphicsSceneToolBase):
         self._start_point = None
 
     @staticmethod
-    def _create_polygon(center: QPointF, num_sides: int, radius: float) -> QPolygonF:
-        angle_offset = math.pi / num_sides
+    def _create_polygon(center: QPointF, num_sides: int, radius: float, radians: float) -> QPolygonF:
+        angle_offset = math.pi / num_sides + radians
         points = []
         for i in range(num_sides):
             angle = 2 * math.pi * i / num_sides + angle_offset
@@ -264,14 +289,16 @@ class CreatePolygonTool(GraphicsSceneToolBase):
 
     def mouse_press_event(self, event):
         if event.button() == Qt.LeftButton:
-            self._start_point = event.scene_pos()
+            self._start_point = self.scene.apply_snapping(event.scene_pos())
             self.add_preview(QGraphicsPolygonItem())
 
     def mouse_move_event(self, event):
         if self.preview is not None:
-            end_point = event.scene_pos()
-            radius = (end_point - self._start_point).manhattan_length()
-            polygon = self._create_polygon(self._start_point, self._num_sides, radius)
+            end_point = self.scene.apply_snapping(event.scene_pos())
+            delta = end_point - self._start_point
+            radius = delta.manhattan_length()
+            radians = math.atan2(delta.y(), delta.x())
+            polygon = self._create_polygon(self._start_point, self._num_sides, radius, radians)
             self.preview.set_polygon(polygon)
 
     def mouse_release_event(self, event):
@@ -279,9 +306,6 @@ class CreatePolygonTool(GraphicsSceneToolBase):
             points = [p.to_tuple() for p in self.preview.polygon()]
             self.cancel()
             commands.add_face(points)
-            #nodes, _, _, node_attrs, edge_attrs, face_attrs = create_foobar(self.preview.polygon())
-            #self.cancel()
-            #commands.add_face(nodes, node_attrs=node_attrs, edge_attrs=edge_attrs, face_attrs=face_attrs)
 
 
 class CreateFreeformPolygonTool(GraphicsSceneToolBase):
@@ -305,10 +329,9 @@ class CreateFreeformPolygonTool(GraphicsSceneToolBase):
             if len(self._points) < 3:
                 self.cancel()
                 return
-            #nodes, _, _, node_attrs, edge_attrs, face_attrs = create_foobar(self._points)
             points = [p.to_tuple() for p in self._points]
             self.cancel()
-            commands.add_face(points)#nodes, node_attrs=node_attrs, edge_attrs=edge_attrs, face_attrs=face_attrs)
+            commands.add_face(points)
 
     def mouse_move_event(self, event):
         if self._points:
@@ -319,7 +342,7 @@ class CreateFreeformPolygonTool(GraphicsSceneToolBase):
         self._points = []
 
 
-class SplitFaceTool(GraphicsSceneToolBase):
+class SplitFacesTool(GraphicsSceneToolBase):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -333,14 +356,17 @@ class SplitFaceTool(GraphicsSceneToolBase):
             if a.face == b.face:
                 return a, b
 
-    def _get_foo(self, pos):
+    def _get_foo(self, pos: QPointF):
         hit_item = self.scene.item_at(pos, QTransform())
 
         # TODO: Better way to check whether its an edge.
         if isinstance(hit_item, EdgeGraphicsItem):
             edge = hit_item.element()
-            segment = QLineF(edge.head.pos, edge.tail.pos)
-            return edge, project_point_onto_segment(pos, segment)
+            line = LineString([edge.head.pos.to_tuple(), edge.tail.pos.to_tuple()])
+            pt = Point(pos.to_tuple())
+            projected_pt = line.interpolate(line.project(pt))
+            return edge, QPointF(projected_pt.x, projected_pt.y)
+
         return None, pos
 
     def mouse_press_event(self, event):
@@ -385,3 +411,50 @@ class SplitFaceTool(GraphicsSceneToolBase):
         self._splits.clear()
         self._points.clear()
         self._edges.clear()
+
+
+
+def extend_line_with_shapely(p1: QPointF, p2: QPointF, view_rect):
+
+    # Convert view rect to shapely box.
+    view_box = box(view_rect.left(), view_rect.top(), view_rect.right(), view_rect.bottom())
+
+    # Extend the line far in both directions
+    dx, dy = p2.x() - p1.x(), p2.y() - p1.y()
+    line = LineString([
+        (p1.x() - dx * 1000, p1.y() - dy * 1000),
+        (p2.x() + dx * 1000, p2.y() + dy * 1000)
+    ])
+
+    # Clip it to the viewport bounding box
+    clipped = view_box.intersection(line).coords
+    return QLineF(QPointF(*clipped[0]), QPointF(*clipped[-1]))
+
+
+class SliceFacesTool(GraphicsSceneToolBase):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._start_point = None
+
+    def mouse_press_event(self, event):
+        self._start_point = event.scene_pos()
+        self._end_point = self._start_point
+        x1, y1 = self._start_point.x(), self._start_point.y()
+        x2, y2 = self._end_point.x(), self._end_point.y()
+        self.add_preview(QGraphicsLineItem(x1, y1, x2, y2))
+
+    def mouse_move_event(self, event):
+        if self.preview is not None:
+            self._end_point = event.scene_pos()
+            view = self.scene.views()[0]
+            view_rect = view.map_to_scene(view.viewport().rect()).bounding_rect()
+            extended = extend_line_with_shapely(self._start_point, self._end_point, view_rect)
+            self.preview.set_line(extended)
+
+    def mouse_release_event(self, event):
+        self.remove_preview()
+
+    def cancel(self):
+        self.remove_hit_mark()
+        self.remove_preview()
