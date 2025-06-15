@@ -10,8 +10,8 @@ from __feature__ import snake_case
 
 
 NODE_RADIUS = 2
-NODE_COLLISION_RADIUS = 6
-WALL_COLLISION_THICKNESS = 10
+#NODE_COLLISION_RADIUS = 6
+#WALL_COLLISION_THICKNESS = 10
 
 
 class GraphicsItemBaseMixin:
@@ -84,11 +84,12 @@ class NodeGraphicsItem(GraphicsItemBaseMixin, QGraphicsRectItem):
         # Create a larger clickable shape.
         # Wait, why are we using paint path? Can't I just use a vanilla rect?
         path = QPainterPath()
+        radius = self.app().general_settings.node_selectable_thickness
         path.add_rect(
-            -NODE_COLLISION_RADIUS / scale,
-            -NODE_COLLISION_RADIUS / scale,
-            NODE_COLLISION_RADIUS * 2 / scale,
-            NODE_COLLISION_RADIUS * 2 / scale,
+            -radius / scale,
+            -radius / scale,
+            radius * 2 / scale,
+            radius * 2 / scale,
         )
         return path
 
@@ -127,7 +128,7 @@ class EdgeGraphicsItem(GraphicsItemBaseMixin, QGraphicsLineItem):
 
         # Get the current transform matrix - extract the horizontal.
         scale = self.scene().views()[0].transform().m11()
-        factor = WALL_COLLISION_THICKNESS / scale
+        factor = self.app().general_settings.edge_selectable_thickness / scale
 
         # Create a larger clickable shape.
         path = QPainterPath()

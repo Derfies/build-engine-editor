@@ -22,9 +22,9 @@ QColourType = NewType('QColour', QColor, QColorField)
 class GeneralSettings:
 
     snap_tolerance: int = 16
-    rubberband_drag_tolerance = 4
-    node_selectable_thickness = 6
-    edge_selectable_thickness = 10
+    rubberband_drag_tolerance: int = 4
+    node_selectable_thickness: int = 6
+    edge_selectable_thickness: int = 10
 
 
 @dataclass
@@ -42,7 +42,6 @@ class ColourSettings:
 class GridSettings:
 
     visible: bool = True
-    snap: bool = False
     zoom_threshold: Decimal = 0.02
     minor_spacing: int = 64
     minor_colour: QColourType = field(default_factory=lambda: QColor(50, 50, 50))
@@ -69,4 +68,4 @@ class HotkeySettings:
 @dataclass
 class PlaySettings:
 
-    eduke32_path: str = ''
+    eduke32_path: str = 'eduke32.exe'

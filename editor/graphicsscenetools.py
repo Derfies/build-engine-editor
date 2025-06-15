@@ -17,7 +17,7 @@ from rubberband import RubberBandGraphicsItem
 from __feature__ import snake_case
 
 
-DRAG_TOLERANCE = 4
+# DRAG_TOLERANCE = 4
 NODE_RADIUS = 2
 
 
@@ -126,7 +126,7 @@ class SelectTool(GraphicsSceneToolBase):
         # Stop micro-movements from engaging the rubber band.
         view = self.scene.views()[0]
         delta = (view.map_from_scene(event.scene_pos()) - view.map_from_scene(self._start_point)).manhattan_length()
-        if delta > DRAG_TOLERANCE:
+        if delta > self.app().general_settings.rubberband_drag_tolerance:
             if self._rubber_band is None:
                 self.add_rubber_band()
             else:

@@ -54,22 +54,17 @@ class MainWindow(MainWindowBase):
         super().__init__(*args, **kwargs)
 
         self.create_tool_bar()
-
         self.scene = GraphicsScene()
         self.view = GraphicsView(self.scene)
-
         self.tabs = QTabWidget()
         self.property_grid = PropertyGrid()
         self.tabs.add_tab(self.property_grid, 'Properties')
         self.tabs.add_tab(QWidget(), 'Tool Settings')
-
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
         self.splitter.add_widget(self.view)
         self.splitter.add_widget(self.tabs)
-
         self.layout = QVBoxLayout(self)
         self.layout.add_widget(self.splitter)
-
         self.window = QWidget()
         self.window.set_layout(self.layout)
         self.set_central_widget(self.window)
@@ -92,8 +87,8 @@ class MainWindow(MainWindowBase):
         #self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\test.map')
         #self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\LL-SEWER.MAP')
         #self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\1.MAP')
-        #self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\editor\tests\data\2_squares.map')
-        self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\test.map')
+        self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\editor\tests\data\2_squares.map')
+        #self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\test.map')
 
         #self.app().doc.updated(dirty=False)
 
@@ -269,13 +264,14 @@ class MainWindow(MainWindowBase):
 
         # Collect settings.
         preferences = {}
-        for name, dataclass in {
-            #general': self.app().general_settings,
+        dataclasses = {
+            'general': self.app().general_settings,
             'colours': self.app().colour_settings,
             'grid': self.app().grid_settings,
             'hotkeys': self.app().hotkey_settings,
             'play': self.app().play_settings,
-        }.items():
+        }
+        for name, dataclass in dataclasses.items():
             schema = marshmallow_dataclass.class_schema(dataclass.__class__)()
             preferences[name] = schema.dump(dataclass)
 
@@ -286,13 +282,7 @@ class MainWindow(MainWindowBase):
             return
 
         # Deserialize back to data objects and set.
-        for name, dataclass in {
-            #'general': self.app().general_settings,
-            'colours': self.app().colour_settings,
-            'grid': self.app().grid_settings,
-            'hotkeys': self.app().hotkey_settings,
-            'play': self.app().play_settings,
-        }.items():
+        for name, dataclass in dataclasses.items():
             for k, v in dialog.preferences[name].items():
                 setattr(dataclass, k, v)
 
