@@ -14,6 +14,7 @@ from editor.graphicsscenetools import (
     CreatePolygonTool,
     MoveTool,
     RotateTool,
+    ScaleTool,
     SelectTool,
     SliceFacesTool,
     SplitFacesTool,
@@ -128,6 +129,7 @@ class GraphicsScene(QGraphicsScene):
             ModalTool.SELECT: SelectTool,
             ModalTool.MOVE: MoveTool,
             ModalTool.ROTATE: RotateTool,
+            ModalTool.SCALE: ScaleTool,
             ModalTool.CREATE_POLYGON: CreatePolygonTool,
             ModalTool.CREATE_FREEFORM_POLYGON: CreateFreeformPolygonTool,
             ModalTool.SPLIT_FACES: SplitFacesTool,
@@ -207,17 +209,17 @@ class GraphicsScene(QGraphicsScene):
             #if doc.content.g is not None:
             logger.debug(f'full reDRAW: {flags}')
             for node in doc.content.nodes:
-                logger.debug(f'Adding node: {node}')
+                #logger.debug(f'Adding node: {node}')
                 node_item = NodeGraphicsItem(node)
                 self.add_item(node_item)
                 self._node_to_node_item[node] = node_item
                 self.points.append(node_item.pos())
             for edge in doc.content.edges:
-                logger.debug(f'Adding edge: {edge}')
+                #logger.debug(f'Adding edge: {edge}')
                 edge_item = EdgeGraphicsItem(edge)
                 self.add_item(edge_item)
             for face in doc.content.faces:
-                logger.debug(f'Adding face: {face}')
+                #logger.debug(f'Adding face: {face}')
                 face_item = FaceGraphicsItem(face)
                 self.add_item(face_item)
                 #self.face_to_item[face] = face_item

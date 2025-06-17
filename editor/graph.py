@@ -153,6 +153,7 @@ class Hedge(Element):
 
     @property
     def face(self) -> Face | None:
+        print('DEPRECATE?')
         return self.graph.hedge_to_face.get(self)
 
 
@@ -187,6 +188,10 @@ class Face(Element):
     @property
     def hedges(self) -> tuple[Hedge]:
         return tuple(self.graph.face_to_hedges[self])
+
+    @property
+    def faces(self) -> tuple[Face]:
+        return (self, )
 
 
 class Graph(ContentBase):

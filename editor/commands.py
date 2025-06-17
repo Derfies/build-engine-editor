@@ -11,7 +11,7 @@ from shapely.ops import split as split_ops
 
 from applicationframework.actions import Composite, SetAttribute
 from editor import maths
-from editor.actions import Add, Remove
+from editor.actions import Add, Remove, Tweak
 from editor.graph import Edge, Face, Hedge, Node
 from editor.maths import lerp, long_line_through, midpoint
 from editor.updateflag import UpdateFlag
@@ -38,32 +38,21 @@ def select_elements(elements: Iterable[Node] | Iterable[Edge] | Iterable[Hedge] 
 def remove_elements(elements: set[Node] | set[Edge] | set[Face]):
 
     # TODO: Set selection back.
-    node_attrs = {}
-    rem_nodes, rem_edges, rem_faces = set(), set(), set()
+    # TODO: Need some traversal to add all connected elements.
+    tweak = Tweak()
     for element in elements:
         if isinstance(element, Node):
-            rem_nodes.add(element)
-            rem_edges.update(element.hedges)
-            rem_faces.update(element.faces)
-            node_attrs.setdefault(element, {})['pos'] = element.pos
+            tweak.nodes.add(element.data)
+            tweak.hedges.update([hedge.data for hedge in element.hedges])
+            tweak.faces.update([face.data for face in element.faces])
+            tweak.node_attrs[element.data]['pos'] = element.pos
         if isinstance(element, Edge):
-            rem_edges.update(element.hedges)
-            rem_faces.update(element.faces)
+            tweak.hedges.update([hedge.data for hedge in element.hedges])
+            tweak.faces.update([face.data for face in element.faces])
         if isinstance(element, Face):
-            rem_faces.add(element)
+            tweak.faces.add(element.data)
 
-    print('rem_nodes:', rem_nodes)
-    print('rem_edges:', rem_edges)
-    print('rem_faces:', rem_faces)
-    print('node_attrs', node_attrs)
-
-    action = Remove(
-        QApplication.instance().doc.content,
-        nodes=[n.data for n in rem_nodes],
-        edges=[n.data for n in rem_edges],
-        faces=[n.data for n in rem_faces],
-        node_attrs=node_attrs,
-    )
+    action = Remove(tweak, QApplication.instance().doc.content)
     QApplication.instance().action_manager.push(action)
     QApplication.instance().doc.updated(action(), dirty=False)
 
@@ -85,29 +74,22 @@ def add_face(points: Iterable[tuple]):
 
     # TODO: Factory for default data? How else do walls / sectors get here
     # without knowing the build data requirements?
-    node_attrs = defaultdict(dict)
-    edge_attrs = defaultdict(dict)
-    face_attrs = defaultdict(dict)
+    tweak = Tweak()
     nodes = [str(uuid.uuid4()) for _ in range(len(coords))]
-    edges = []
+    hedges = []
     face = tuple(nodes)
     for i in range(len(nodes)):
         head = nodes[i]
         tail = nodes[(i + 1) % len(nodes)]
-        edges.append((head, tail))
-        node_attrs[nodes[i]]['pos'] = QPointF(*coords[i])
-        edge_attrs[(head, tail)]['wall'] = Wall()
-    face_attrs[face]['sector'] = Sector()
+        hedges.append((head, tail))
+        tweak.node_attrs[nodes[i]]['pos'] = QPointF(*coords[i])
+        tweak.hedge_attrs[(head, tail)]['wall'] = Wall()
+    tweak.face_attrs[face]['sector'] = Sector()
+    tweak.nodes.update(nodes)
+    tweak.hedges.update(hedges)
+    tweak.faces.add(face)
 
-    action = Add(
-        QApplication.instance().doc.content,
-        nodes=nodes,
-        edges=edges,
-        faces=[face],
-        node_attrs=node_attrs,
-        edge_attrs=edge_attrs,
-        face_attrs=face_attrs,
-    )
+    action = Add(tweak, QApplication.instance().doc.content)
     QApplication.instance().action_manager.push(action)
     QApplication.instance().doc.updated(action(), dirty=True)
 
@@ -120,14 +102,8 @@ def split_face(*splits: tuple[Hedge, float]):
         print(i, '->', hedge, pct)
 
     # Remove those edges to be split.
-    del_hedges = set()
-    del_faces = set()
-    add_nodes = set()
-    add_edges = set()
-    add_faces = []
-    node_attrs = defaultdict(dict)
-    edge_attrs = defaultdict(dict)
-    face_attrs = defaultdict(dict)
+    add_tweak = Tweak()
+    rem_tweak = Tweak()
 
     content = QApplication.instance().doc.content
 
@@ -136,10 +112,10 @@ def split_face(*splits: tuple[Hedge, float]):
         hedge, pct = split
         cut_point = lerp(hedge.head.pos, hedge.tail.pos, pct)
 
-        del_hedges.add(hedge.data)
+        rem_tweak.hedges.add(hedge.data)
 
         if hedge.face is not None:
-            del_faces.add(hedge.face.data)
+            rem_tweak.faces.add(hedge.face.data)
 
         #if i > 0:
         if i % 2:
@@ -239,57 +215,33 @@ def split_face(*splits: tuple[Hedge, float]):
             # TODO: I think I need to remove the edges that were already here...
             nodes1 = list(face1.keys())
             nodes2 = list(face2.keys())
-            add_nodes.update(nodes1)
-            add_nodes.update(nodes2)
-            add_faces.append(tuple(face1.keys()))
-            add_faces.append(tuple(face2.keys()))
-            node_attrs.update(face1)
-            node_attrs.update(face2)
+            add_tweak.nodes.update(nodes1)
+            add_tweak.nodes.update(nodes2)
+            add_tweak.faces.add(tuple(face1.keys()))
+            add_tweak.faces.add(tuple(face2.keys()))
+            add_tweak.node_attrs.update(face1)
+            add_tweak.node_attrs.update(face2)
 
-            add_edges.update([
+            add_tweak.hedges.update([
                 (nodes1[i], nodes1[(i + 1) % len(nodes1)]) for i in range(len(nodes1))
             ])
-            add_edges.update([
+            add_tweak.hedges.update([
                 (nodes2[i], nodes2[(i + 1) % len(nodes2)]) for i in
                 range(len(nodes2))
             ])
 
-
         last_cut_point = cut_point
 
-    print('\ndel hedges:')
-    for hedge in del_hedges:
-        print('    ->', hedge)
-
-    print('\nadd_edges:')
-    for add_edge in add_edges:
-        print('    ->', add_edge)
-
-    print('\nadd_faces:')
-    for add_face in add_faces:
-        print('    ->', add_face)
+    print('add tweak:', add_tweak)
+    print('rem tweak:', rem_tweak)
 
     # Face attrs.
     action = Composite([
-        Remove(content, edges=del_hedges, faces=del_faces),
-        Add(content, nodes=add_nodes, edges=add_edges, faces=add_faces, node_attrs=node_attrs),
+        Remove(rem_tweak, content),
+        Add(add_tweak, content),
     ], flags=UpdateFlag.CONTENT)
     QApplication.instance().action_manager.push(action)
     QApplication.instance().doc.updated(action(), dirty=False)
-
-    #
-    # print('\nnodes:')
-    # for node in content.nodes:
-    #     print('    ->', node)
-    # print('\nedges:')
-    # for edge in content.edges:
-    #     print('    ->', edge)
-    # print('\nhedges:')
-    # for hedge in content.hedges:
-    #     print('    ->', hedge, '->', hedge.face)
-    # print('\nfaces:')
-    # for face in content.faces:
-    #     print('    ->', face)
 
 
 def join_edges(*edges: Iterable[Edge] | Iterable[Hedge]):

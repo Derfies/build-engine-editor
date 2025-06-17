@@ -2,7 +2,6 @@ from PySide6.QtCore import QCoreApplication, QLineF, QPointF
 from PySide6.QtGui import QBrush, QPainterPath, QPainterPathStroker, QPen, Qt
 from PySide6.QtWidgets import QApplication, QGraphicsItem, QGraphicsLineItem, QGraphicsRectItem, QGraphicsPolygonItem
 
-#from editor.graph import Edge, Node, Poly
 from editor.graph import Edge, Node, Face
 
 # noinspection PyUnresolvedReferences
@@ -10,8 +9,6 @@ from __feature__ import snake_case
 
 
 NODE_RADIUS = 2
-#NODE_COLLISION_RADIUS = 6
-#WALL_COLLISION_THICKNESS = 10
 
 
 class GraphicsItemBaseMixin:
@@ -51,7 +48,7 @@ class GraphicsItemBaseMixin:
             self._rubberband_shape = self.shape().bounding_rect().translated(self.pos())
         return self._rubberband_shape
 
-    def update_nodes(self, nodes, delta: QPointF):
+    def move_node(self, node: Node, pos: QPointF):
         ...
 
 
@@ -93,11 +90,9 @@ class NodeGraphicsItem(GraphicsItemBaseMixin, QGraphicsRectItem):
         )
         return path
 
-    def update_nodes(self, nodes: set[Node], delta: QPointF):
-        assert self.element() in nodes, f'Item doesnt own element in set: {nodes}'
-        assert len(nodes) == 1
-        p = delta
-        self.move_by(p.x(), p.y())
+    def move_node(self, node: Node, pos: QPointF):
+        if node == self.element():
+            self.set_pos(pos)
 
 
 class EdgeGraphicsItem(GraphicsItemBaseMixin, QGraphicsLineItem):
@@ -108,12 +103,8 @@ class EdgeGraphicsItem(GraphicsItemBaseMixin, QGraphicsLineItem):
     def __init__(self, edge: Edge):
         super().__init__(edge)
 
-        #print('edge graph:', edge.graph)
-
-        self.setZValue(50)
-        #p1 = QPointF(self.element().head.x, self.element().head.y)
-        #p2 = QPointF(self.element().tail.x, self.element().tail.y)
         self.set_line(QLineF(self.element().head.pos, self.element().tail.pos))
+        self.setZValue(50)
 
     def update_pen(self):
 
@@ -139,14 +130,13 @@ class EdgeGraphicsItem(GraphicsItemBaseMixin, QGraphicsLineItem):
 
         return stroker.create_stroke(path)
 
-    def update_nodes(self, nodes: set[Node], delta: QPointF):
-        p1 = self.line().p1()
-        if self.element().head in nodes:
-            p1 += delta
-        p2 = self.line().p2()
-        if self.element().tail in nodes:
-            p2 += delta
-        self.set_line(QLineF(p1, p2))
+    def move_node(self, node: Node, pos: QPointF):
+        line = self.line()
+        if node == self.element().head:
+            line.set_p1(pos)
+        elif node == self.element().tail:
+            line.set_p2(pos)
+        self.set_line(line)
 
 
 class FaceGraphicsItem(GraphicsItemBaseMixin, QGraphicsPolygonItem):
@@ -154,12 +144,7 @@ class FaceGraphicsItem(GraphicsItemBaseMixin, QGraphicsPolygonItem):
     def __init__(self, face: Face, *args, **kwargs):
         super().__init__(face, *args, **kwargs)
 
-        poly = []
-        for node in face.data:
-            node_ = face.graph.get_node(node)
-            poly.append(node_.pos)#QPointF(node_.x, node_.y))
-
-        self.set_polygon(poly)
+        self.set_polygon([node.pos for node in face.nodes])
         self.setZValue(0)
 
     def update_pen(self):
@@ -176,10 +161,8 @@ class FaceGraphicsItem(GraphicsItemBaseMixin, QGraphicsPolygonItem):
         # TODO: This could be default as we're having to override override behaviour
         return QGraphicsPolygonItem.shape(self)
 
-    def update_nodes(self, nodes: set[Node], delta: QPointF):
-        ps = []
-        for i, p in enumerate(self.polygon()):
-            if self.element().data[i] in nodes:
-                p += delta
-            ps.append(p)
-        self.set_polygon(ps)
+    def move_node(self, node: Node, pos: QPointF):
+        idx = self.element().nodes.index(node)
+        polygon = self.polygon()
+        polygon[idx] = pos
+        self.set_polygon(polygon)

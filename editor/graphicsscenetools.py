@@ -3,21 +3,27 @@ from itertools import product
 
 from PySide6.QtCore import QCoreApplication, QLineF, QPointF, QRectF, Qt
 from PySide6.QtGui import QColorConstants, QPainter, QPen, QPolygonF, QTransform
-from PySide6.QtWidgets import QApplication, QGraphicsItem, QGraphicsLineItem, QGraphicsPolygonItem, QGraphicsScene
-from shapely import box, LineString, Point
+from PySide6.QtWidgets import (
+    QApplication,
+    QGraphicsItem,
+    QGraphicsLineItem,
+    QGraphicsPolygonItem,
+    QGraphicsRectItem,
+    QGraphicsScene,
+)
+from shapely import box, LineString, MultiPoint, Point
+from shapely.affinity import rotate, scale, translate
 
 from editor import commands
 from editor.constants import SelectionMode
-from editor.graph import Edge, Face, Hedge, Node
+from editor.graph import Edge, Face, Node
 from editor.graphicsitems import EdgeGraphicsItem
 from editor.maths import percentage_along_line
-from rubberband import RubberBandGraphicsItem
 
 # noinspection PyUnresolvedReferences
 from __feature__ import snake_case
 
 
-# DRAG_TOLERANCE = 4
 NODE_RADIUS = 2
 
 
@@ -54,6 +60,12 @@ class HitMark(QGraphicsItem):
 
 class GraphicsSceneToolBase:
 
+    """
+    NOTE: Apparently better to reuse existing gfx items rather than delete / add
+    new ones.
+
+    """
+
     def __init__(self, scene: QGraphicsScene):
         self.scene = scene
         self.hit_mark = None
@@ -77,9 +89,10 @@ class GraphicsSceneToolBase:
             self.hit_mark = None
 
     def add_preview(self, item: QGraphicsItem):
-        self.preview = item
-        self.preview.set_pen(self.preview_pen)
-        self.scene.add_item(self.preview)
+        if self.preview is None:
+            self.preview = item
+            self.preview.set_pen(self.preview_pen)
+            self.scene.add_item(self.preview)
 
     def remove_preview(self):
         if self.preview is not None:
@@ -104,46 +117,40 @@ class SelectTool(GraphicsSceneToolBase):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
         self._start_point = None
-        self._rubber_band = None
-
-    def add_rubber_band(self):
-        self._rubber_band = RubberBandGraphicsItem()
-        self.scene.add_item(self._rubber_band)
-
-    def remove_rubber_band(self):
-        self.scene.remove_item(self._rubber_band)
-        self._rubber_band = None
+        self._snapped_start_point = None
 
     def mouse_press_event(self, event):
+        if event.button() != Qt.LeftButton:
+            return
         self._start_point = event.scene_pos()
+        self._snapped_start_point = self.scene.apply_snapping(self._start_point)
 
     def mouse_move_event(self, event):
-        if not self._start_point:
+        if self._start_point is None:
             return
 
         # Stop micro-movements from engaging the rubber band.
         view = self.scene.views()[0]
         delta = (view.map_from_scene(event.scene_pos()) - view.map_from_scene(self._start_point)).manhattan_length()
         if delta > self.app().general_settings.rubberband_drag_tolerance:
-            if self._rubber_band is None:
-                self.add_rubber_band()
-            else:
-                rect = QRectF(self._start_point, event.scene_pos()).normalized()
-                self._rubber_band.set_rect(rect)
-        elif self._rubber_band is not None:
-            self.remove_rubber_band()
+            self.add_preview(QGraphicsRectItem())
+            rect = QRectF(self._start_point, event.scene_pos()).normalized()
+            self.preview.set_rect(rect)
+        else:
+            self.remove_preview()
 
     def mouse_release_event(self, event):
+        if event.button() != Qt.LeftButton:
+            return
 
         # Resolve items within rubber band bounds or directly under mouse.
         hit_item = self.scene.item_at(self._start_point, QTransform())
         items = set()
-        if self._rubber_band is not None:
-            rubber_band_bb = self._rubber_band.bounding_rect()
+        if self.preview is not None:
+            rubber_band_bb = self.preview.bounding_rect()
             for item in self.scene.items(rubber_band_bb):
-                if item is self._rubber_band:
+                if item is self.preview:
                     continue
                 if rubber_band_bb.contains(item.rubberband_shape()):
                     items.add(item)
@@ -174,99 +181,102 @@ class SelectTool(GraphicsSceneToolBase):
             else:
                 select_elements.add(element)
 
-        self._start_point = None
-        self.remove_rubber_band()
-
+        self.cancel()
         commands.select_elements(select_elements)
 
+    def cancel(self):
+        super().cancel()
+        self._start_point = None
+        self._snapped_start_point = None
 
-class MoveTool(SelectTool):
+
+class SelectXformToolBase(SelectTool):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._last_point = None
+        self._affected_nodes = set()
+
+    def xform_points(self, points: MultiPoint, delta: QPointF) -> MultiPoint:
+        ...
 
     def mouse_press_event(self, event):
+        super().mouse_press_event(event)
+        if event.button() != Qt.LeftButton:
+            return
 
         # Resolve mode based on ctrl / shift modifiers.
         modifiers = event.modifiers()
         add = modifiers & Qt.ShiftModifier
         toggle = modifiers & Qt.ControlModifier
 
-        scene_pos = event.scene_pos()
-        item = self.scene.item_at(scene_pos, QTransform())
-        if item is not None and item.element().is_selected and not(add or toggle):
-            self._last_point = scene_pos
-
-            # TODO: Not all nodes are affected!!!
-            self.affected_nodes = set()
+        # Marshall nodes and items that will be affected by the xform.
+        point = event.scene_pos()
+        item = self.scene.item_at(point, QTransform())
+        if item is not None and item.element().is_selected and not (add or toggle):
             for element in self.app().doc.selected_elements:
-                self.affected_nodes.update(element.nodes)
-            self.affected_items = set()
-            for node in self.affected_nodes:
-                self.affected_items.update(self.scene._node_to_items[node])
+                self._affected_nodes.update(element.nodes)
 
-        else:
-            super().mouse_press_event(event)
+        # Show xform preview graphic if we're about to xform some nodes.
+        if self._affected_nodes:
+            self.add_preview(QGraphicsLineItem())
+            self.preview.set_line(QLineF())
 
     def mouse_move_event(self, event):
-        if self._last_point is not None:
-
-            # Update the graphics view. Note this doesn't change any content data
-            # just yet.
-            # TODO: Can probably work out a neat way to do the set intersection
-            # earlier.
-            scene_pos = self.scene.apply_snapping(event.scene_pos())
-            delta_pos = scene_pos - self._last_point
-            for item in self.affected_items:
-                item.update_nodes(self.scene._item_to_nodes[item] & self.affected_nodes, delta_pos)
-            self._last_point = scene_pos
-        else:
+        if not self._affected_nodes:
             super().mouse_move_event(event)
+            return
+
+        # Update preview line.
+        end_point = self.scene.apply_snapping(event.scene_pos())
+        self.preview.set_line(QLineF(self._snapped_start_point, end_point))
+
+        # Do the xform and update graphics items to show.
+        nodes = list(self._affected_nodes)
+        points = MultiPoint([node.pos.to_tuple() for node in nodes])
+        delta = end_point - self._snapped_start_point
+        xformed_points = self.xform_points(points, delta)
+        for i, xformed_point in enumerate(xformed_points.geoms):
+            new_point = QPointF(xformed_point.x, xformed_point.y)
+            for item in self.scene._node_to_items[nodes[i]]:
+                item.move_node(nodes[i], new_point)
 
     def mouse_release_event(self, event):
-        if self._last_point is not None:
-            commands.transform_node_items([
-                self.scene._node_to_node_item[node]
-                for node in self.affected_nodes
-            ])
-            self._last_point = None
-        else:
+        if not self._affected_nodes:
             super().mouse_release_event(event)
+            return
 
-
-class RotateTool(GraphicsSceneToolBase):
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._start_point = None
-
-    def mouse_press_event(self, event):
-        if event.button() == Qt.LeftButton:
-            self._start_point = self.scene.apply_snapping(event.scene_pos())
-
-    def mouse_move_event(self, event):
-        if self._start_point is not None:
-            end_point = self.scene.apply_snapping(event.scene_pos())
-            delta = end_point - self._start_point
-            radians = math.atan2(delta.y(), delta.x())
-            print('radians:', radians)
-
-            # TODO: Not all nodes are affected!!!
-            self.affected_nodes = set()
-            for element in self.app().doc.selected_elements:
-                self.affected_nodes.update(element.nodes)
-            self.affected_items = set()
-            for node in self.affected_nodes:
-                self.affected_items.update(self.scene._node_to_items[node])
-
-
-    def mouse_release_event(self, event):
+        # Commit the edit.
+        # TODO: Need to fix up this function sig.
+        node_items = [
+            self.scene._node_to_node_item[node]
+            for node in self._affected_nodes
+        ]
         self.cancel()
+        commands.transform_node_items(node_items)
 
     def cancel(self):
         super().cancel()
-        self._start_point = None
+        self._affected_nodes.clear()
+
+
+class MoveTool(SelectXformToolBase):
+
+    def xform_points(self, points: MultiPoint, delta: QPointF) -> MultiPoint:
+        return translate(points, delta.x(), delta.y())
+
+
+class RotateTool(SelectXformToolBase):
+
+    def xform_points(self, points: MultiPoint, delta: QPointF) -> MultiPoint:
+        radians = math.atan2(delta.y(), delta.x())
+        rotated = rotate(points, math.degrees(radians), origin=self._snapped_start_point.to_tuple())
+        return rotated
+
+
+class ScaleTool(SelectXformToolBase):
+
+    def xform_points(self, points: MultiPoint, delta: QPointF) -> MultiPoint:
+        return scale(points, 1 + delta.x() / 1000, 1 - delta.y() / 1000, origin=self._snapped_start_point.to_tuple())
 
 
 class CreatePolygonTool(GraphicsSceneToolBase):
@@ -413,7 +423,6 @@ class SplitFacesTool(GraphicsSceneToolBase):
         self._edges.clear()
 
 
-
 def extend_line_with_shapely(p1: QPointF, p2: QPointF, view_rect):
 
     # Convert view rect to shapely box.
@@ -453,7 +462,7 @@ class SliceFacesTool(GraphicsSceneToolBase):
             self.preview.set_line(extended)
 
     def mouse_release_event(self, event):
-        self.remove_preview()
+        self.cancel()
 
     def cancel(self):
         self.remove_hit_mark()
