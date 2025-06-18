@@ -75,6 +75,18 @@ class Node(Element):
         return tuple(self.graph.node_to_hedges[self])
 
     @property
+    def predecessors(self) -> tuple[Hedge]:
+
+        # TODO: Cache on graph like everything else.
+        return tuple([Hedge(self.graph, data) for data in self.graph.data.predecessors(self.data)])
+
+    @property
+    def successors(self) -> tuple[Hedge]:
+
+        # TODO: Cache on graph like everything else.
+        return tuple([Hedge(self.graph, data) for data in self.graph.data.successors(self.data)])
+
+    @property
     def faces(self) -> tuple[Face]:
         return tuple(self.graph.node_to_faces[self])
 
@@ -153,7 +165,6 @@ class Hedge(Element):
 
     @property
     def face(self) -> Face | None:
-        print('DEPRECATE?')
         return self.graph.hedge_to_face.get(self)
 
 
@@ -265,6 +276,11 @@ class Graph(ContentBase):
             hedges = set(self.data.in_edges(node)) | set(self.data.out_edges(node))
             #print(node, '->', hedges)
             self.node_to_hedges[node_].update([self.get_hedge(*hedge) for hedge in hedges])
+
+        for hedge in self.data.edges:
+            hedge_ = self.get_hedge(*hedge)
+            self.hedge_to_nodes[hedge].add(hedge_.head)
+            self.hedge_to_nodes[hedge].add(hedge_.tail)
 
 
         for head, tail in self.undirected_data.edges:

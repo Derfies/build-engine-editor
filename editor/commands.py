@@ -301,16 +301,79 @@ def join_edges(*edges: Iterable[Edge] | Iterable[Hedge]):
 
     print('groups:', groups)
 
-    for edge1, edge2 in groups:
-        mid = midpoint(edge1.head.pos.to_tuple(), edge2.tail.pos.to_tuple())
-        edge1.head.pos = QPointF(*mid)
-        edge2.tail.pos = QPointF(*mid)
+    add_tweak = Tweak()
+    rem_tweak = Tweak()
 
-        mid = midpoint(edge1.tail.pos.to_tuple(), edge2.head.pos.to_tuple())
-        edge1.tail.pos = QPointF(*mid)
-        edge2.head.pos = QPointF(*mid)
+    for hedge1, hedge2 in groups:
 
-    # Rewar
+        mid1 = midpoint(hedge1.head.pos.to_tuple(), hedge2.tail.pos.to_tuple())
+        mid2 = midpoint(hedge1.tail.pos.to_tuple(), hedge2.head.pos.to_tuple())
 
+        # Add nodes and edges that form the new bidirectional edge.
+        new_head = str(uuid.uuid4())
+        new_tail = str(uuid.uuid4())
+        add_tweak.nodes.update({new_head, new_tail})
+        add_tweak.node_attrs[new_head]['pos'] = QPointF(*mid1)
+        add_tweak.node_attrs[new_tail]['pos'] = QPointF(*mid2)
+        new_edge = (new_head, new_tail)
+        for hedge in (hedge1, hedge2):
 
-    QApplication.instance().doc.updated(dirty=True)
+            # Collect all data to be removed. This includes *all* hedges flowing into
+            # those being united.
+            rem_nodes = hedge.nodes
+            rem_hedges = hedge.head.hedges + hedge.tail.hedges
+
+            rem_tweak.nodes.update({rem_node.data for rem_node in rem_nodes})
+            rem_tweak.hedges.update({rem_hedge.data for rem_hedge in rem_hedges})
+            rem_tweak.faces.add(hedge.face.data)
+
+            for rem_node in rem_nodes:
+                rem_tweak.node_attrs[rem_node]['pos'] = rem_node.pos
+
+            # TEST
+            lead_in = None
+            lead_out = None
+            for predecessor in hedge.head.predecessors:
+                add_tweak.hedges.add((predecessor.data, new_edge[0]))
+                if predecessor.data in hedge.face:
+                    lead_in = (predecessor.data, new_edge[0])
+            for successor in hedge.tail.successors:
+                add_tweak.hedges.add((new_edge[1], successor.data))
+                if successor.data in hedge.face:
+                    lead_out = (new_edge[1], successor.data)
+
+            add_tweak.hedges.add(new_edge)
+
+            hedge_face_hedges = hedge.face.hedges
+            hedge_index = hedge_face_hedges.index(hedge)
+            next_index = (hedge_index + 2) % len(hedge_face_hedges)
+            rotated_hedges = hedge_face_hedges[next_index:] + hedge_face_hedges[:next_index]
+            new_edges = [e.data for e in rotated_hedges[:-3]]
+
+            # Bridge.
+            new_edges += [lead_in]
+            new_edges += [new_edge]
+            new_edges += [lead_out]
+
+            add_tweak.hedges.update(new_edges)
+            new_face = tuple([new_edge[0] for new_edge in new_edges])
+            add_tweak.faces.add(new_face)
+
+            new_edge = tuple(reversed(new_edge))
+
+    print('\nQApplication.instance().doc.content')
+    for hedge in QApplication.instance().doc.content.hedges:
+        print('hedge:', hedge)
+
+    print('\nrem tweak:')
+    print(rem_tweak)
+    print('\nadd tweak:')
+    print(add_tweak)
+
+    content = QApplication.instance().doc.content
+    action = Composite([
+        Remove(rem_tweak, content),
+        Add(add_tweak, content),
+    ], flags=UpdateFlag.CONTENT)
+    QApplication.instance().action_manager.push(action)
+    QApplication.instance().doc.updated(action(), dirty=False)
