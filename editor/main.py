@@ -7,7 +7,7 @@ import marshmallow_dataclass
 import qdarktheme
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QActionGroup, QKeySequence
-from PySide6.QtWidgets import QSplitter, QTabWidget, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QDockWidget, QSplitter, QTabWidget, QVBoxLayout, QWidget, QLabel
 
 from applicationframework.application import Application
 from applicationframework.document import Document
@@ -22,6 +22,7 @@ from editor.mapdocument import MapDocument
 from editor.preferencesdialog import PreferencesDialog
 from editor.settings import ColourSettings, GeneralSettings, GridSettings, HotkeySettings, PlaySettings
 from editor.updateflag import UpdateFlag
+from ogl2 import TriangleWidget
 
 # noinspection PyUnresolvedReferences
 from __feature__ import snake_case
@@ -55,21 +56,37 @@ class MainWindow(MainWindowBase):
 
         self.create_tool_bar()
         self.scene = GraphicsScene()
-        self.view = GraphicsView(self.scene)
-        self.tabs = QTabWidget()
+        self.view_2d = GraphicsView(self.scene)
+        self.view_3d = TriangleWidget()
         self.property_grid = PropertyGrid()
-        self.tabs.add_tab(self.property_grid, 'Properties')
-        self.tabs.add_tab(QWidget(), 'Tool Settings')
-        self.splitter = QSplitter(Qt.Orientation.Horizontal)
-        self.splitter.add_widget(self.view)
-        self.splitter.add_widget(self.tabs)
-        self.layout = QVBoxLayout(self)
-        self.layout.add_widget(self.splitter)
-        self.window = QWidget()
-        self.window.set_layout(self.layout)
-        self.set_central_widget(self.window)
 
-        self.app().preferences_manager.register_widget('main_splitter', self.splitter)
+        # Moving openGl widget sometimes crashes :/
+        wrapper = QWidget()
+        layout = QVBoxLayout(wrapper)
+        layout.set_contents_margins(0, 0, 0, 0)
+        layout.add_widget(self.view_3d)
+
+        dock1 = QDockWidget('2D View', self)
+        dock2 = QDockWidget('3D View', self)
+        dock3 = QDockWidget('Properties', self)
+
+        dock1.set_object_name('dock1')
+        dock2.set_object_name('dock2')
+        dock3.set_object_name('dock3')
+
+        dock1.set_widget(self.view_2d)
+        dock2.set_widget(wrapper)
+        dock3.set_widget(self.property_grid)
+
+        self.set_dock_nesting_enabled(True)
+        self.add_dock_widget(Qt.LeftDockWidgetArea, dock1)
+        self.add_dock_widget(Qt.RightDockWidgetArea, dock2)
+        self.add_dock_widget(Qt.RightDockWidgetArea, dock3)
+        self.split_dock_widget(dock1, dock3, Qt.Horizontal)
+        self.tabify_dock_widget(dock1, dock2)
+        dock1.raise_()
+        self.resize_docks([dock1, dock3], [4, 1], Qt.Horizontal)
+
         for name, dataclass in {
             'general_settings': self.app().general_settings,
             'colour_settings': self.app().colour_settings,
@@ -87,8 +104,8 @@ class MainWindow(MainWindowBase):
         #self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\test.map')
         #self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\LL-SEWER.MAP')
         #self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\1.MAP')
-        self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\editor\tests\data\2_squares.map')
-        #self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\test.map')
+        #self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\editor\tests\data\2_squares.map')
+        self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\test.map')
 
         #self.app().doc.updated(dirty=False)
 
@@ -309,7 +326,7 @@ class MainWindow(MainWindowBase):
             if item.element().is_selected
         ]
         items = items or self.scene.items()
-        self.view.frame(items)
+        self.view_2d.frame(items)
 
     def play(self):
 

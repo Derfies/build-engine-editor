@@ -185,6 +185,17 @@ files = [
 ]
 
 [[package]]
+name = "pyopengl"
+version = "3.1.9"
+description = "Standard OpenGL bindings for Python"
+optional = false
+python-versions = "*"
+files = [
+    {file = "PyOpenGL-3.1.9-py3-none-any.whl", hash = "sha256:15995fd3b0deb991376805da36137a4ae5aba6ddbb5e29ac1f35462d130a3f77"},
+    {file = "pyopengl-3.1.9.tar.gz", hash = "sha256:28ebd82c5f4491a418aeca9672dffb3adbe7d33b39eada4548a5b4e8c03f60c8"},
+]
+
+[[package]]
 name = "pyqtdarktheme"
 version = "2.1.0"
 description = "Flat dark theme for PySide and PyQt."
@@ -366,4 +377,4 @@ typing-extensions = ">=3.7.4"
 [metadata]
 lock-version = "2.0"
 python-versions = "~3.10"
-content-hash = "4ebf1afcae98d251c2fc1c81e626413062ef9b2a8f8c34ef6a892d590f69588d"
+content-hash = "b6e761be8661a0f78978a79e2cdb947ab6fb7d84d63a7be6a54953b34ff639d8"

@@ -106,6 +106,9 @@ class GraphicsScene(QGraphicsScene):
 
         self.xform = None
 
+    def app(self) -> QCoreApplication:
+        return QApplication.instance()
+
     def update_grid(self):
         self.grid = Grid(
             self.app().grid_settings.minor_spacing,
@@ -120,9 +123,6 @@ class GraphicsScene(QGraphicsScene):
         if not self.app().grid_settings.visible:
             return
         self.grid.draw(painter, rect)
-
-    def app(self) -> QCoreApplication:
-        return QApplication.instance()
 
     def set_modal_tool(self, modal_tool: ModalTool):
         tool_cls = {
