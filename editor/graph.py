@@ -333,6 +333,9 @@ class Graph(ContentBase):
         assert face in self._faces, f'Face not found: {face}'
         return Face(self, face)
 
+    def has_node(self, node: Any):
+        return node in self.data.nodes
+
     def has_hedge(self, head, tail):
         return (head, tail) in self.data.edges
 

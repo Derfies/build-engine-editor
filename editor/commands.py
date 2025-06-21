@@ -1,5 +1,4 @@
 import uuid
-from collections import defaultdict
 from typing import Iterable
 
 import numpy as np

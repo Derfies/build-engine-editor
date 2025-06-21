@@ -22,7 +22,7 @@ from editor.mapdocument import MapDocument
 from editor.preferencesdialog import PreferencesDialog
 from editor.settings import ColourSettings, GeneralSettings, GridSettings, HotkeySettings, PlaySettings
 from editor.updateflag import UpdateFlag
-from ogl2 import TriangleWidget
+from viewport import Viewport
 
 # noinspection PyUnresolvedReferences
 from __feature__ import snake_case
@@ -57,7 +57,7 @@ class MainWindow(MainWindowBase):
         self.create_tool_bar()
         self.scene = GraphicsScene()
         self.view_2d = GraphicsView(self.scene)
-        self.view_3d = TriangleWidget()
+        self.view_3d = Viewport()
         self.property_grid = PropertyGrid()
 
         # Moving openGl widget sometimes crashes :/

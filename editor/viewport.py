@@ -1,11 +1,12 @@
 import math
 import sys
+import time
 from dataclasses import dataclass, field
 
 import numpy as np
 from OpenGL.GL import GL_FLOAT, GL_TRIANGLES, GL_COLOR_BUFFER_BIT, GL_CULL_FACE, GL_BACK, GL_CCW, GL_CW
 from PySide6.QtCore import QCoreApplication, Qt, QPoint
-from PySide6.QtGui import QOpenGLFunctions, QMatrix4x4, QVector3D
+from PySide6.QtGui import QOpenGLFunctions, QMatrix4x4, QVector3D, QVector4D
 from PySide6.QtOpenGL import QOpenGLShaderProgram, QOpenGLBuffer, QOpenGLVertexArrayObject, QOpenGLShader
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import QApplication, QMainWindow
@@ -68,16 +69,15 @@ class OrbitCamera:
         self.elevation = 45.0
         self.distance = 10000.0
         self.target = Entity()
-        self.sensitivity = 0.5
 
     def orbit(self, delta: QPoint):
-        self.azimuth -= delta.x() * self.sensitivity
-        self.elevation += delta.y() * self.sensitivity
+        self.azimuth -= delta.x()
+        self.elevation += delta.y()
         self.elevation = max(0, min(89.9, self.elevation))
 
     def zoom(self, factor: float):
-        self.distance *= factor#
-        self.distance = max(1.0, min(10000.0, self.distance))
+        self.distance *= factor
+        #self.distance = max(1.0, min(10000.0, self.distance))
 
     def get_view_matrix(self):
         az = math.radians(self.azimuth)
@@ -93,7 +93,7 @@ class OrbitCamera:
         return view
 
 
-class TriangleWidget(QOpenGLWidget):
+class Viewport(QOpenGLWidget):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -114,11 +114,12 @@ class TriangleWidget(QOpenGLWidget):
             print('early out')
             return
 
-
-
-
         #self.block_signals(True)
         if flags != UpdateFlag.SELECTION and flags != UpdateFlag.SETTINGS:
+
+            start = time.time()
+
+            print('FULL UPDATE')
 
             self.make_current()
 
@@ -148,6 +149,9 @@ class TriangleWidget(QOpenGLWidget):
 
 
             self.update()
+
+            end = time.time()
+            print('viewport:', end - start)
 
         # for mesh in self.meshes:
         #     print(mesh)
@@ -211,15 +215,55 @@ class TriangleWidget(QOpenGLWidget):
         self.program.release()
 
     def mouse_press_event(self, event):
-        if event.buttons() & Qt.LeftButton:
-            self.last_mouse_pos = event.position().to_point()
+        self.last_mouse_pos = event.position().to_point()
 
     def mouse_move_event(self, event):
+        delta = event.position().to_point() - self.last_mouse_pos
+
+        delta *= 0.5
         if event.buttons() & Qt.LeftButton:
-            delta = event.position().to_point() - self.last_mouse_pos
             self.camera.orbit(delta)
-            self.last_mouse_pos = event.position().to_point()
-            self.update()
+
+        elif event.buttons() & Qt.MiddleButton:
+
+            # TODO: Move to camera class.
+            # TODO: Adjust by distance to target.
+
+            # Input: rotation angles in radians
+            rx_rad = math.radians(self.camera.azimuth)
+            ry_rad = math.radians(self.camera.elevation)
+
+            # Convert to degrees because QMatrix4x4.rotate expects degrees
+            rx_deg = math.degrees(rx_rad)
+            ry_deg = math.degrees(ry_rad)
+
+            # Original vector
+            v4 = QVector4D(-delta.x(), delta.y(), 0, 1.0) * self.camera.distance / 1000
+
+            # Create transformation matrix
+            transform = QMatrix4x4()
+            transform.rotate(rx_deg, 0, 1, 0)
+            transform.rotate(ry_deg, -1, 0, 0)
+
+            # Transform the vector.
+            v4_transformed = transform.map(v4)
+
+            # Convert back to QVector3D.
+            self.camera.target.position += v4_transformed.to_vector3_d()
+            #self.update()
+
+        elif event.buttons() & Qt.RightButton:
+
+            # TODO: Adjust by distance to target.
+            factor = 1
+            if delta.x() > 0:
+                factor = 0.9
+            elif delta.x() < 0:
+                factor = 1.1
+            self.camera.zoom(factor)
+
+        self.update()
+        self.last_mouse_pos = event.position().to_point()
 
     def wheel_event(self, event):
         self.camera.zoom(0.9 if event.angle_delta().y() > 0 else 1.1)
@@ -231,7 +275,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.set_window_title("OpenGL Triangle")
-        self.set_central_widget(TriangleWidget())
+        self.set_central_widget(Viewport())
         self.resize(600, 600)
 
 
