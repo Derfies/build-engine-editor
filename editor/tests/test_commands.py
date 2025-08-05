@@ -1,7 +1,7 @@
 import unittest
 import uuid
 from types import SimpleNamespace
-from unittest.mock import ANY, Mock, patch
+from unittest.mock import Mock, patch
 
 from PySide6.QtCore import QPointF
 from PySide6.QtWidgets import QApplication
@@ -26,40 +26,33 @@ class ContentTestCase(unittest.TestCase):
     def c(self):
         return self.mock_app.doc.content
 
-    def create_polygon(self, *points: list[QPointF]):#, offset: QPointF = None):
-        #offset = offset or QPointF(0, 0)
+    def create_polygon(self, *points: list[QPointF]):
         num_nodes = len(points)
         num_existing_nodes = len(self.c.data)
         nodes = tuple(range(num_existing_nodes, num_existing_nodes + num_nodes))
         hedges = [(nodes[i], nodes[(i + 1) % num_nodes]) for i in range(num_nodes)]
         self.c.data.add_edges_from(hedges)
-        # for i, point in enumerate((
-        #     QPointF(0, 0) + offset,
-        #     QPointF(0, 1) + offset,
-        #     QPointF(1, 1) + offset,
-        #     QPointF(1, 0) + offset,
-        # )):
         for i, node in enumerate(nodes):
-            self.c.get_node(node).pos = points[i]# + offset
+            self.c.get_node(node).pos = points[i]
         self.c.add_face(nodes)
         self.c.update()
 
-    def create_square(self, offset: QPointF = None):
-        offset = offset or QPointF(0, 0)
-        num_nodes = 4
-        num_existing_nodes = len(self.c.data)
-        nodes = tuple(range(num_existing_nodes, num_existing_nodes + num_nodes))
-        hedges = [(nodes[i], nodes[(i + 1) % num_nodes]) for i in range(num_nodes)]
-        self.c.data.add_edges_from(hedges)
-        for i, point in enumerate((
-            QPointF(0, 0) + offset,
-            QPointF(0, 1) + offset,
-            QPointF(1, 1) + offset,
-            QPointF(1, 0) + offset,
-        )):
-            self.c.get_node(num_existing_nodes + i).pos = point
-        self.c.add_face(nodes)
-        self.c.update()
+    # def create_square(self, offset: QPointF = None):
+    #     offset = offset or QPointF(0, 0)
+    #     num_nodes = 4
+    #     num_existing_nodes = len(self.c.data)
+    #     nodes = tuple(range(num_existing_nodes, num_existing_nodes + num_nodes))
+    #     hedges = [(nodes[i], nodes[(i + 1) % num_nodes]) for i in range(num_nodes)]
+    #     self.c.data.add_edges_from(hedges)
+    #     for i, point in enumerate((
+    #         QPointF(0, 0) + offset,
+    #         QPointF(0, 1) + offset,
+    #         QPointF(1, 1) + offset,
+    #         QPointF(1, 0) + offset,
+    #     )):
+    #         self.c.get_node(num_existing_nodes + i).pos = point
+    #     self.c.add_face(nodes)
+    #     self.c.update()
 
     # def test_split_face(self):
     #     """
@@ -281,7 +274,7 @@ class ContentTestCase(unittest.TestCase):
         e3 = self.c.get_hedge(6, 7)
         e4 = self.c.get_hedge(7, 8)
         with patch.object(QApplication, 'instance', return_value=self.mock_app), \
-                patch.object(uuid, 'uuid4', side_effect=('A', 'B', 'C')):
+                patch.object(uuid, 'uuid4', side_effect=('C', 'B', 'A')):
             add_tweak, rem_tweak = commands.join_edges(e1, e2, e3, e4)
 
         # Assert results.

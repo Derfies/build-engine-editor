@@ -31,7 +31,7 @@ def edge_normal(p1, p2):
     x0, y0 = p1
     x1, y1 = p2
     dx, dy = x1 - x0, y1 - y0
-    normal = np.array([-dy, dx])
+    normal = np.array([dy, -dx])
     return normalize(normal)
 
 

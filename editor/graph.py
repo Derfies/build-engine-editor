@@ -10,8 +10,12 @@ import networkx as nx
 from PySide6.QtCore import QPointF
 
 from applicationframework.contentbase import ContentBase
+from editor import maths
 from gameengines.build.duke3d import MapReader as Duke3dMapReader, Map, MapWriter
 from gameengines.build.map import Sector, Wall
+
+# noinspection PyUnresolvedReferences
+from __feature__ import snake_case
 
 
 logger = logging.getLogger(__name__)
@@ -174,6 +178,10 @@ class Hedge(Element):
     @property
     def face(self) -> Face | None:
         return self.graph.hedge_to_face.get(self)
+
+    @property
+    def normal(self):
+        return maths.edge_normal(self.head.pos.to_tuple(), self.tail.pos.to_tuple())
 
 
 class Face(Element):
