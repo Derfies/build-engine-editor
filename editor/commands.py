@@ -21,6 +21,7 @@ from __feature__ import snake_case
 
 
 NORMAL_TOLERANCE = 0
+MAX_DISTANCE = 10000.0
 
 
 def select_elements(elements: Iterable[Node] | Iterable[Edge] | Iterable[Hedge] | Iterable[Face]):
@@ -32,8 +33,6 @@ def select_elements(elements: Iterable[Node] | Iterable[Edge] | Iterable[Hedge] 
     action = Composite(actions, flags=UpdateFlag.SELECTION)
     QApplication.instance().action_manager.push(action)
     QApplication.instance().doc.updated(action(), dirty=False)
-
-    print('select', [node.data for node in elements])
 
 
 def remove_elements(elements: set[Node] | set[Edge] | set[Face]):
@@ -280,10 +279,6 @@ def join_edges(*edges: Iterable[Edge] | Iterable[Hedge]) -> tuple[Tweak, Tweak]:
     # Only joins faces to other faces. Even though the editor techincally supports
     # face-less edges, for the purposes of joining edges that feels like a restriction
     # we can make.
-
-    # TODO: Need somehow to stop joining edges when the normals dont point into
-    # the gap between them. Eg two consecutive edges of the same polygon.
-
     hedges = set()
     for edge in edges:
         if isinstance(edge, Edge):
@@ -291,100 +286,12 @@ def join_edges(*edges: Iterable[Edge] | Iterable[Hedge]) -> tuple[Tweak, Tweak]:
         else:
             hedges.add(edge)
 
-    # hedges = set()
-    # for hedge in all_hedges:
-    #     print('hedge:', hedge, '->', hedge.face)
-    #     if hedge.face is not None:
-    #         hedges.add(hedge)
 
     print('hedges:', hedges)
-
-    #unmatched = list(hedges)
-    #groups = []
-
-
-    MAX_DISTANCE = 10000.0
-
-
-
-    '''
-
-    # Match each edge with its counterpart to join with.
-    # TODO: Don't match a hedge if it shares a face??
-    # TODO: Ok I think I see what the problem is.
-    # We match based on shortest distance, which makes sense when the lines are
-    # fundamentally pointing the same direction. When they aren't (such is joining the LHS / RHS of two polygons)
-    # then the correct join might actually be the longest one.
-    while unmatched:
-        base = unmatched.pop()
-        n1 = base.normal#maths.edge_normal(base.head.pos.to_tuple(), base.tail.pos.to_tuple())
-        base_mid = LineString((base.head.pos.to_tuple(), base.tail.pos.to_tuple())).interpolate(0.5, normalized=True)
-
-        best_match = None
-        best_dist = float('inf')
-        best_alignment = 0
-        #best_score = float('inf')
-
-        print('\n')
-        print('base:', base)
-        print('head pos:', base.head.pos)
-        print('tail pos:', base.tail.pos)
-        print('n1:', n1)
-        print('base_mid:', base_mid)
-
-        for i, other in enumerate(unmatched):
-
-            if base.face == other.face:
-                continue
-
-            n2 = other.normal#maths.edge_normal(other.head.pos.to_tuple(), other.tail.pos.to_tuple())
-            if np.dot(n1, n2) > NORMAL_TOLERANCE:
-                continue
-
-            print('\n')
-            print('    other:', other)
-            print('    head pos:', other.head.pos)
-            print('    tail pos:', other.tail.pos)
-            print('    n2:', n2)
-
-
-
-            #if np.dot(n1, n2) < NORMAL_TOLERANCE and base.face != other.face:  # opposing normals
-            other_mid = LineString((other.head.pos.to_tuple(), other.tail.pos.to_tuple())).interpolate(0.5, normalized=True)
-            #dist = base_mid.distance(other_mid)
-            displacement = np.array(other_mid.coords[0]) - np.array(base_mid.coords[0])
-            dist = np.linalg.norm(displacement)
-
-            # Project the displacement onto the normal direction
-            displacement_norm = displacement / dist if dist > 0 else displacement
-            alignment = abs(np.dot(displacement_norm, n1))  # 1 = aligned, 0 = perpendicular
-
-            print('    other_mid:', other_mid)
-            print('    dist:', dist)
-            print('    alignment:', alignment)
-
-            if dist < best_dist and dist <= MAX_DISTANCE and alignment > best_alignment:
-                best_match = (i, other)
-                best_dist = dist
-                best_alignment = alignment
-
-        if best_match:
-            i, other = best_match
-            groups.append((other, base))
-            unmatched.pop(i)
-
-            print('    MATCHED:', other.data)
-            
-            
-    '''
     groups = find_all_candidate_matches(hedges, MAX_DISTANCE, NORMAL_TOLERANCE)
-
-    #print('groups:', groups)
-
     print('\ngroups:')
     for _, hedge1, hedge2 in groups:
         print('    hedge1, hedge2:', hedge1, hedge2)
-    #print('')
 
     # Create maps for new node names and positions.
     matched = set()
@@ -396,11 +303,6 @@ def join_edges(*edges: Iterable[Edge] | Iterable[Hedge]) -> tuple[Tweak, Tweak]:
             continue
         matched.add(hedge1)
         matched.add(hedge2)
-
-        # print('')
-        # print('    mapping:')
-        # for k, v in node_to_new_node.items():
-        #     print('   ', k, '->', v)
 
         print('\nhedge1, hedge2:', hedge1, hedge2)
         new_node1 = node_to_new_node.get(hedge1.head, node_to_new_node.get(hedge2.tail))#, str(uuid.uuid4()))
@@ -430,7 +332,6 @@ def join_edges(*edges: Iterable[Edge] | Iterable[Hedge]) -> tuple[Tweak, Tweak]:
         midpoint2 = midpoint(hedge1.tail.pos.to_tuple(), hedge2.head.pos.to_tuple())
         node_to_new_pos[new_node1] = QPointF(*midpoint1)
         node_to_new_pos[new_node2] = QPointF(*midpoint2)
-
 
         print('')
         print('    mapping:')
