@@ -243,7 +243,7 @@ def split_face(*splits: tuple[Hedge, float]):
     QApplication.instance().doc.updated(action(), dirty=False)
 
 
-def join_edges(*edges: Iterable[Edge] | Iterable[Hedge]):
+def join_edges(*edges: Iterable[Edge] | Iterable[Hedge]) -> tuple[Tweak, Tweak]:
 
     # TODO: Decide what func sig should look like. Does it take hedges or edges?
     # If this is meant to be a programmer's interface, it should probably not be ambiguous
@@ -251,18 +251,18 @@ def join_edges(*edges: Iterable[Edge] | Iterable[Hedge]):
     # face-less edges, for the purposes of joining edges that feels like a restriction
     # we can make.
 
-    all_hedges = set()
+    hedges = set()
     for edge in edges:
         if isinstance(edge, Edge):
-            all_hedges.update(edge.hedges)
+            hedges.update(edge.hedges)
         else:
-            all_hedges.add(edge)
+            hedges.add(edge)
 
-    hedges = set()
-    for hedge in all_hedges:
-        print('hedge:', hedge, '->', hedge.face)
-        if hedge.face is not None:
-            hedges.add(hedge)
+    # hedges = set()
+    # for hedge in all_hedges:
+    #     print('hedge:', hedge, '->', hedge.face)
+    #     if hedge.face is not None:
+    #         hedges.add(hedge)
 
     print('hedges:', hedges)
 
@@ -270,24 +270,35 @@ def join_edges(*edges: Iterable[Edge] | Iterable[Hedge]):
     groups = []
 
 
-    MAX_DISTANCE = 1000.0
+    MAX_DISTANCE = 10000.0
 
-
+    # Match each edge with its counterpart to join with.
     while unmatched:
         base = unmatched.pop()
         n1 = maths.edge_normal(base.head.pos.to_tuple(), base.tail.pos.to_tuple())
         base_mid = LineString((base.head.pos.to_tuple(), base.tail.pos.to_tuple())).interpolate(0.5, normalized=True)
 
         best_match = None
-        best_dist = float("inf")
+        best_dist = float('inf')
+
+        print('\n')
+        print('base:', base)
+        print('n1:', n1)
+        print('base_mid:', base_mid)
 
         for i, other in enumerate(unmatched):
             n2 = maths.edge_normal(other.head.pos.to_tuple(), other.tail.pos.to_tuple())
+
+            #print('\n')
+            print('    other:', other)
+            print('    n2:', n2)
+
+
             if np.dot(n1, n2) < 0:#-1 + TOLERANCE:  # opposing normals
                 other_mid = LineString((other.head.pos.to_tuple(), other.tail.pos.to_tuple())).interpolate(0.5, normalized=True)
                 dist = base_mid.distance(other_mid)
 
-                print('dist:', dist)
+                print('    other_mid:', other_mid)
 
                 if dist < best_dist and dist <= MAX_DISTANCE:
                     best_match = (i, other)
@@ -295,14 +306,74 @@ def join_edges(*edges: Iterable[Edge] | Iterable[Hedge]):
 
         if best_match:
             i, other = best_match
-            groups.append((base, other))
+            groups.append((other, base))
             unmatched.pop(i)
+
+            print('    MATCHED:', other.data)
 
     print('groups:', groups)
 
+    # Create maps for new node names and positions.
+    node_to_new_node = {}
+    node_to_new_pos = {}
+    for hedge1, hedge2 in groups:
+        print('hedge1, hedge2:', hedge1, hedge2)
+        new_node1 = node_to_new_node.get(hedge1.head)#, str(uuid.uuid4()))
+        new_node2 = node_to_new_node.get(hedge1.tail)#, str(uuid.uuid4()))
+
+        # Do we need to search for the equivalent hedge2 head / tail if the above
+        # cannot be found?
+        if new_node1 is None:
+            new_node1 = str(uuid.uuid4())
+        if new_node2 is None:
+            new_node2 = str(uuid.uuid4())
+        node_to_new_node[hedge1.head] = node_to_new_node[hedge2.tail] = new_node1
+        node_to_new_node[hedge1.tail] = node_to_new_node[hedge2.head] = new_node2
+        midpoint1 = midpoint(hedge1.head.pos.to_tuple(), hedge2.tail.pos.to_tuple())
+        midpoint2 = midpoint(hedge1.tail.pos.to_tuple(), hedge2.head.pos.to_tuple())
+        node_to_new_pos[new_node1] = QPointF(*midpoint1)
+        node_to_new_pos[new_node2] = QPointF(*midpoint2)
+
+    print('\nnew_nodes:')
+    for k, v in node_to_new_node.items():
+        print(k, '->', v)
+    print('\nnew_poses:')
+    for k, v in node_to_new_pos.items():
+        print(k, '->', v)
+
+    # Create add / remove tweaks.
     add_tweak = Tweak()
     rem_tweak = Tweak()
 
+    for node, new_node in node_to_new_node.items():
+        rem_tweak.nodes.add(node.data)
+        add_tweak.nodes.add(new_node) #, node_to_new_pos[new_node]
+
+        rem_tweak.node_attrs[node.data]['pos'] = node.pos
+
+        add_tweak.node_attrs[new_node]['pos'] = node_to_new_pos[new_node]
+        #add_tweak.node_attrs[new_tail]['pos'] = QPointF(*mid2)
+
+        for in_hedge in node.in_hedges:
+            rem_tweak.hedges.add(in_hedge.data)
+            new_in_hedge = (node_to_new_node.get(in_hedge.head, in_hedge.head.data), node_to_new_node[in_hedge.tail])
+            add_tweak.hedges.add(new_in_hedge)
+
+            #print('rem:', in_hedge.data)
+            #print('add:', (in_hedge.head.data, node_to_new_node[in_hedge.tail]))
+
+
+        for out_hedge in node.out_hedges:
+            rem_tweak.hedges.add(out_hedge.data)
+            new_out_hedge = (node_to_new_node[out_hedge.head], node_to_new_node.get(out_hedge.tail, out_hedge.tail.data))
+            add_tweak.hedges.add(new_out_hedge)
+
+        rem_tweak.faces.update({face.data for face in node.faces})
+        for face in node.faces:
+            add_tweak.faces.add(tuple([node_to_new_node.get(node, node.data) for node in face.nodes]))
+
+
+    '''
     for hedge1, hedge2 in groups:
 
         mid1 = midpoint(hedge1.head.pos.to_tuple(), hedge2.tail.pos.to_tuple())
@@ -359,10 +430,11 @@ def join_edges(*edges: Iterable[Edge] | Iterable[Hedge]):
             add_tweak.faces.add(new_face)
 
             new_edge = tuple(reversed(new_edge))
+    '''
 
-    print('\nQApplication.instance().doc.content')
-    for hedge in QApplication.instance().doc.content.hedges:
-        print('hedge:', hedge)
+    # print('\nQApplication.instance().doc.content')
+    # for hedge in QApplication.instance().doc.content.hedges:
+    #     print('hedge:', hedge)
 
     print('\nrem tweak:')
     print(rem_tweak)
@@ -376,3 +448,5 @@ def join_edges(*edges: Iterable[Edge] | Iterable[Hedge]):
     ], flags=UpdateFlag.CONTENT)
     QApplication.instance().action_manager.push(action)
     QApplication.instance().doc.updated(action(), dirty=False)
+
+    return add_tweak, rem_tweak

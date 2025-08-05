@@ -74,17 +74,25 @@ class Node(Element):
     def hedges(self) -> tuple[Hedge]:
         return tuple(self.graph.node_to_hedges[self])
 
+    # @property
+    # def predecessors(self) -> tuple[Hedge]:
+    #
+    #     # TODO: Cache on graph like everything else.
+    #     return tuple([Hedge(self.graph, data) for data in self.graph.data.predecessors(self.data)])
+    #
+    # @property
+    # def successors(self) -> tuple[Hedge]:
+    #
+    #     # TODO: Cache on graph like everything else.
+    #     return tuple([Hedge(self.graph, data) for data in self.graph.data.successors(self.data)])
+
     @property
-    def predecessors(self) -> tuple[Hedge]:
-
-        # TODO: Cache on graph like everything else.
-        return tuple([Hedge(self.graph, data) for data in self.graph.data.predecessors(self.data)])
+    def in_hedges(self) -> tuple[Hedge]:
+        return tuple(self.graph.node_to_in_hedges[self])
 
     @property
-    def successors(self) -> tuple[Hedge]:
-
-        # TODO: Cache on graph like everything else.
-        return tuple([Hedge(self.graph, data) for data in self.graph.data.successors(self.data)])
+    def out_hedges(self) -> tuple[Hedge]:
+        return tuple(self.graph.node_to_out_hedges[self])
 
     @property
     def faces(self) -> tuple[Face]:
@@ -216,6 +224,8 @@ class Graph(ContentBase):
         # Maps.
         self.node_to_edges = defaultdict(set)
         self.node_to_hedges = defaultdict(set)
+        self.node_to_in_hedges = defaultdict(set)
+        self.node_to_out_hedges = defaultdict(set)
         self.node_to_faces = defaultdict(set)
 
         self.edge_to_nodes = defaultdict(set)
@@ -236,6 +246,8 @@ class Graph(ContentBase):
 
         self.node_to_edges.clear()
         self.node_to_hedges.clear()
+        self.node_to_in_hedges.clear()
+        self.node_to_out_hedges.clear()
         self.node_to_faces.clear()
 
         self.edge_to_nodes.clear()
@@ -253,6 +265,7 @@ class Graph(ContentBase):
         self.undirected_data = self.data.to_undirected()
 
         for face in self._faces:
+            #print('UPDATE FACE:', face, type(face))
             face_ = self.get_face(face)
             self.face_to_nodes[face].extend([self.get_node(node) for node in face])
 
@@ -273,7 +286,13 @@ class Graph(ContentBase):
 
         for node in self.data.nodes:
             node_ = self.get_node(node)
-            hedges = set(self.data.in_edges(node)) | set(self.data.out_edges(node))
+            in_hedges = set(self.data.in_edges(node))
+            self.node_to_in_hedges[node_].update([self.get_hedge(*hedge) for hedge in in_hedges])
+
+            out_hedges = set(self.data.out_edges(node))
+            self.node_to_out_hedges[node_].update([self.get_hedge(*hedge) for hedge in out_hedges])
+
+            hedges = in_hedges | out_hedges
             #print(node, '->', hedges)
             self.node_to_hedges[node_].update([self.get_hedge(*hedge) for hedge in hedges])
 
