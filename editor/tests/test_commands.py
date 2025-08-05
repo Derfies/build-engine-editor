@@ -37,23 +37,6 @@ class ContentTestCase(unittest.TestCase):
         self.c.add_face(nodes)
         self.c.update()
 
-    # def create_square(self, offset: QPointF = None):
-    #     offset = offset or QPointF(0, 0)
-    #     num_nodes = 4
-    #     num_existing_nodes = len(self.c.data)
-    #     nodes = tuple(range(num_existing_nodes, num_existing_nodes + num_nodes))
-    #     hedges = [(nodes[i], nodes[(i + 1) % num_nodes]) for i in range(num_nodes)]
-    #     self.c.data.add_edges_from(hedges)
-    #     for i, point in enumerate((
-    #         QPointF(0, 0) + offset,
-    #         QPointF(0, 1) + offset,
-    #         QPointF(1, 1) + offset,
-    #         QPointF(1, 0) + offset,
-    #     )):
-    #         self.c.get_node(num_existing_nodes + i).pos = point
-    #     self.c.add_face(nodes)
-    #     self.c.update()
-
     # def test_split_face(self):
     #     """
     #     +----+----+
@@ -111,63 +94,6 @@ class ContentTestCase(unittest.TestCase):
     #     self.assertEqual(len(self.c.edges), 7)
     #     self.assertEqual(len(self.c.hedges), 8)
     #     self.assertEqual(len(self.c.faces), 2)
-
-    # def test_split_face(self):
-    #     """
-    #     1        2        3
-    #      +-------+-------+
-    #      |           .   |
-    #      |           .   |
-    #      +-------+-------+
-    #     0        5        4
-    #
-    #     """
-    #     # Set up test data.
-    #     num_nodes = 6
-    #     nodes = tuple(range(num_nodes))
-    #     edges = [(nodes[i], nodes[(i + 1) % num_nodes]) for i in range(num_nodes)]
-    #     self.c.data.add_edges_from(edges)
-    #     for i, point in enumerate((
-    #         QPointF(0, 0),
-    #         QPointF(0, 1),
-    #         QPointF(1, 1),
-    #         QPointF(2, 1),
-    #         QPointF(2, 0),
-    #         QPointF(1, 0),
-    #     )):
-    #         self.c.get_node(i).pos = point
-    #     self.c._faces[nodes] = {}
-    #
-    #     #return
-    #     #self.c._faces[nodes] = {}
-    #     #self.c.update_undirected()
-    #
-    #     # print('content edges:')
-    #     # for n in self.c.data.edges:
-    #     #    print('->', n)
-    #
-    #     # Start test.
-    #     e1 = self.c.get_hedge(2, 3)
-    #     e2 = self.c.get_hedge(4, 5)
-    #
-    #     # print(e1.head.pos)
-    #     # print(e1.tail.pos)
-    #     # print(e2.head.pos)
-    #     # print(e2.tail.pos)
-    #     with patch.object(QApplication, 'instance', return_value=self.mock_app):
-    #         commands.split_face((e1, 0.5), (e2, 0.5))
-    #     #
-    #     # print('\nnodes:')
-    #     # for n in self.c.nodes:
-    #     #     print('->', n)
-    #     #
-    #     # print('\nedges:')
-    #     # for n in self.c.edges:
-    #     #     print('->', n)
-    #     #
-    #     # print('\nfaces:')
-    #     # for n in self.c.faces:
-    #     #     print('->', n)
 
     def test_join_edges_single(self):
         """
