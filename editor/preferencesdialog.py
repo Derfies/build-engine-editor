@@ -85,6 +85,7 @@ class PlayWidget(ManagedPreferenceWidgetBase):
 
         for title, widget, validator in (
             ('EDuke32 Path', QLineEdit(), None),
+            ('Nblood Path', QLineEdit(), None),
         ):
             self.add_managed_widget(title, widget, validator=validator)
 
