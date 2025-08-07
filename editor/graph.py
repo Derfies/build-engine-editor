@@ -1,17 +1,18 @@
 from __future__ import annotations
 import abc
-import io
+import json
 import logging
 from collections import defaultdict
 from functools import singledispatchmethod
 from typing import Any
 
+import marshmallow_dataclass
 import networkx as nx
 from PySide6.QtCore import QPointF
+from networkx.readwrite import json_graph
 
 from applicationframework.contentbase import ContentBase
 from editor import maths
-from gameengines.build.duke3d import MapReader as Duke3dMapReader, Map, MapWriter
 from gameengines.build.map import Sector, Wall
 
 # noinspection PyUnresolvedReferences
@@ -187,10 +188,10 @@ class Face(Element):
         return hedge in self.hedges
 
     def get_attribute(self, key, default=None):
-        return self.graph._faces[self].get(key, default)
+        return self.graph.data.graph['faces'][self].get(key, default)
 
     def set_attribute(self, key, value):
-        self.graph._faces[self][key] = value
+        self.graph.data.graph['faces'][self][key] = value
 
     @property
     def nodes(self) -> tuple[Node]:
@@ -214,8 +215,11 @@ class Graph(ContentBase):
     def __init__(self):
 
         # TODO: Allow setting of whatever kind of graph we like.
+        # TODO: Put this in a new method - it's already tripped me over once
+        # during load / save
         self.data = nx.DiGraph()
-        self._faces = {}
+        self.data.graph['faces'] = {}
+        #self.data.graph['faces'] = {}
 
         # Maps.
         self.node_to_edges = defaultdict(set)
@@ -260,7 +264,7 @@ class Graph(ContentBase):
 
         self.undirected_data = self.data.to_undirected()
 
-        for face in self._faces:
+        for face in self.data.graph['faces']:
             #print('UPDATE FACE:', face, type(face))
             face_ = self.get_face(face)
             self.face_to_nodes[face].extend([self.get_node(node) for node in face])
@@ -327,7 +331,7 @@ class Graph(ContentBase):
 
     @property
     def faces(self) -> set[Face]:
-        return {self.get_face(face) for face in self._faces}
+        return {self.get_face(face) for face in self.data.graph['faces']}
 
     def get_node(self, node) -> Node:
         assert node in self.data, f'Node not found: {node}'
@@ -342,7 +346,7 @@ class Graph(ContentBase):
         return Hedge(self, (head, tail))
 
     def get_face(self, face: tuple) -> Face:
-        assert face in self._faces, f'Face not found: {face}'
+        assert face in self.data.graph['faces'], f'Face not found: {face}'
         return Face(self, face)
 
     def has_node(self, node: Any):
@@ -358,7 +362,7 @@ class Graph(ContentBase):
         self.data.add_edge(*hedge, **hedge_attrs)
 
     def add_face(self, face: tuple[Any, ...], **face_attrs):
-        self._faces[face] = face_attrs
+        self.data.graph['faces'][face] = face_attrs
 
     def remove_node(self, node: Any):
         self.data.remove_node(node)
@@ -367,203 +371,68 @@ class Graph(ContentBase):
         self.data.remove_edge(*hedge)
 
     def remove_face(self, face: tuple[Any, ...]):
-        del self._faces[face]
+        del self.data.graph['faces'][face]
 
     def load(self, file_path: str):
+        """
+        Feels pretty ugly. Can we use marshmallow better for this...?
 
-        self.data.clear()
-        self.faces.clear()
+        """
+        def deserialize_attr(key, obj):
+            if key == 'pos':
+                return QPointF(*obj)
+            elif key == 'wall':
+                return Wall(**obj)
+            else:
+                return obj
 
-        # TODO: Move this into an import function and let this serialize the native
-        # map format.
-        with open(file_path, 'rb') as f:
-            m = Duke3dMapReader()(f)
+        with open(file_path, 'r') as f:
+            data = json_graph.node_link_graph(json.load(f))
 
-        print('\nheader')
-        print(m.header)
+        g = nx.DiGraph()
+        for n, attrs in data.nodes(data=True):
+            g.add_node(n, **{k: deserialize_attr(k, v) for k, v in attrs.items()})
+        for u, v, attrs in data.edges(data=True):
+            g.add_edge(u, v, **{k: deserialize_attr(k, v) for k, v in attrs.items()})
+        g.graph['faces'] = {}
+        for face_nodes, face_data in data.graph['faces'].items():
+            nodes = face_nodes.split(', ')
+            schema = marshmallow_dataclass.class_schema(Sector)()
+            g.graph['faces'][tuple(nodes)] = {'sector': schema.load(face_data['sector'])}
 
-        print('\nwalls')
-        for wall in m.walls:
-            print(wall)
-
-        print('\nsectors')
-        for sector in m.sectors:
-            print(sector)
-
-        # Still not sure how this actually works :lol.
-        wall_to_walls = defaultdict(set)
-        for wall, wall_data in enumerate(m.walls):
-            wall_to_walls[wall].add(wall)
-            if wall_data.nextwall > -1:
-                nextwall_data = m.walls[wall_data.nextwall]
-                wall_set = wall_to_walls.get(nextwall_data.point2, wall_to_walls[wall])
-                wall_set.add(wall)
-                wall_to_walls[wall] = wall_to_walls[nextwall_data.point2] = wall_set
-
-        print('\nwall_to_walls')
-        for wall in sorted(wall_to_walls):
-            print(wall, '->', wall_to_walls[wall])
-
-        wall_to_node = {}
-        nodes = set()
-        for wall, other_walls in wall_to_walls.items():
-            node = wall_to_node[wall] = frozenset(other_walls)
-            nodes.add(node)
-        
-
-
-        for node in nodes:
-            self.data.add_node(node)
-
-        print('\nwall_to_node')
-        for wall in sorted(wall_to_node):
-            print(wall, '->', wall_to_node[wall])
-
-        print('\nnodes')
-        for node in self.data.nodes:
-            print(node)
-
-        # Add edges.
-        for wall, wall_data in enumerate(m.walls):
-            head = wall_to_node[wall]
-            tail = wall_to_node[wall_data.point2]
-            #print('CREATE:', head, '->', tail)
-            self.data.add_edge(head, tail)
-
-            # Need to set the head data.
-            #self.data.nodes[head]['x'] = wall_data.x
-            #self.data.nodes[head]['y'] = wall_data.y
-            self.data.nodes[head]['pos'] = QPointF(wall_data.x, wall_data.y)
-            self.data.edges[(head, tail)]['wall'] = wall_data
-
-
-
-        print('\nedges')
-        for edge in self.data.edges:
-            print(edge)
-
-        # Add sectors.
-
-        # TODO: Change to edges to define polygon.
-        for i, sector_data in enumerate(m.sectors):
-            poly_nodes = []
-
-            # This might not be right. I think this works on the assumption that
-            # all sectors walls are written in order, which they're not guaranteed
-            # to be.
-            start_wall = wall = sector_data.wallptr
-            for _ in range(sector_data.wallnum):
-                wall_data = m.walls[wall]
-                poly_nodes.append(wall_to_node[wall])
-                wall = wall_data.point2
-
-                if wall == start_wall:
-                    #print('break')
-                    break
-
-
-            self._faces[tuple(poly_nodes)] = {'sector': sector_data}
-
-
+        self.data = g
         self.update()
 
-        print('\nnodes:')
-        for node in self.nodes:
-            print('    ->', node, node.pos)
-        print('\nedges:')
-        for edge in self.edges:
-            print('    ->', edge)
-        print('\nhedges:')
-        for hedge in self.hedges:
-            print('    ->', hedge, '->', hedge.face)
-        print('\nfaces:')
-        for face in self.faces:
-            print('    ->', face)
-
-
     def save(self, file_path: str):
+        """
+        Feels pretty ugly. Can we use marshmallow better for this...?
 
-        METER = 512
-        HEIGHT = 2 * METER
+        """
+        def serialize_attr(obj):
+            if isinstance(obj, QPointF):
+                return obj.to_tuple()
+            elif isinstance(obj, Wall):
+                schema = marshmallow_dataclass.class_schema(Wall)()
+                return schema.dump(obj)
+            elif isinstance(obj, Sector):
+                schema = marshmallow_dataclass.class_schema(Sector)()
+                return schema.dump(obj)
+            elif isinstance(obj, list):
+                return [serialize_attr(v) for v in obj]
+            elif isinstance(obj, dict):
+               return {k: serialize_attr(v) for k, v in obj.items()}
+            else:
+               return obj
 
-        m = Map()
+        g = nx.DiGraph()
+        g.graph['faces'] = {}
+        for k, v in self.data.graph['faces'].items():
+            g.graph['faces'][', '.join(k)] = serialize_attr(v)
+        for n, attrs in self.data.nodes(data=True):
+            g.add_node(n, **{k: serialize_attr(v) for k, v in attrs.items()})
+        for u, v, attrs in self.data.edges(data=True):
+            g.add_edge(u, v, **{k: serialize_attr(v) for k, v in attrs.items()})
 
-        hedges = []
-        edge_to_next_edge = {}
-
-        wallptr = 0
-        sector = 0
-        faces = list(self.faces)
-        for face in faces:
-
-            sector_data = face.get_attribute('sector')
-
-            # HAXX. If the face has no sector data, give it some.
-            if sector_data is None:
-                sector_data = Sector()
-                face.set_attribute('sector', sector_data)
-
-            sector_data.floorz = 0
-            sector_data.ceilingz = -HEIGHT * 16
-            sector_data.wallptr = wallptr
-            sector_data.wallnum = len(face.data)
-
-            for i, hedge in enumerate(face.hedges):
-
-                wall_data = hedge.get_attribute('wall')
-
-                # HAXX. If the edge has no wall data, give it some.
-                if wall_data is None:
-                    wall_data = Wall()
-                    hedge.set_attribute('wall', wall_data)
-
-                wall_data.x = int(hedge.head.pos.x())
-                wall_data.y = int(hedge.head.pos.y())
-                hedges.append(hedge)
-                m.walls.append(wall_data)
-
-                edge_to_next_edge[hedge] = face.hedges[(i + 1) % len(face.hedges)]
-
-            m.sectors.append(sector_data)
-            sector += 1
-            wallptr += len(face.nodes)
-
-        m.cursectnum = 0
-
-        # print('\nedge_map:')
-        # for foo, bar in edge_map.items():
-        #     print(foo, '->', bar)
-
-        # Now we have all walls, go back through and fixup the point2.
-        for wall, hedge in enumerate(hedges):
-            wall_data = m.walls[wall]
-            next_edge = edge_to_next_edge[hedge]
-            wall_data.point2 = hedges.index(next_edge)
-
-        # Do portals.
-        for wall, hedge in enumerate(hedges):
-
-            head, tail = hedge.head, hedge.tail
-            if self.has_hedge(tail, head):
-                rhedge = self.get_hedge(tail, head)
-                next_sector = faces.index(rhedge.face)
-
-                wall_data = m.walls[wall]
-                wall_data.nextsector = next_sector
-                wall_data.nextwall = hedges.index(rhedge)
-
-        print('\nheader')
-        print(m.header)
-
-        print('\nwalls')
-        for wall in m.walls:
-            print(wall)
-
-        print('\nsectors')
-        for sector in m.sectors:
-            print(sector)
-
-        output = io.BytesIO()
-        MapWriter()(m, output)
-        with open(file_path, 'wb') as f:
-            f.write(output.getbuffer())
+        data = json_graph.node_link_data(g)
+        with open(file_path, 'w') as f:
+            json.dump(data, f, indent=2)

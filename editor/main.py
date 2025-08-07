@@ -7,13 +7,14 @@ import marshmallow_dataclass
 import qdarktheme
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QActionGroup, QKeySequence
-from PySide6.QtWidgets import QDockWidget, QSplitter, QTabWidget, QVBoxLayout, QWidget, QLabel
+from PySide6.QtWidgets import QDockWidget, QFileDialog, QVBoxLayout, QWidget
 
 from applicationframework.application import Application
 from applicationframework.document import Document
 from applicationframework.mainwindow import MainWindow as MainWindowBase
 from editor import commands
-from editor.constants import ModalTool, SelectionMode
+from editor import mapio
+from editor.constants import MapFormat, ModalTool, SelectionMode
 from editor.editorpropertygrid import PropertyGrid
 from editor.graph import Graph
 from editor.graphicsscene import GraphicsScene
@@ -22,7 +23,7 @@ from editor.mapdocument import MapDocument
 from editor.preferencesdialog import PreferencesDialog
 from editor.settings import ColourSettings, GeneralSettings, GridSettings, HotkeySettings, PlaySettings
 from editor.updateflag import UpdateFlag
-from viewport import Viewport
+from editor.viewport import Viewport
 
 # noinspection PyUnresolvedReferences
 from __feature__ import snake_case
@@ -105,9 +106,9 @@ class MainWindow(MainWindowBase):
         #self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\LL-SEWER.MAP')
         #self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\1.MAP')
         #self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\editor\tests\data\2_squares.map')
-        self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\test.map')
+        #self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\test5.map')
 
-        #self.app().doc.updated(dirty=False)
+        self.app().doc.updated(dirty=False)
 
         #self.app().doc.file_path = r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\out.map'
         #self.app().doc.save()
@@ -127,6 +128,10 @@ class MainWindow(MainWindowBase):
 
     def create_actions(self):
         super().create_actions()
+
+        # File actions.
+        self.import_action = QAction(self.get_icon('arrow-transition-270.png', icons_path=self.local_icons_path), '&Import...', self)
+        self.export_action = QAction(self.get_icon('arrow-transition.png', icons_path=self.local_icons_path), '&Export...', self)
 
         # Edit actions.
         # TODO: Should preferences be in base class?
@@ -177,7 +182,8 @@ class MainWindow(MainWindowBase):
         self.split_edges_action = QAction(self.get_icon('split-edge', icons_path=self.local_icons_path),'&Split Edges', self)
         self.frame_selection_action = QAction(self.get_icon('image-instagram-frame', icons_path=self.local_icons_path), '&Frame Selection', self)
         self.remove_action = QAction(self.get_icon('cross', icons_path=self.local_icons_path), '&Remove', self)
-        self.play_action = QAction(self.get_icon('control', icons_path=self.local_icons_path), '&Play', self)
+        self.play_in_eduke32_action = QAction(self.get_icon('eduke32', icons_path=self.local_icons_path), '&Play In EDuke32', self)
+        self.play_in_nblood_action = QAction(self.get_icon('nblood', icons_path=self.local_icons_path), '&Play In Nblood', self)
 
         # Tool action group.
         self.tool_action_group = QActionGroup(self)
@@ -204,6 +210,10 @@ class MainWindow(MainWindowBase):
     def connect_actions(self):
         super().connect_actions()
 
+        # File actions.
+        self.import_action.triggered.connect(self.import_event)
+        self.export_action.triggered.connect(self.export_event)
+
         # Edit actions.
         self.show_preferences_action.triggered.connect(self.show_preferences)
 
@@ -212,7 +222,8 @@ class MainWindow(MainWindowBase):
         self.split_edges_action.triggered.connect(self.split_edges)
         self.frame_selection_action.triggered.connect(self.frame_selection)
         self.remove_action.triggered.connect(self.remove)
-        self.play_action.triggered.connect(self.play)
+        self.play_in_eduke32_action.triggered.connect(lambda: self.play(self.app().play_settings.eduke32_path, MapFormat.DUKE_3D))
+        self.play_in_nblood_action.triggered.connect(lambda: self.play(self.app().play_settings.nblood_path, MapFormat.BLOOD))
 
     def connect_hotkeys(self):
         super().connect_hotkeys()
@@ -232,6 +243,11 @@ class MainWindow(MainWindowBase):
 
     def create_menu_bar(self):
         super().create_menu_bar()
+
+        # File menu.
+        self.file_menu.insert_action(self.exit_action, self.import_action)
+        self.file_menu.insert_action(self.exit_action, self.export_action)
+        self.file_menu.insert_separator(self.exit_action)
 
         # Edit actions.
         self.edit_menu.add_separator()
@@ -264,7 +280,8 @@ class MainWindow(MainWindowBase):
         tool_bar.add_action(self.select_edge_action)
         tool_bar.add_action(self.select_poly_action)
         tool_bar.add_separator()
-        tool_bar.add_action(self.play_action)
+        tool_bar.add_action(self.play_in_eduke32_action)
+        tool_bar.add_action(self.play_in_nblood_action)
 
     def create_document(self, file_path: str = None) -> Document:
         return MapDocument(file_path, Graph(), UpdateFlag)
@@ -328,24 +345,25 @@ class MainWindow(MainWindowBase):
         items = items or self.scene.items()
         self.view_2d.frame(items)
 
-    def play(self):
+    def play(self, exe_path: str, map_format: MapFormat):
 
-        eduke32_path = Path(self.app().play_settings.eduke32_path)
-        if not eduke32_path.exists():
-            raise Exception(f'Cannot find eduke32 at: {eduke32_path}')
+        exe_path = Path(exe_path)
+        if not exe_path.exists():
+            raise Exception(f'Cannot find executable at: {exe_path}')
 
         # TODO: Since we're loading an external non-blocking process not sure
         # how to clean up properly here.
-        temp_map_path = eduke32_path.parent.joinpath('out.map')
-        self.app().doc.content.save(temp_map_path)
+        temp_map_path = exe_path.parent.joinpath('out.map')
+        mapio.export_map(self.app().doc.content, temp_map_path, map_format)
 
-        # Launch EDuke32.
+        # Launch game executable.
+        # TODO: Different build exes might require different args / flags here.
         process = subprocess.Popen(
-            [eduke32_path] + ['-map', 'out.map'],
+            [exe_path] + ['-map', 'out.map'],
             stderr=subprocess.PIPE,
             stdout=subprocess.PIPE,
             text=True,  # ensures output is in string format instead of bytes
-            cwd=eduke32_path.parent,
+            cwd=exe_path.parent,
         )
 
         # Read and print stderr.
@@ -373,6 +391,20 @@ class MainWindow(MainWindowBase):
         # TODO: Think about if there's a cleaner way to do this.
         if UpdateFlag.SETTINGS in flags:
             self.connect_hotkeys()
+
+    def import_event(self):
+        file_path, file_format = QFileDialog.get_open_file_name(caption='Import')
+        if not file_path:
+            return False
+        mapio.import_map(self.app().doc.content, file_path, MapFormat(file_format))
+        self.app().doc.updated(dirty=False)
+
+    def export_event(self):
+        file_formats = ';;'.join([fmt.value for fmt in MapFormat])
+        file_path, file_format = QFileDialog.get_save_file_name(caption='Export', filter=file_formats)
+        if not file_path:
+            return False
+        mapio.export_map(self.app().doc.content, file_path, MapFormat(file_format))
 
 
 if __name__ == '__main__':

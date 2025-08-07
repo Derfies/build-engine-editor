@@ -1,4 +1,4 @@
-from enum import IntEnum, auto
+from enum import Enum, IntEnum, auto
 
 
 class ModalTool(IntEnum):
@@ -19,3 +19,9 @@ class SelectionMode(IntEnum):
     NODE = auto()
     EDGE = auto()
     FACE = auto()
+
+
+class MapFormat(Enum):
+
+    DUKE_3D = 'Duke Nukem 3D (*.map)'
+    BLOOD = 'Blood (*.map)'

@@ -69,3 +69,4 @@ class HotkeySettings:
 class PlaySettings:
 
     eduke32_path: str = 'eduke32.exe'
+    nblood_path: str = 'nblood.exe'
