@@ -13,6 +13,7 @@ from networkx.readwrite import json_graph
 
 from applicationframework.contentbase import ContentBase
 from editor import maths
+from editor.constants import FACES, SETTINGS, DEFAULT_NODE_ATTRIBUTES, DEFAULT_HEDGE_ATTRIBUTES, DEFAULT_FACE_ATTRIBUTES
 from gameengines.build.map import Sector, Wall
 
 # noinspection PyUnresolvedReferences
@@ -20,6 +21,13 @@ from __feature__ import snake_case
 
 
 logger = logging.getLogger(__name__)
+
+
+TYPES = {
+    type_.__name__: type_
+    for type_ in {bool, int, float, str}
+
+}
 
 
 class Element(metaclass=abc.ABCMeta):
@@ -219,7 +227,11 @@ class Graph(ContentBase):
         # during load / save
         self.data = nx.DiGraph()
         self.data.graph['faces'] = {}
-        #self.data.graph['faces'] = {}
+        self.data.graph[SETTINGS] = {
+            DEFAULT_NODE_ATTRIBUTES: [],
+            DEFAULT_HEDGE_ATTRIBUTES: [],
+            DEFAULT_FACE_ATTRIBUTES: [],
+        }
 
         # Maps.
         self.node_to_edges = defaultdict(set)
@@ -241,6 +253,21 @@ class Graph(ContentBase):
         self.face_to_hedges = defaultdict(list)
 
         self.update()
+
+    def _get_default_data(self, key: str):
+        return {
+            attribute['name']: TYPES[attribute['type']](attribute['default'])
+            for attribute in self.data.graph[SETTINGS][key]
+        }
+
+    def get_default_node_data(self):
+        return self._get_default_data(DEFAULT_NODE_ATTRIBUTES)
+
+    def get_default_hedge_data(self):
+        return self._get_default_data(DEFAULT_HEDGE_ATTRIBUTES)
+
+    def get_default_face_data(self):
+        return self._get_default_data(DEFAULT_FACE_ATTRIBUTES)
 
     def update(self):
 
@@ -375,64 +402,44 @@ class Graph(ContentBase):
 
     def load(self, file_path: str):
         """
-        Feels pretty ugly. Can we use marshmallow better for this...?
+        TODO: Remove Qpoints somehow.
 
         """
         def deserialize_attr(key, obj):
             if key == 'pos':
                 return QPointF(*obj)
-            elif key == 'wall':
-                return Wall(**obj)
             else:
                 return obj
 
         with open(file_path, 'r') as f:
-            data = json_graph.node_link_graph(json.load(f))
-
-        g = nx.DiGraph()
-        for n, attrs in data.nodes(data=True):
+            g = json_graph.node_link_graph(json.load(f))
+        g.graph[FACES] = {
+            tuple(face_nodes.split(', ')): face_attrs
+            for face_nodes, face_attrs in g.graph['faces'].items()
+        }
+        for n, attrs in g.nodes(data=True):
             g.add_node(n, **{k: deserialize_attr(k, v) for k, v in attrs.items()})
-        for u, v, attrs in data.edges(data=True):
-            g.add_edge(u, v, **{k: deserialize_attr(k, v) for k, v in attrs.items()})
-        g.graph['faces'] = {}
-        for face_nodes, face_data in data.graph['faces'].items():
-            nodes = face_nodes.split(', ')
-            schema = marshmallow_dataclass.class_schema(Sector)()
-            g.graph['faces'][tuple(nodes)] = {'sector': schema.load(face_data['sector'])}
-
         self.data = g
         self.update()
 
     def save(self, file_path: str):
         """
-        Feels pretty ugly. Can we use marshmallow better for this...?
+        TODO: Remove Qpoints somehow.
 
         """
         def serialize_attr(obj):
             if isinstance(obj, QPointF):
                 return obj.to_tuple()
-            elif isinstance(obj, Wall):
-                schema = marshmallow_dataclass.class_schema(Wall)()
-                return schema.dump(obj)
-            elif isinstance(obj, Sector):
-                schema = marshmallow_dataclass.class_schema(Sector)()
-                return schema.dump(obj)
-            elif isinstance(obj, list):
-                return [serialize_attr(v) for v in obj]
-            elif isinstance(obj, dict):
-               return {k: serialize_attr(v) for k, v in obj.items()}
             else:
                return obj
 
-        g = nx.DiGraph()
-        g.graph['faces'] = {}
-        for k, v in self.data.graph['faces'].items():
-            g.graph['faces'][', '.join(k)] = serialize_attr(v)
+        g = nx.DiGraph(self.data)
+        g.graph[FACES] = {
+            ', '.join(face_nodes): face_attrs
+            for face_nodes, face_attrs in g.graph['faces'].items()
+        }
         for n, attrs in self.data.nodes(data=True):
             g.add_node(n, **{k: serialize_attr(v) for k, v in attrs.items()})
-        for u, v, attrs in self.data.edges(data=True):
-            g.add_edge(u, v, **{k: serialize_attr(v) for k, v in attrs.items()})
-
         data = json_graph.node_link_data(g)
         with open(file_path, 'w') as f:
             json.dump(data, f, indent=2)

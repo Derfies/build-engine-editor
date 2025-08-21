@@ -1,6 +1,7 @@
 import logging
 import subprocess
 import sys
+from dataclasses import fields
 from pathlib import Path
 
 import marshmallow_dataclass
@@ -15,6 +16,7 @@ from applicationframework.mainwindow import MainWindow as MainWindowBase
 from editor import commands
 from editor import mapio
 from editor.constants import MapFormat, ModalTool, SelectionMode
+from editor.constants import SETTINGS, DEFAULT_NODE_ATTRIBUTES, DEFAULT_HEDGE_ATTRIBUTES, DEFAULT_FACE_ATTRIBUTES
 from editor.editorpropertygrid import PropertyGrid
 from editor.graph import Graph
 from editor.graphicsscene import GraphicsScene
@@ -24,6 +26,7 @@ from editor.preferencesdialog import PreferencesDialog
 from editor.settings import ColourSettings, GeneralSettings, GridSettings, HotkeySettings, PlaySettings
 from editor.updateflag import UpdateFlag
 from editor.viewport import Viewport
+from propertygrid.model import ModelEvent
 
 # noinspection PyUnresolvedReferences
 from __feature__ import snake_case
@@ -60,6 +63,7 @@ class MainWindow(MainWindowBase):
         self.view_2d = GraphicsView(self.scene)
         self.view_3d = Viewport()
         self.property_grid = PropertyGrid()
+        self.property_grid.model().data_changed.connect(self.on_data_changed)
 
         # Moving openGl widget sometimes crashes :/
         wrapper = QWidget()
@@ -284,7 +288,28 @@ class MainWindow(MainWindowBase):
         tool_bar.add_action(self.play_in_nblood_action)
 
     def create_document(self, file_path: str = None) -> Document:
-        return MapDocument(file_path, Graph(), UpdateFlag)
+        content = Graph()
+
+        # TODO: Move this somewhere else / add method of indirection.
+        from gameengines.build.map import Sector, Wall
+
+        for field in fields(Wall):
+            attribute = {
+                'name': field.name,
+                'type': field.type.__name__,
+                'default': field.default
+            }
+            content.data.graph[SETTINGS][DEFAULT_HEDGE_ATTRIBUTES].append(attribute)
+
+        for field in fields(Sector):
+            attribute = {
+                'name': field.name,
+                'type': field.type.__name__,
+                'default': field.default
+            }
+            content.data.graph[SETTINGS][DEFAULT_FACE_ATTRIBUTES].append(attribute)
+
+        return MapDocument(file_path, content, UpdateFlag)
 
     def on_tool_action_group(self):
         action = self.tool_action_group.checked_action().data()
@@ -331,6 +356,9 @@ class MainWindow(MainWindowBase):
 
     def split_edges(self):
         print('split')
+
+    def on_data_changed(self, event: ModelEvent):
+        commands.set_key(event.object(), event.name(), event.value())
 
     def frame_selection(self):
 

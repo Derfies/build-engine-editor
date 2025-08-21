@@ -1,10 +1,12 @@
 import unittest
 from pathlib import Path
 
+from editor import mapio
+from editor.constants import MapFormat
 from editor.graph import Graph
 
 
-class ContentTestCase(unittest.TestCase):
+class MapioTestCase(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
@@ -23,7 +25,7 @@ class ContentTestCase(unittest.TestCase):
         c = Graph()
 
         # Start test.
-        c.load(self.test_data_dir_path.joinpath('1_squares.map'))
+        mapio.import_map(c, self.test_data_dir_path.joinpath('1_squares.map'), MapFormat.DUKE_3D)
 
         # Assert results.
         self.assertEqual(len(c.nodes), 4)
@@ -42,7 +44,7 @@ class ContentTestCase(unittest.TestCase):
         c = Graph()
 
         # Start test.
-        c.load(self.test_data_dir_path.joinpath('2_squares.map'))
+        mapio.import_map(c, self.test_data_dir_path.joinpath('2_squares.map'), MapFormat.DUKE_3D)
 
         # Assert results.
         self.assertEqual(len(c.nodes), 6)
@@ -63,7 +65,7 @@ class ContentTestCase(unittest.TestCase):
         c = Graph()
 
         # Start test.
-        c.load(self.test_data_dir_path.joinpath('3_squares.map'))
+        mapio.import_map(c, self.test_data_dir_path.joinpath('3_squares.map'), MapFormat.DUKE_3D)
 
         # Assert results.
         self.assertEqual(len(c.nodes), 8)
@@ -84,7 +86,7 @@ class ContentTestCase(unittest.TestCase):
         c = Graph()
 
         # Start test.
-        c.load(self.test_data_dir_path.joinpath('4_squares.map'))
+        mapio.import_map(c, self.test_data_dir_path.joinpath('4_squares.map'), MapFormat.DUKE_3D)
 
         # Assert results.
         self.assertEqual(len(c.nodes), 9)

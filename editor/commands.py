@@ -9,12 +9,11 @@ from shapely.geometry import LineString, Polygon
 from shapely.geometry.polygon import orient
 from shapely.ops import split as split_ops
 
-from applicationframework.actions import Composite, SetAttribute
+from applicationframework.actions import Composite, SetAttribute, SetKey
 from editor.actions import Add, Remove, Tweak
 from editor.graph import Edge, Face, Hedge, Node
 from editor.maths import lerp, long_line_through, midpoint
 from editor.updateflag import UpdateFlag
-from gameengines.build.map import Sector, Wall
 
 # noinspection PyUnresolvedReferences
 from __feature__ import snake_case
@@ -72,8 +71,6 @@ def add_face(points: Iterable[tuple]):
     poly = orient(Polygon(points), sign=1.0)
     coords = poly.exterior.coords[:-1]
 
-    # TODO: Factory for default data? How else do walls / sectors get here
-    # without knowing the build data requirements?
     tweak = Tweak()
     nodes = [str(uuid.uuid4()) for _ in range(len(coords))]
     hedges = []
@@ -83,8 +80,8 @@ def add_face(points: Iterable[tuple]):
         tail = nodes[(i + 1) % len(nodes)]
         hedges.append((head, tail))
         tweak.node_attrs[nodes[i]]['pos'] = QPointF(*coords[i])
-        tweak.hedge_attrs[(head, tail)]['wall'] = Wall()
-    tweak.face_attrs[face]['sector'] = Sector()
+        tweak.hedge_attrs[(head, tail)]['data'] = QApplication.instance().doc.content.get_default_hedge_data()
+    tweak.face_attrs[face]['data'] = QApplication.instance().doc.content.get_default_face_data()
     tweak.nodes.update(nodes)
     tweak.hedges.update(hedges)
     tweak.faces.add(face)
@@ -354,15 +351,19 @@ def join_edges(*edges: Iterable[Edge] | Iterable[Hedge]) -> tuple[Tweak, Tweak]:
             rem_tweak.hedges.add(in_hedge.data)
             new_in_hedge = (node_to_new_node.get(in_hedge.head, in_hedge.head.data), node_to_new_node[in_hedge.tail])
             add_tweak.hedges.add(new_in_hedge)
+            add_tweak.hedge_attrs[new_in_hedge]['data'] = QApplication.instance().doc.content.get_default_hedge_data()
         for out_hedge in node.out_hedges:
             rem_tweak.hedges.add(out_hedge.data)
             new_out_hedge = (node_to_new_node[out_hedge.head], node_to_new_node.get(out_hedge.tail, out_hedge.tail.data))
             add_tweak.hedges.add(new_out_hedge)
+            add_tweak.hedge_attrs[new_out_hedge]['data'] = QApplication.instance().doc.content.get_default_hedge_data()
 
         # Faces.
         rem_tweak.faces.update({face.data for face in node.faces})
         for face in node.faces:
-            add_tweak.faces.add(tuple([node_to_new_node.get(node, node.data) for node in face.nodes]))
+            face_nodes = tuple([node_to_new_node.get(node, node.data) for node in face.nodes])
+            add_tweak.faces.add(face_nodes)
+            add_tweak.face_attrs[face_nodes]['data'] = QApplication.instance().doc.content.get_default_face_data()
 
     print('\nrem tweak:')
     print(rem_tweak)
@@ -378,3 +379,9 @@ def join_edges(*edges: Iterable[Edge] | Iterable[Hedge]) -> tuple[Tweak, Tweak]:
     QApplication.instance().doc.updated(action(), dirty=False)
 
     return add_tweak, rem_tweak
+
+
+def set_key(obj: object, name: str, value: object):
+    action = SetKey(name, value, obj)
+    QApplication.instance().action_manager.push(action)
+    QApplication.instance().doc.updated(action())

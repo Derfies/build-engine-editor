@@ -96,6 +96,8 @@ class ContentTestCase(unittest.TestCase):
     #     self.assertEqual(len(self.c.faces), 2)
 
     def test_join_edges_single(self):
+
+        # TODO: Test face / edge data is retained.
         """
         1           2   5           6
           ┌───────┐       ┌───────┐
@@ -152,6 +154,7 @@ class ContentTestCase(unittest.TestCase):
         self.assertEqual(add_tweak.node_attrs['B']['pos'], QPointF(1.5, 0))
 
     def test_join_edges_double(self):
+        # TODO: Test face / edge data is retained.
         """
         2           3   8           9
           ┌───────┐       ┌───────┐

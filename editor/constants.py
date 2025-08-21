@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from enum import Enum, IntEnum, auto
 
 
@@ -25,3 +27,10 @@ class MapFormat(Enum):
 
     DUKE_3D = 'Duke Nukem 3D (*.map)'
     BLOOD = 'Blood (*.map)'
+
+
+FACES = 'faces'
+SETTINGS = 'settings'
+DEFAULT_NODE_ATTRIBUTES = 'default_node_attributes'
+DEFAULT_HEDGE_ATTRIBUTES = 'default_hedge_attributes'
+DEFAULT_FACE_ATTRIBUTES = 'default_face_attributes'
