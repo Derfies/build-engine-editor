@@ -133,29 +133,32 @@ class Viewport(QOpenGLWidget):
                 sector = orient(sector, sign=1.0)
                 triangles = triangulate(sector)
 
-                vertices = []
+                floor_vertices = []
+                ceiling_vertices = []
                 for tri in triangles:
                     for coord in tri.exterior.coords[:-1]:
-                        vertices.append((coord[0], 0, coord[1]))
 
-                v = np.array(vertices, dtype=np.float32)
+                        # NOTE: Ratio of z axis to other axes is 16:1.
+                        floor_vertices.append((coord[0], face.get_attribute('floorz') / -16, coord[1]))
+                        ceiling_vertices.append((coord[0], face.get_attribute('ceilingz') / -16, coord[1]))
 
-
-                quad = Mesh(v)
+                quad = Mesh(np.array(floor_vertices, dtype=np.float32))
                 quad.bind(self.program)
                 self.meshes.append(quad)
 
-            self.done_current()
+                #print(np.array(ceiling_vertices, dtype=np.float32))
+                #print(np.array(list(reversed(ceiling_vertices)), dtype=np.float32))
 
+                quad2 = Mesh(np.array(list(reversed(ceiling_vertices)), dtype=np.float32))
+                quad2.bind(self.program)
+                self.meshes.append(quad2)
+
+            self.done_current()
 
             self.update()
 
             end = time.time()
             print('viewport:', end - start)
-
-        # for mesh in self.meshes:
-        #     print(mesh)
-
 
         #self.block_signals(False)
 

@@ -182,7 +182,10 @@ class Hedge(Element):
         # TODO: Whats the correct approach here??
         # The editor will select undirected edges, so that needs to report both
         # sets of attributes, ie one for each hedge.
-        return {}
+        return {
+            attr_def['name']: self.get_attribute(attr_def['name'])
+            for attr_def in self.graph.data.graph[ATTRIBUTE_DEFINITIONS][HEDGE]
+        }
 
     @property
     def head(self):
@@ -309,6 +312,8 @@ class Graph(ContentBase):
         return self._get_default_data(FACE)
 
     def _add_attribute_definition(self, key: str, name: str, type_: type, default):
+
+        # TODO: Guh. These should probably be dicts keyed by name.
 
         # TODO: Probably want to serialize type as string only during i/o.
         self.data.graph[ATTRIBUTE_DEFINITIONS][key].append({

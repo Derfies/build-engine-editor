@@ -155,8 +155,6 @@ def do_gexf(graph: Graph, file_path: str, format: MapFormat):
 
 
 def export_map(graph: Graph, file_path: str, format: MapFormat):
-    METER = 512
-    HEIGHT = 2 * METER
 
     map_cls = {
         MapFormat.BLOOD: BloodMap,
@@ -173,13 +171,10 @@ def export_map(graph: Graph, file_path: str, format: MapFormat):
     for face in faces:
 
         sector_data = Sector(**face.get_attributes())
-        sector_data.floorz = 0
-        sector_data.ceilingz = -HEIGHT * 16
         sector_data.wallptr = wallptr
         sector_data.wallnum = len(face.data)
 
         for i, hedge in enumerate(face.hedges):
-
             wall_data = Wall(**hedge.get_attributes())
             wall_data.x = int(hedge.head.pos.x())
             wall_data.y = int(hedge.head.pos.y())

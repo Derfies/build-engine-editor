@@ -313,6 +313,20 @@ class MainWindow(MainWindowBase):
         for field in fields(Sector):
             content.add_face_attribute_definition(field.name, field.type, field.default)
 
+        # Sensible default values.
+        # TODO: Make dict keyed by name.
+        for attribute in content.data.graph[ATTRIBUTE_DEFINITIONS][HEDGE]:
+            if attribute['name'] == 'xrepeat':
+                attribute['default'] = 32
+                print('FOUND xrepeat')
+            elif attribute['name'] == 'yrepeat':
+                attribute['default'] = 32
+                print('FOUND yrepeat')
+        for attribute in content.data.graph[ATTRIBUTE_DEFINITIONS][FACE]:
+            if attribute['name'] == 'ceilingz':
+                attribute['default'] = -1024 * 16
+
+
 
         return MapDocument(file_path, content, UpdateFlag)
 
