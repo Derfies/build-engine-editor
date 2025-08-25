@@ -327,8 +327,8 @@ def join_edges(*edges: Iterable[Edge] | Iterable[Hedge]) -> tuple[Tweak, Tweak]:
         node_to_new_node[hedge1.tail] = node_to_new_node[hedge2.head] = new_node2
         midpoint1 = midpoint(hedge1.head.pos.to_tuple(), hedge2.tail.pos.to_tuple())
         midpoint2 = midpoint(hedge1.tail.pos.to_tuple(), hedge2.head.pos.to_tuple())
-        node_to_new_pos[new_node1] = midpoint1#QPointF(*)
-        node_to_new_pos[new_node2] = midpoint2#QPointF(*)
+        node_to_new_pos[new_node1] = midpoint1
+        node_to_new_pos[new_node2] = midpoint2
 
         print('')
         print('    mapping:')
@@ -345,8 +345,8 @@ def join_edges(*edges: Iterable[Edge] | Iterable[Hedge]) -> tuple[Tweak, Tweak]:
         add_tweak.nodes.add(new_node)
         rem_tweak.node_attrs[node.data]['x'] = node.get_attribute('x')
         rem_tweak.node_attrs[node.data]['y'] = node.get_attribute('y')
-        add_tweak.node_attrs[new_node]['x'] = node_to_new_pos[new_node][0]#.x()
-        add_tweak.node_attrs[new_node]['y'] = node_to_new_pos[new_node][1]#.y()
+        add_tweak.node_attrs[new_node]['x'] = node_to_new_pos[new_node][0]
+        add_tweak.node_attrs[new_node]['y'] = node_to_new_pos[new_node][1]
 
         # Edges.
         for in_hedge in node.in_hedges:

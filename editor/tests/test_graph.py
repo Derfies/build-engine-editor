@@ -15,21 +15,6 @@ class GraphTestCase(unittest.TestCase):
         super().setUpClass()
 
         cls.test_data_dir_path = Path(__file__).parent.joinpath('data')
-        
-    @staticmethod
-    def create_polygon(graph: Graph, *points: tuple[float, float]):
-
-        # TODO: Move to base class.
-        num_nodes = len(points)
-        num_existing_nodes = len(graph.data)
-        nodes = tuple([str(node) for node in range(num_existing_nodes, num_existing_nodes + num_nodes)])
-        hedges = [(nodes[i], nodes[(i + 1) % num_nodes]) for i in range(num_nodes)]
-        graph.data.add_edges_from(hedges)
-        for i, node in enumerate(nodes):
-            graph.get_node(node).set_attribute('x', points[i][0])
-            graph.get_node(node).set_attribute('y', points[i][1])
-        graph.add_face(nodes)
-        graph.update()
 
     def test_add_graph_attribute_definition(self):
 

@@ -74,10 +74,10 @@ class Element(metaclass=abc.ABCMeta):
 class Node(Element):
 
     def get_attribute(self, key, default=None):
-        return self.graph.data.nodes[self.data].get(ATTRIBUTES, {}).get(key, default)
+        return self.graph.data.nodes[self.data][ATTRIBUTES].get(key, default)
 
     def set_attribute(self, key, value):
-        self.graph.data.nodes[self.data].setdefault(ATTRIBUTES, {})[key] = value
+        self.graph.data.nodes[self.data][ATTRIBUTES][key] = value
 
     def get_attributes(self):
         return {
@@ -133,10 +133,10 @@ class Edge(Element):
         return node in self.nodes
 
     def get_attribute(self, key, default=None):
-        return self.graph.undirected_data.edges[self.data].get(ATTRIBUTES, {}).get(key, default)
+        return self.graph.undirected_data.edges[self.data][ATTRIBUTES].get(key, default)
 
     def set_attribute(self, key, value):
-        self.graph.undirected_data.edges[self.data].setdefault(ATTRIBUTES, {})[key] = value
+        self.graph.undirected_data.edges[self.data][ATTRIBUTES][key] = value
 
     def get_attributes(self):
         return {
@@ -172,10 +172,10 @@ class Hedge(Element):
         return node in self.nodes
 
     def get_attribute(self, key, default=None):
-        return self.graph.data.edges[self.data].get(ATTRIBUTES, {}).get(key, default)
+        return self.graph.data.edges[self.data][ATTRIBUTES].get(key, default)
 
     def set_attribute(self, key, value):
-        self.graph.data.edges[self.data].setdefault(ATTRIBUTES, {})[key] = value
+        self.graph.data.edges[self.data][ATTRIBUTES][key] = value
 
     def get_attributes(self):
 
@@ -227,10 +227,10 @@ class Face(Element):
         return hedge in self.hedges
 
     def get_attribute(self, key, default=None):
-        return self.graph.data.graph[FACES][self].get(ATTRIBUTES, {}).get(key, default)
+        return self.graph.data.graph[FACES][self][ATTRIBUTES].get(key, default)
 
     def set_attribute(self, key, value):
-        self.graph.data.graph[FACES][self].setdefault(ATTRIBUTES, {})[key] = value
+        self.graph.data.graph[FACES][self][ATTRIBUTES][key] = value
 
     def get_attributes(self):
         return {

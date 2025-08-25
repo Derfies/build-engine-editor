@@ -2,13 +2,13 @@ import unittest
 import uuid
 from unittest.mock import Mock, patch
 
-from PySide6.QtCore import QPointF
 from PySide6.QtWidgets import QApplication
 
 from applicationframework.actions import Manager as ActionManager
 from editor import commands
 from editor.graph import Graph
 from editor.mapdocument import MapDocument
+from editor.tests.testcasebase import TestCaseBase
 from editor.updateflag import UpdateFlag
 
 
@@ -31,7 +31,7 @@ class UsesQApplication(unittest.TestCase):
         del cls.mock_app
 
 
-class CommandsTestCase(UsesQApplication):
+class CommandsTestCase(UsesQApplication, TestCaseBase):
 
     def setUp(self):
         super().setUp()
@@ -40,18 +40,6 @@ class CommandsTestCase(UsesQApplication):
     @property
     def c(self):
         return self.mock_app.doc.content
-
-    def create_polygon(self, *points: tuple[float, float]):
-        num_nodes = len(points)
-        num_existing_nodes = len(self.c.data)
-        nodes = tuple(range(num_existing_nodes, num_existing_nodes + num_nodes))
-        hedges = [(nodes[i], nodes[(i + 1) % num_nodes]) for i in range(num_nodes)]
-        self.c.data.add_edges_from(hedges)
-        for i, node in enumerate(nodes):
-            self.c.get_node(node).set_attribute('x', points[i][0])
-            self.c.get_node(node).set_attribute('y', points[i][1])
-        self.c.add_face(nodes)
-        self.c.update()
 
     # def test_split_face(self):
     #     """
@@ -136,12 +124,14 @@ class CommandsTestCase(UsesQApplication):
         """
         # Set up test data.
         self.create_polygon(
+            self.c,
             (0, 0),
             (0, 1),
             (1, 1),
             (1, 0),
         )
         self.create_polygon(
+            self.c,
             (2, 0),
             (2, 1),
             (3, 1),
@@ -196,6 +186,7 @@ class CommandsTestCase(UsesQApplication):
         """
         # Set up test data.
         self.create_polygon(
+            self.c,
             (0, 0),
             (0, 0.5),
             (0, 1),
@@ -204,6 +195,7 @@ class CommandsTestCase(UsesQApplication):
             (1, 0),
         )
         self.create_polygon(
+            self.c,
             (2, 0),
             (2, 0.5),
             (2, 1),

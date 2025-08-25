@@ -33,6 +33,7 @@ class PropertyGrid(PropertyGridBase):
         self.model().clear()
 
         # TODO: Multi-select
+        # TODO: How do we display both sets of hedge data for each edge?
         if doc.selected_elements:
             element = list(doc.selected_elements)[0]
             self.model().add_dict(element.get_attributes(), obj=element)
