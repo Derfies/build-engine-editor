@@ -22,7 +22,7 @@ class GEXFWriter(BaseGEXFWriter):
         assert len(attrs_els) < 2, 'Should only be one attributes element'
         if not attrs_els:
             attrs_el = et.Element('attributes', attrib={'class': '', 'mode': 'static'})
-            self.graph_element.append(attrs_el)
+            self.graph_element.insert(0, attrs_el)
         else:
             attrs_el = attrs_els[0]
 

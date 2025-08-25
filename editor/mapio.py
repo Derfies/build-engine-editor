@@ -3,7 +3,7 @@ from collections import defaultdict
 from dataclasses import fields
 from pathlib import Path
 
-from editor.constants import ATTRIBUTES, ATTRIBUTE_DEFINITIONS, NODE, HEDGE, FACE, FACES
+from editor.constants import ATTRIBUTES, ATTRIBUTE_DEFINITIONS, FACE, FACES, GRAPH, HEDGE, NODE
 from editor.constants import MapFormat
 from editor.graph import Graph
 from editor.readwrite import write_gexf
@@ -135,20 +135,29 @@ def import_map(graph: Graph, file_path: str | Path, format: MapFormat):
         print('    ->', face)
 
 
-def do_gexf(graph: Graph, file_path: str, format: MapFormat):
+def export_gexf(graph: Graph, file_path: str, format: MapFormat):
+
+    # TODO: Comment.
     g = graph.data.copy()
-    for _, attrs in g.nodes(data=True):
-        for k in list(attrs):
-            if k == 'pos':
-                pos = attrs[k].to_tuple()
-                attrs['viz'] = {'position': {'x': pos[0], 'y': pos[1], 'z': 0}}
-        del attrs['pos']
+
+    for node, attrs in g.nodes(data=True):
+        attrs.update(attrs.pop(ATTRIBUTES))
+        attrs['viz'] = {'position': {'x': attrs.pop('x'), 'y': attrs.pop('y'), 'z': 0}}
+
+        # TODO: Move this attr
+        attrs.pop('is_selected', None)
+
+    for head, tail, attrs in g.edges(data=True):
+        attrs.update(attrs.pop(ATTRIBUTES))
+
+        attrs.pop('is_selected', None)
 
     # Flatten settings data?
-    for default_attr_set in (NODE, HEDGE, FACE):
-        for attr_dict in g.graph[ATTRIBUTE_DEFINITIONS][default_attr_set]:
-            print(attr_dict)
-            g.graph[attr_dict['name']] = attr_dict['default']
+    for attr_dict in g.graph[ATTRIBUTE_DEFINITIONS][GRAPH]:
+        g.graph[attr_dict['name']] = attr_dict['default']
+
+    g.graph['node_default'] = graph.get_default_node_data()
+    g.graph['edge_default'] = graph.get_default_hedge_data()
     del g.graph[ATTRIBUTE_DEFINITIONS]
 
     write_gexf(g, file_path)

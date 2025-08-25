@@ -127,31 +127,36 @@ class Viewport(QOpenGLWidget):
                 mesh.delete()
             self.meshes.clear()
 
-            for face in doc.content.faces:
+            try:
 
-                sector = Polygon([node.pos.to_tuple() for node in face.nodes])
-                sector = orient(sector, sign=1.0)
-                triangles = triangulate(sector)
+                for face in doc.content.faces:
 
-                floor_vertices = []
-                ceiling_vertices = []
-                for tri in triangles:
-                    for coord in tri.exterior.coords[:-1]:
+                    sector = Polygon([node.pos.to_tuple() for node in face.nodes])
+                    sector = orient(sector, sign=1.0)
+                    triangles = triangulate(sector)
 
-                        # NOTE: Ratio of z axis to other axes is 16:1.
-                        floor_vertices.append((coord[0], face.get_attribute('floorz') / -16, coord[1]))
-                        ceiling_vertices.append((coord[0], face.get_attribute('ceilingz') / -16, coord[1]))
+                    floor_vertices = []
+                    ceiling_vertices = []
+                    for tri in triangles:
+                        for coord in tri.exterior.coords[:-1]:
 
-                quad = Mesh(np.array(floor_vertices, dtype=np.float32))
-                quad.bind(self.program)
-                self.meshes.append(quad)
+                            # NOTE: Ratio of z axis to other axes is 16:1.
+                            floor_vertices.append((coord[0], face.get_attribute('floorz') / -16, coord[1]))
+                            ceiling_vertices.append((coord[0], face.get_attribute('ceilingz') / -16, coord[1]))
 
-                #print(np.array(ceiling_vertices, dtype=np.float32))
-                #print(np.array(list(reversed(ceiling_vertices)), dtype=np.float32))
+                    quad = Mesh(np.array(floor_vertices, dtype=np.float32))
+                    quad.bind(self.program)
+                    self.meshes.append(quad)
 
-                quad2 = Mesh(np.array(list(reversed(ceiling_vertices)), dtype=np.float32))
-                quad2.bind(self.program)
-                self.meshes.append(quad2)
+                    #print(np.array(ceiling_vertices, dtype=np.float32))
+                    #print(np.array(list(reversed(ceiling_vertices)), dtype=np.float32))
+
+                    quad2 = Mesh(np.array(list(reversed(ceiling_vertices)), dtype=np.float32))
+                    quad2.bind(self.program)
+                    self.meshes.append(quad2)
+
+            except Exception as e:
+                print(e)
 
             self.done_current()
 

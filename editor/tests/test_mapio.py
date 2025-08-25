@@ -1,12 +1,14 @@
-import unittest
+import os
+import tempfile
 from pathlib import Path
 
 from editor import mapio
 from editor.constants import MapFormat
 from editor.graph import Graph
+from editor.tests.testcasebase import TestCaseBase
 
 
-class MapioTestCase(unittest.TestCase):
+class MapioTestCase(TestCaseBase):
 
     @classmethod
     def setUpClass(cls):
@@ -22,16 +24,16 @@ class MapioTestCase(unittest.TestCase):
 
         """
         # Set up test data.
-        c = Graph()
+        g = Graph()
 
         # Start test.
-        mapio.import_map(c, self.test_data_dir_path.joinpath('1_squares.map'), MapFormat.DUKE_3D)
+        mapio.import_map(g, self.test_data_dir_path.joinpath('1_squares.map'), MapFormat.DUKE_3D)
 
         # Assert results.
-        self.assertEqual(len(c.nodes), 4)
-        self.assertEqual(len(c.edges), 4)
-        self.assertEqual(len(c.hedges), 4)
-        self.assertEqual(len(c.faces), 1)
+        self.assertEqual(len(g.nodes), 4)
+        self.assertEqual(len(g.edges), 4)
+        self.assertEqual(len(g.hedges), 4)
+        self.assertEqual(len(g.faces), 1)
 
     def test_load_2_squares(self):
         """
@@ -41,16 +43,16 @@ class MapioTestCase(unittest.TestCase):
 
         """
         # Set up test data.
-        c = Graph()
+        g = Graph()
 
         # Start test.
-        mapio.import_map(c, self.test_data_dir_path.joinpath('2_squares.map'), MapFormat.DUKE_3D)
+        mapio.import_map(g, self.test_data_dir_path.joinpath('2_squares.map'), MapFormat.DUKE_3D)
 
         # Assert results.
-        self.assertEqual(len(c.nodes), 6)
-        self.assertEqual(len(c.edges), 7)
-        self.assertEqual(len(c.hedges), 8)
-        self.assertEqual(len(c.faces), 2)
+        self.assertEqual(len(g.nodes), 6)
+        self.assertEqual(len(g.edges), 7)
+        self.assertEqual(len(g.hedges), 8)
+        self.assertEqual(len(g.faces), 2)
 
     def test_load_3_squares(self):
         """
@@ -62,16 +64,16 @@ class MapioTestCase(unittest.TestCase):
 
         """
         # Set up test data.
-        c = Graph()
+        g = Graph()
 
         # Start test.
-        mapio.import_map(c, self.test_data_dir_path.joinpath('3_squares.map'), MapFormat.DUKE_3D)
+        mapio.import_map(g, self.test_data_dir_path.joinpath('3_squares.map'), MapFormat.DUKE_3D)
 
         # Assert results.
-        self.assertEqual(len(c.nodes), 8)
-        self.assertEqual(len(c.edges), 10)
-        self.assertEqual(len(c.hedges), 12)
-        self.assertEqual(len(c.faces), 3)
+        self.assertEqual(len(g.nodes), 8)
+        self.assertEqual(len(g.edges), 10)
+        self.assertEqual(len(g.hedges), 12)
+        self.assertEqual(len(g.faces), 3)
 
     def test_load_4_squares(self):
         """
@@ -83,13 +85,48 @@ class MapioTestCase(unittest.TestCase):
 
         """
         # Set up test data.
-        c = Graph()
+        g = Graph()
 
         # Start test.
-        mapio.import_map(c, self.test_data_dir_path.joinpath('4_squares.map'), MapFormat.DUKE_3D)
+        mapio.import_map(g, self.test_data_dir_path.joinpath('4_squares.map'), MapFormat.DUKE_3D)
 
         # Assert results.
-        self.assertEqual(len(c.nodes), 9)
-        self.assertEqual(len(c.edges), 12)
-        self.assertEqual(len(c.hedges), 16)
-        self.assertEqual(len(c.faces), 4)
+        self.assertEqual(len(g.nodes), 9)
+        self.assertEqual(len(g.edges), 12)
+        self.assertEqual(len(g.hedges), 16)
+        self.assertEqual(len(g.faces), 4)
+
+    def test_export_gexf(self):
+        """
+        +---+
+        |   |
+        +---+
+
+        """
+
+        # TODO: Assert results.
+
+        # Set up test data.
+        g = Graph()
+        g.add_graph_attribute_definition('foo', bool, True)
+        g.add_node_attribute_definition('bar', int, 2)
+        g.add_hedge_attribute_definition('baz', float, 3.0)
+        g.add_face_attribute_definition('qux', str, 'four')
+        self.create_polygon(g, (0, 0), (100, 0), (100, 100), (0, 100))
+
+        handle, file_path = tempfile.mkstemp()
+        os.close(handle)
+        try:
+
+            # Start test.
+            mapio.export_gexf(g, file_path, None)
+
+            # Assert results.
+            with open(file_path, 'r') as f:
+                data = f.read()
+
+            print(data)
+
+
+        finally:
+            os.remove(file_path)

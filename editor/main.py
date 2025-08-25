@@ -457,7 +457,7 @@ class MainWindow(MainWindowBase):
         # format to each exporter.
         map_format = MapFormat(file_format)
         if map_format == MapFormat.GEXF:
-            mapio.do_gexf(self.app().doc.content, file_path, map_format)
+            mapio.export_gexf(self.app().doc.content, file_path, map_format)
         else:
             mapio.export_map(self.app().doc.content, file_path, map_format)
 
