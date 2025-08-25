@@ -18,7 +18,7 @@ class UtilsTestCase(unittest.TestCase):
         positions = ((0, 0), (0, 1), (1, 1), (1, 0))
         graph = Graph()
         for i, node in enumerate(face_):
-            graph.add_node(node, pos=QPointF(*positions[i]))
+            graph.add_node(node, x=positions[i][0], y=positions[i][1])
         for hedge in utils.edges(face_):
             graph.add_hedge(hedge)
         graph.add_face(face_)
