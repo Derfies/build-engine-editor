@@ -87,7 +87,6 @@ def import_map(graph: Graph, file_path: str | Path, format: MapFormat):
         # Need to set the head data.
         graph.data.nodes[head].setdefault(ATTRIBUTES, {})['x'] = wall_data.x
         graph.data.nodes[head].setdefault(ATTRIBUTES, {})['y'] = wall_data.y
-        #graph.data.edges[(head, tail)][ATTRIBUTES] = wall_data
 
         graph.data.edges[(head, tail)].setdefault(ATTRIBUTES, {})
         for field in fields(wall_data):

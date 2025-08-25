@@ -35,6 +35,5 @@ class PropertyGrid(PropertyGridBase):
         # TODO: Multi-select
         if doc.selected_elements:
             element = list(doc.selected_elements)[0]
-            #print(element, element.get_attributes())
             self.model().add_dict(element.get_attributes(), obj=element)
         self.block_signals(False)

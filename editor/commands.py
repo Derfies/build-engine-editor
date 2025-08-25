@@ -82,7 +82,6 @@ def add_face(points: Iterable[tuple]):
         tweak.node_attrs[nodes[i]] = QApplication.instance().doc.content.get_default_node_data()
         tweak.node_attrs[nodes[i]]['x'] = coords[i][0]
         tweak.node_attrs[nodes[i]]['y'] = coords[i][1]
-        #tweak.node_attrs[nodes[i]]['pos'] = QPointF(*coords[i])
         tweak.hedge_attrs[(head, tail)] = QApplication.instance().doc.content.get_default_hedge_data()
     tweak.face_attrs[face] = QApplication.instance().doc.content.get_default_face_data()
 
@@ -331,8 +330,8 @@ def join_edges(*edges: Iterable[Edge] | Iterable[Hedge]) -> tuple[Tweak, Tweak]:
         node_to_new_node[hedge1.tail] = node_to_new_node[hedge2.head] = new_node2
         midpoint1 = midpoint(hedge1.head.pos.to_tuple(), hedge2.tail.pos.to_tuple())
         midpoint2 = midpoint(hedge1.tail.pos.to_tuple(), hedge2.head.pos.to_tuple())
-        node_to_new_pos[new_node1] = QPointF(*midpoint1)
-        node_to_new_pos[new_node2] = QPointF(*midpoint2)
+        node_to_new_pos[new_node1] = midpoint1#QPointF(*)
+        node_to_new_pos[new_node2] = midpoint2#QPointF(*)
 
         print('')
         print('    mapping:')
@@ -347,12 +346,10 @@ def join_edges(*edges: Iterable[Edge] | Iterable[Hedge]) -> tuple[Tweak, Tweak]:
         # Nodes.
         rem_tweak.nodes.add(node.data)
         add_tweak.nodes.add(new_node)
-        # rem_tweak.node_attrs[node.data]['pos'] = node.pos
         rem_tweak.node_attrs[node.data]['x'] = node.get_attribute('x')
         rem_tweak.node_attrs[node.data]['y'] = node.get_attribute('y')
-        #add_tweak.node_attrs[new_node]['pos'] = node_to_new_pos[new_node]
-        add_tweak.node_attrs[new_node]['x'] = node_to_new_pos[new_node].x()
-        add_tweak.node_attrs[new_node]['y'] = node_to_new_pos[new_node].y()
+        add_tweak.node_attrs[new_node]['x'] = node_to_new_pos[new_node][0]#.x()
+        add_tweak.node_attrs[new_node]['y'] = node_to_new_pos[new_node][1]#.y()
 
         # Edges.
         for in_hedge in node.in_hedges:
@@ -387,12 +384,6 @@ def join_edges(*edges: Iterable[Edge] | Iterable[Hedge]) -> tuple[Tweak, Tweak]:
     QApplication.instance().doc.updated(action(), dirty=False)
 
     return add_tweak, rem_tweak
-
-
-# def set_key(obj: object, name: str, value: object):
-#     action = SetKey(name, value, obj)
-#     QApplication.instance().action_manager.push(action)
-#     QApplication.instance().doc.updated(action())
 
 
 def set_attribute(obj: object, name: str, value: object):

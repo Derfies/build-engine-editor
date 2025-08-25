@@ -111,10 +111,14 @@ class Node(Element):
 
     @property
     def pos(self) -> QPointF:
+
+        # TODO: Wean off QPointF type.
         return QPointF(self.get_attribute('x'), self.get_attribute('y'))
 
     @pos.setter
     def pos(self, pos: QPointF):
+
+        # TODO: Wean off QPointF type.
         self.set_attribute('x', pos.x())
         self.set_attribute('y', pos.y())
 
@@ -176,6 +180,8 @@ class Hedge(Element):
     def get_attributes(self):
 
         # TODO: Whats the correct approach here??
+        # The editor will select undirected edges, so that needs to report both
+        # sets of attributes, ie one for each hedge.
         return {}
 
     @property
@@ -489,52 +495,20 @@ class Graph(ContentBase):
         TODO: Remove Qpoints somehow.
 
         """
-        # def serialize_attr(obj):
-        #     if isinstance(obj, QPointF):
-        #         return obj.to_tuple()
-        #     else:
-        #        return obj
-        #
-        # g = nx.DiGraph(self.data)
-        # g.graph[FACES] = {
-        #     ', '.join(face_nodes): face_attrs
-        #     for face_nodes, face_attrs in g.graph['faces'].items()
-        # }
-        # for n, attrs in self.data.nodes(data=True):
-        #     g.add_node(n, **{k: serialize_attr(v) for k, v in attrs.items()})
-        # data = json_graph.node_link_data(g)
-        # with open(file_path, 'w') as f:
-        #     json.dump(data, f, indent=2)
+
 
         g = self.data.copy()
-
-        for face_nodes, face_attrs in g.graph[FACES].items():
-            print(face_nodes)
-            for node in face_nodes:
-                print(node, type(node))
-            print(face_attrs)
-            print('')
 
         g.graph[FACES] = {
             ', '.join([str(face_node) for face_node in face_nodes]): face_attrs
             for face_nodes, face_attrs in g.graph[FACES].items()
         }
 
-
         for _, attrs in g.nodes(data=True):
             for k in list(attrs[ATTRIBUTES]):
                 if k == 'pos':
                     pos = attrs[ATTRIBUTES][k].to_tuple()
                     attrs[ATTRIBUTES][k] = pos
-            #del attrs[ATTRIBUTES]
-
-        # for _, attrs in g.nodes(data=True):
-        #     for k in list(attrs):
-        #         if k == 'pos':
-        #             pos = attrs[k].to_tuple()
-        #             #attrs['viz'] = {'position': {'x': pos[0], 'y': pos[1], 'z': 0}}
-        #             attrs[k] = pos
-        #     del attrs['pos']
 
         data = json_graph.node_link_data(g)
         with open(file_path, 'w') as f:

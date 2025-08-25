@@ -297,39 +297,12 @@ class MainWindow(MainWindowBase):
     def create_document(self, file_path: str = None) -> Document:
         content = Graph()
 
-
-        # content.data.graph[ATTRIBUTE_DEFINITIONS][GRAPH].append({
-        #     'name': 'foo',
-        #     'type': 'bool',
-        #     'default': True,
-        # })
-        # content.data.graph[ATTRIBUTE_DEFINITIONS][NODE].append({
-        #     'name': 'x',
-        #     'type': 'float',
-        #     'default': 0,
-        # })
-        # content.data.graph[ATTRIBUTE_DEFINITIONS][NODE].append({
-        #      'name': 'y',
-        #     'type': 'float',
-        #     'default': 0,
-        # })
-        # content.data.graph[ATTRIBUTE_DEFINITIONS][NODE].append({
-        #     'name': 'bar',
-        #     'type': 'int',
-        #     'default': 2,
-        # })
-        # content.data.graph[ATTRIBUTE_DEFINITIONS][HEDGE].append({
-        #     'name': 'baz',
-        #     'type': 'float',
-        #     'default': 3.0,
-        # })
-        # content.data.graph[ATTRIBUTE_DEFINITIONS][FACE].append({
-        #     'name': 'qux',
-        #     'type': 'str',
-        #     'default': 'four',
-        # })
-
-
+        # content.add_graph_attribute_definition('foo', bool, True)
+        # content.add_node_attribute_definition('x', float, 0)
+        # content.add_node_attribute_definition('y', float, 0)
+        # content.add_node_attribute_definition('bar', int, 2)
+        # content.add_hedge_attribute_definition('baz', float, 3.0)
+        # content.add_face_attribute_definition('qux', str, 'four')
 
         # TODO: Move this somewhere else / add method of indirection.
         from gameengines.build.map import Sector, Wall
@@ -390,7 +363,6 @@ class MainWindow(MainWindowBase):
         print('split')
 
     def on_data_changed(self, event: ModelEvent):
-        #commands.set_key(event.object(), event.name(), event.value())
         commands.set_attribute(event.object(), event.name(), event.value())
 
     def frame_selection(self):
@@ -472,12 +444,6 @@ class MainWindow(MainWindowBase):
         map_format = MapFormat(file_format)
         if map_format == MapFormat.GEXF:
             mapio.do_gexf(self.app().doc.content, file_path, map_format)
-            # from editor.readwrite import MyGEXFWriter
-            # writer = MyGEXFWriter(encoding="utf-8", prettyprint=True, version="1.2draft")
-            # writer.add_graph(self.app().doc.content.data)
-            # #writer.dump(file_path)
-            # with open(file_path, 'wb') as f:
-            #     writer.write(f)  # <-- this is the method you want
         else:
             mapio.export_map(self.app().doc.content, file_path, map_format)
 

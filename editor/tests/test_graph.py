@@ -183,24 +183,80 @@ class GraphTestCase(unittest.TestCase):
             'default': 'four',
         })
 
-    # def test_save(self):
-    #
-    #     # Set up test data.
-    #     g = Graph()
-    #     g.data.graph[ATTRIBUTE_DEFINITIONS][NODE].append(attribute)
-    #     self.create_polygon(g, (0, 0), (0, 1), (1, 00))
-    #     # g.load(self.test_data_dir_path.joinpath('1_squares.json'))
-    #
-    #     handle, file_path = tempfile.mkstemp()
-    #     try:
-    #
-    #         # Start test.x
-    #         with open(handle, 'w') as f:
-    #             g.save(file_path)
-    #
-    #         # Assert results.
-    #         with open(file_path, 'r') as f:
-    #             data = json.load(f)
-    #             print(json.dumps(data, indent=4))
-    #     finally:
-    #         os.remove(file_path)
+    def test_save(self):
+
+        # Set up test data.
+        g = Graph()
+        g.data.graph[ATTRIBUTE_DEFINITIONS][GRAPH].append({
+            'name': 'foo',
+            'type': bool.__name__,
+            'default': True,
+        })
+        g.data.graph[ATTRIBUTE_DEFINITIONS][NODE].append({
+            'name': 'x',
+            'type': float.__name__,
+            'default': 0.1,
+        })
+        g.data.graph[ATTRIBUTE_DEFINITIONS][NODE].append({
+            'name': 'y',
+            'type': float.__name__,
+            'default': 0.2,
+        })
+        g.data.graph[ATTRIBUTE_DEFINITIONS][NODE].append({
+            'name': 'bar',
+            'type': int.__name__,
+            'default': 2,
+        })
+        g.data.graph[ATTRIBUTE_DEFINITIONS][HEDGE].append({
+            'name': 'baz',
+            'type': float.__name__,
+            'default': 3.0,
+        })
+        g.data.graph[ATTRIBUTE_DEFINITIONS][FACE].append({
+            'name': 'qux',
+            'type': str.__name__,
+            'default': 'four',
+        })
+
+        handle, file_path = tempfile.mkstemp()
+        os.close(handle)
+        try:
+
+            # Start test.
+            g.save(file_path)
+
+            # Assert results.
+            with open(file_path, 'r') as f:
+                data = json.load(f)
+            self.assertDictEqual(data['graph'][ATTRIBUTE_DEFINITIONS][GRAPH][0], {
+                'name': 'foo',
+                'type': 'bool',
+                'default': True,
+            })
+            self.assertDictEqual(data['graph'][ATTRIBUTE_DEFINITIONS][NODE][0], {
+                'name': 'x',
+                'type': 'float',
+                'default': 0.1,
+            })
+            self.assertDictEqual(data['graph'][ATTRIBUTE_DEFINITIONS][NODE][1], {
+                'name': 'y',
+                'type': 'float',
+                'default': 0.2,
+            })
+            self.assertDictEqual(data['graph'][ATTRIBUTE_DEFINITIONS][NODE][2], {
+                'name': 'bar',
+                'type': 'int',
+                'default': 2,
+            })
+            self.assertDictEqual(data['graph'][ATTRIBUTE_DEFINITIONS][HEDGE][0], {
+                'name': 'baz',
+                'type': 'float',
+                'default': 3.0,
+            })
+            self.assertDictEqual(data['graph'][ATTRIBUTE_DEFINITIONS][FACE][0], {
+                'name': 'qux',
+                'type': 'str',
+                'default': 'four',
+            })
+        finally:
+            os.remove(file_path)

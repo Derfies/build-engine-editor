@@ -33,10 +33,6 @@ class GEXFWriter(BaseGEXFWriter):
                 print('skip:', key)
                 continue
 
-
-
-        #for attr_name in ['faces']:
-            #value = G.graph[key]
             attr_el = et.Element('attribute', attrib={'id': key, 'title': key, 'type': type_map[type(value)]})
             attrs_el.append(attr_el)
 
