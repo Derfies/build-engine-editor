@@ -60,3 +60,18 @@ class Remove(AddRemoveBase):
 
     def redo(self):
         self.remove()
+
+
+class SetElementAttribute(Edit):
+
+    def __init__(self, name: str, value, *args, **kwargs):
+        super().__init__(*args,  **kwargs)
+        self.name = name
+        self.value = value
+        self.old_value = self.obj.get_attribute(self.name)
+
+    def undo(self):
+        self.obj.set_attribute(self.name, self.old_value)
+
+    def redo(self):
+        self.obj.set_attribute(self.name, self.value)

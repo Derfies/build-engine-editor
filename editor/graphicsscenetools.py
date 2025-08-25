@@ -283,7 +283,7 @@ class CreatePolygonTool(GraphicsSceneToolBase):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._num_sides = 3
+        self._num_sides = 4
         self._start_point = None
 
     @staticmethod

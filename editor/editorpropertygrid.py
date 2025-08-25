@@ -35,7 +35,6 @@ class PropertyGrid(PropertyGridBase):
         # TODO: Multi-select
         if doc.selected_elements:
             element = list(doc.selected_elements)[0]
-            data = element.get_attribute('data')
-            if data is not None:
-                self.model().add_dict(data)
+            #print(element, element.get_attributes())
+            self.model().add_dict(element.get_attributes(), obj=element)
         self.block_signals(False)

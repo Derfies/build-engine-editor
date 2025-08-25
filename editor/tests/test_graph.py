@@ -2,142 +2,205 @@ import json
 import os
 import tempfile
 import unittest
+from pathlib import Path
 
-from editor.constants import SETTINGS, DEFAULT_NODE_ATTRIBUTES, \
-    DEFAULT_HEDGE_ATTRIBUTES, DEFAULT_FACE_ATTRIBUTES
+from editor.constants import ATTRIBUTE_DEFINITIONS, FACE, GRAPH, HEDGE, NODE
 from editor.graph import Graph
 
 
-class ContentTestCase(unittest.TestCase):
+class GraphTestCase(unittest.TestCase):
 
-    def setUp(self):
-        super().setUp()
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+
+        cls.test_data_dir_path = Path(__file__).parent.joinpath('data')
+        
+    @staticmethod
+    def create_polygon(graph: Graph, *points: tuple[float, float]):
+
+        # TODO: Move to base class.
+        num_nodes = len(points)
+        num_existing_nodes = len(graph.data)
+        nodes = tuple([str(node) for node in range(num_existing_nodes, num_existing_nodes + num_nodes)])
+        hedges = [(nodes[i], nodes[(i + 1) % num_nodes]) for i in range(num_nodes)]
+        graph.data.add_edges_from(hedges)
+        for i, node in enumerate(nodes):
+            graph.get_node(node).set_attribute('x', points[i][0])
+            graph.get_node(node).set_attribute('y', points[i][1])
+        graph.add_face(nodes)
+        graph.update()
+
+    def test_add_graph_attribute_definition(self):
 
         # Set up test data.
-        self.g = Graph()
-        self.g.data.graph[SETTINGS][DEFAULT_NODE_ATTRIBUTES].append({
+        g = Graph()
+
+        # Start test.
+        g.add_graph_attribute_definition('foo', bool, True)
+
+        # Assert results.
+        attr_def = {
             'name': 'foo',
-            'type': 'int',
-            'default': 0,
-        })
-        self.g.data.graph[SETTINGS][DEFAULT_HEDGE_ATTRIBUTES].append({
+            'type': 'bool',
+            'default': True,
+        }
+        self.assertListEqual(g.data.graph[ATTRIBUTE_DEFINITIONS][GRAPH], [attr_def])
+
+    def test_add_node_attribute_definition(self):
+
+        # Set up test data.
+        g = Graph()
+
+        # Start test.
+        g.add_node_attribute_definition('bar', int, 2)
+
+        # Assert results.
+        attr_def = {
             'name': 'bar',
-            'type': 'float',
-            'default': 0.1,
-        })
-        self.g.data.graph[SETTINGS][DEFAULT_FACE_ATTRIBUTES].append({
+            'type': 'int',
+            'default': 2,
+        }
+        self.assertListEqual(g.data.graph[ATTRIBUTE_DEFINITIONS][NODE], [attr_def])
+
+    def test_add_hedge_attribute_definition(self):
+
+        # Set up test data.
+        g = Graph()
+
+        # Start test.
+        g.add_hedge_attribute_definition('baz', float, 3.0)
+
+        # Assert results.
+        attr_def = {
             'name': 'baz',
+            'type': 'float',
+            'default': 3.0,
+        }
+        self.assertListEqual(g.data.graph[ATTRIBUTE_DEFINITIONS][HEDGE], [attr_def])
+
+    def test_add_face_attribute_definition(self):
+
+        # Set up test data.
+        g = Graph()
+
+        # Start test.
+        g.add_face_attribute_definition('qux', str, 'four')
+
+        # Assert results.
+        attr_def = {
+            'name': 'qux',
             'type': 'str',
-            'default': 'zero',
-        })
+            'default': 'four',
+        }
+        self.assertListEqual(g.data.graph[ATTRIBUTE_DEFINITIONS][FACE], [attr_def])
 
     def test_get_default_node_data(self):
 
+        # Set up test data.
+        g = Graph()
+        g.data.graph[ATTRIBUTE_DEFINITIONS][NODE].append({
+            'name': 'bar',
+            'type': 'int',
+            'default': 2,
+        })
+
         # Start test.
-        data = self.g.get_default_node_data()
+        data = g.get_default_node_data()
 
         # Assert results.
-        self.assertDictEqual({'foo': 0}, data)
+        self.assertDictEqual({'bar': 2}, data)
 
     def test_get_default_hedge_data(self):
 
+        # Set up test data.
+        g = Graph()
+        g.data.graph[ATTRIBUTE_DEFINITIONS][HEDGE].append({
+            'name': 'baz',
+            'type': 'float',
+            'default': 3.0,
+        })
+
         # Start test.
-        data = self.g.get_default_hedge_data()
+        data = g.get_default_hedge_data()
 
         # Assert results.
-        self.assertDictEqual({'bar': 0.1}, data)
+        self.assertDictEqual({'baz': 3.0}, data)
 
     def test_get_default_face_data(self):
 
+        # Set up test data.
+        g = Graph()
+        g.data.graph[ATTRIBUTE_DEFINITIONS][FACE].append({
+            'name': 'qux',
+            'type': 'str',
+            'default': 'four',
+        })
+
         # Start test.
-        data = self.g.get_default_face_data()
+        data = g.get_default_face_data()
 
         # Assert results.
-        self.assertDictEqual({'baz': 'zero'}, data)
+        self.assertDictEqual({'qux': 'four'}, data)
 
     def test_load(self):
 
         # Set up test data.
-        data = {
-            'directed': True,
-            'multigraph': False,
-            'graph': {
-                'settings': {
-                    'default_node_attributes': [{
-                        'name': 'quiz',
-                        'type': 'int',
-                        'default': 1,
-                    }],
-                    'default_hedge_attributes': [{
-                        'name': 'quat',
-                        'type': 'int',
-                        'default': 1.1,
-                    }],
-                    'default_face_attributes': [{
-                        'name': 'quack',
-                        'type': 'int',
-                        'default': 'one',
-                    }]
-                },
-                'faces': {}
-            },
-            'nodes': [],
-            'links': [],
-        }
-        handle, file_path = tempfile.mkstemp()
-        with open(handle, 'w') as f:
-            json.dump(data, f)
+        g = Graph()
 
-        try:
+        # Start test.
+        g.load(self.test_data_dir_path.joinpath('1_squares.json'))
 
-            # Start test.
-            with open(file_path, 'r') as f:
-                self.g.load(file_path)
+        # Assert results.
+        self.assertDictEqual(g.data.graph[ATTRIBUTE_DEFINITIONS][GRAPH][0], {
+            'name': 'foo',
+            'type': 'bool',
+            'default': True,
+        })
+        self.assertDictEqual(g.data.graph[ATTRIBUTE_DEFINITIONS][NODE][0], {
+            'name': 'x',
+            'type': 'float',
+            'default': 0.1,
+        })
+        self.assertDictEqual(g.data.graph[ATTRIBUTE_DEFINITIONS][NODE][1], {
+            'name': 'y',
+            'type': 'float',
+            'default': 0.2,
+        })
+        self.assertDictEqual(g.data.graph[ATTRIBUTE_DEFINITIONS][NODE][2], {
+            'name': 'bar',
+            'type': 'int',
+            'default': 2,
+        })
+        self.assertDictEqual(g.data.graph[ATTRIBUTE_DEFINITIONS][HEDGE][0], {
+            'name': 'baz',
+            'type': 'float',
+            'default': 3.0,
+        })
+        self.assertDictEqual(g.data.graph[ATTRIBUTE_DEFINITIONS][FACE][0], {
+            'name': 'qux',
+            'type': 'str',
+            'default': 'four',
+        })
 
-            # Assert results.
-            self.assertDictEqual(self.g.data.graph[SETTINGS][DEFAULT_NODE_ATTRIBUTES][0], {
-                'name': 'quiz',
-                'type': 'int',
-                'default': 1,
-            })
-            self.assertDictEqual(self.g.data.graph[SETTINGS][DEFAULT_HEDGE_ATTRIBUTES][0], {
-                'name': 'quat',
-                'type': 'int',
-                'default': 1.1,
-            })
-            self.assertDictEqual(self.g.data.graph[SETTINGS][DEFAULT_FACE_ATTRIBUTES][0], {
-                'name': 'quack',
-                'type': 'int',
-                'default': 'one',
-            })
-        finally:
-            os.remove(file_path)
-
-    def test_save(self):
-        handle, file_path = tempfile.mkstemp()
-        try:
-
-            # Start test.
-            with open(handle, 'w') as f:
-                self.g.save(file_path)
-
-            # Assert results.
-            with open(file_path, 'r') as f:
-                data = json.load(f)
-                self.assertDictEqual(data['graph'][SETTINGS][DEFAULT_NODE_ATTRIBUTES][0], {
-                    'name': 'foo',
-                    'type': 'int',
-                    'default': 0,
-                })
-                self.assertDictEqual(data['graph'][SETTINGS][DEFAULT_HEDGE_ATTRIBUTES][0], {
-                    'name': 'bar',
-                    'type': 'float',
-                    'default': 0.1,
-                })
-                self.assertDictEqual(data['graph'][SETTINGS][DEFAULT_FACE_ATTRIBUTES][0], {
-                    'name': 'baz',
-                    'type': 'str',
-                    'default': 'zero',
-                })
-        finally:
-            os.remove(file_path)
+    # def test_save(self):
+    #
+    #     # Set up test data.
+    #     g = Graph()
+    #     g.data.graph[ATTRIBUTE_DEFINITIONS][NODE].append(attribute)
+    #     self.create_polygon(g, (0, 0), (0, 1), (1, 00))
+    #     # g.load(self.test_data_dir_path.joinpath('1_squares.json'))
+    #
+    #     handle, file_path = tempfile.mkstemp()
+    #     try:
+    #
+    #         # Start test.x
+    #         with open(handle, 'w') as f:
+    #             g.save(file_path)
+    #
+    #         # Assert results.
+    #         with open(file_path, 'r') as f:
+    #             data = json.load(f)
+    #             print(json.dumps(data, indent=4))
+    #     finally:
+    #         os.remove(file_path)

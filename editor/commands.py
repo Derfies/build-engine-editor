@@ -10,7 +10,7 @@ from shapely.geometry.polygon import orient
 from shapely.ops import split as split_ops
 
 from applicationframework.actions import Composite, SetAttribute, SetKey
-from editor.actions import Add, Remove, Tweak
+from editor.actions import Add, Remove, SetElementAttribute, Tweak
 from editor.graph import Edge, Face, Hedge, Node
 from editor.maths import lerp, long_line_through, midpoint
 from editor.updateflag import UpdateFlag
@@ -79,9 +79,13 @@ def add_face(points: Iterable[tuple]):
         head = nodes[i]
         tail = nodes[(i + 1) % len(nodes)]
         hedges.append((head, tail))
-        tweak.node_attrs[nodes[i]]['pos'] = QPointF(*coords[i])
-        tweak.hedge_attrs[(head, tail)]['data'] = QApplication.instance().doc.content.get_default_hedge_data()
-    tweak.face_attrs[face]['data'] = QApplication.instance().doc.content.get_default_face_data()
+        tweak.node_attrs[nodes[i]] = QApplication.instance().doc.content.get_default_node_data()
+        tweak.node_attrs[nodes[i]]['x'] = coords[i][0]
+        tweak.node_attrs[nodes[i]]['y'] = coords[i][1]
+        #tweak.node_attrs[nodes[i]]['pos'] = QPointF(*coords[i])
+        tweak.hedge_attrs[(head, tail)] = QApplication.instance().doc.content.get_default_hedge_data()
+    tweak.face_attrs[face] = QApplication.instance().doc.content.get_default_face_data()
+
     tweak.nodes.update(nodes)
     tweak.hedges.update(hedges)
     tweak.faces.add(face)
@@ -343,27 +347,31 @@ def join_edges(*edges: Iterable[Edge] | Iterable[Hedge]) -> tuple[Tweak, Tweak]:
         # Nodes.
         rem_tweak.nodes.add(node.data)
         add_tweak.nodes.add(new_node)
-        rem_tweak.node_attrs[node.data]['pos'] = node.pos
-        add_tweak.node_attrs[new_node]['pos'] = node_to_new_pos[new_node]
+        # rem_tweak.node_attrs[node.data]['pos'] = node.pos
+        rem_tweak.node_attrs[node.data]['x'] = node.get_attribute('x')
+        rem_tweak.node_attrs[node.data]['y'] = node.get_attribute('y')
+        #add_tweak.node_attrs[new_node]['pos'] = node_to_new_pos[new_node]
+        add_tweak.node_attrs[new_node]['x'] = node_to_new_pos[new_node].x()
+        add_tweak.node_attrs[new_node]['y'] = node_to_new_pos[new_node].y()
 
         # Edges.
         for in_hedge in node.in_hedges:
             rem_tweak.hedges.add(in_hedge.data)
             new_in_hedge = (node_to_new_node.get(in_hedge.head, in_hedge.head.data), node_to_new_node[in_hedge.tail])
             add_tweak.hedges.add(new_in_hedge)
-            add_tweak.hedge_attrs[new_in_hedge]['data'] = QApplication.instance().doc.content.get_default_hedge_data()
+            add_tweak.hedge_attrs[new_in_hedge] = QApplication.instance().doc.content.get_default_hedge_data()
         for out_hedge in node.out_hedges:
             rem_tweak.hedges.add(out_hedge.data)
             new_out_hedge = (node_to_new_node[out_hedge.head], node_to_new_node.get(out_hedge.tail, out_hedge.tail.data))
             add_tweak.hedges.add(new_out_hedge)
-            add_tweak.hedge_attrs[new_out_hedge]['data'] = QApplication.instance().doc.content.get_default_hedge_data()
+            add_tweak.hedge_attrs[new_out_hedge] = QApplication.instance().doc.content.get_default_hedge_data()
 
         # Faces.
         rem_tweak.faces.update({face.data for face in node.faces})
         for face in node.faces:
             face_nodes = tuple([node_to_new_node.get(node, node.data) for node in face.nodes])
             add_tweak.faces.add(face_nodes)
-            add_tweak.face_attrs[face_nodes]['data'] = QApplication.instance().doc.content.get_default_face_data()
+            add_tweak.face_attrs[face_nodes] = QApplication.instance().doc.content.get_default_face_data()
 
     print('\nrem tweak:')
     print(rem_tweak)
@@ -381,7 +389,13 @@ def join_edges(*edges: Iterable[Edge] | Iterable[Hedge]) -> tuple[Tweak, Tweak]:
     return add_tweak, rem_tweak
 
 
-def set_key(obj: object, name: str, value: object):
-    action = SetKey(name, value, obj)
+# def set_key(obj: object, name: str, value: object):
+#     action = SetKey(name, value, obj)
+#     QApplication.instance().action_manager.push(action)
+#     QApplication.instance().doc.updated(action())
+
+
+def set_attribute(obj: object, name: str, value: object):
+    action = SetElementAttribute(name, value, obj)
     QApplication.instance().action_manager.push(action)
     QApplication.instance().doc.updated(action())

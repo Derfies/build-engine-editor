@@ -16,7 +16,14 @@ from applicationframework.mainwindow import MainWindow as MainWindowBase
 from editor import commands
 from editor import mapio
 from editor.constants import MapFormat, ModalTool, SelectionMode
-from editor.constants import SETTINGS, DEFAULT_NODE_ATTRIBUTES, DEFAULT_HEDGE_ATTRIBUTES, DEFAULT_FACE_ATTRIBUTES
+from editor.constants import (
+    ATTRIBUTES,
+    ATTRIBUTE_DEFINITIONS,
+    FACE,
+    GRAPH,
+    HEDGE,
+    NODE,
+)
 from editor.editorpropertygrid import PropertyGrid
 from editor.graph import Graph
 from editor.graphicsscene import GraphicsScene
@@ -290,24 +297,49 @@ class MainWindow(MainWindowBase):
     def create_document(self, file_path: str = None) -> Document:
         content = Graph()
 
+
+        # content.data.graph[ATTRIBUTE_DEFINITIONS][GRAPH].append({
+        #     'name': 'foo',
+        #     'type': 'bool',
+        #     'default': True,
+        # })
+        # content.data.graph[ATTRIBUTE_DEFINITIONS][NODE].append({
+        #     'name': 'x',
+        #     'type': 'float',
+        #     'default': 0,
+        # })
+        # content.data.graph[ATTRIBUTE_DEFINITIONS][NODE].append({
+        #      'name': 'y',
+        #     'type': 'float',
+        #     'default': 0,
+        # })
+        # content.data.graph[ATTRIBUTE_DEFINITIONS][NODE].append({
+        #     'name': 'bar',
+        #     'type': 'int',
+        #     'default': 2,
+        # })
+        # content.data.graph[ATTRIBUTE_DEFINITIONS][HEDGE].append({
+        #     'name': 'baz',
+        #     'type': 'float',
+        #     'default': 3.0,
+        # })
+        # content.data.graph[ATTRIBUTE_DEFINITIONS][FACE].append({
+        #     'name': 'qux',
+        #     'type': 'str',
+        #     'default': 'four',
+        # })
+
+
+
         # TODO: Move this somewhere else / add method of indirection.
         from gameengines.build.map import Sector, Wall
 
         for field in fields(Wall):
-            attribute = {
-                'name': field.name,
-                'type': field.type.__name__,
-                'default': field.default
-            }
-            content.data.graph[SETTINGS][DEFAULT_HEDGE_ATTRIBUTES].append(attribute)
+            content.add_hedge_attribute_definition(field.name, field.type, field.default)
 
         for field in fields(Sector):
-            attribute = {
-                'name': field.name,
-                'type': field.type.__name__,
-                'default': field.default
-            }
-            content.data.graph[SETTINGS][DEFAULT_FACE_ATTRIBUTES].append(attribute)
+            content.add_face_attribute_definition(field.name, field.type, field.default)
+
 
         return MapDocument(file_path, content, UpdateFlag)
 
@@ -358,7 +390,8 @@ class MainWindow(MainWindowBase):
         print('split')
 
     def on_data_changed(self, event: ModelEvent):
-        commands.set_key(event.object(), event.name(), event.value())
+        #commands.set_key(event.object(), event.name(), event.value())
+        commands.set_attribute(event.object(), event.name(), event.value())
 
     def frame_selection(self):
 
@@ -421,7 +454,8 @@ class MainWindow(MainWindowBase):
             self.connect_hotkeys()
 
     def import_event(self):
-        file_path, file_format = QFileDialog.get_open_file_name(caption='Import')
+        file_formats = ';;'.join([fmt.value for fmt in MapFormat])
+        file_path, file_format = QFileDialog.get_open_file_name(caption='Import', filter=file_formats)
         if not file_path:
             return False
         mapio.import_map(self.app().doc.content, file_path, MapFormat(file_format))
@@ -432,7 +466,20 @@ class MainWindow(MainWindowBase):
         file_path, file_format = QFileDialog.get_save_file_name(caption='Export', filter=file_formats)
         if not file_path:
             return False
-        mapio.export_map(self.app().doc.content, file_path, MapFormat(file_format))
+
+        # TODO: Would make more sense to have plugin architecture to map each
+        # format to each exporter.
+        map_format = MapFormat(file_format)
+        if map_format == MapFormat.GEXF:
+            mapio.do_gexf(self.app().doc.content, file_path, map_format)
+            # from editor.readwrite import MyGEXFWriter
+            # writer = MyGEXFWriter(encoding="utf-8", prettyprint=True, version="1.2draft")
+            # writer.add_graph(self.app().doc.content.data)
+            # #writer.dump(file_path)
+            # with open(file_path, 'wb') as f:
+            #     writer.write(f)  # <-- this is the method you want
+        else:
+            mapio.export_map(self.app().doc.content, file_path, map_format)
 
 
 if __name__ == '__main__':

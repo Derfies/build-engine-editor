@@ -25,12 +25,18 @@ class SelectionMode(IntEnum):
 
 class MapFormat(Enum):
 
+    # TODO: Do all build versions get lumped here with other non-game types?
+
     DUKE_3D = 'Duke Nukem 3D (*.map)'
     BLOOD = 'Blood (*.map)'
+    GEXF = 'Graph Exchange XML (*.gexf)'
 
 
+ATTRIBUTES = 'attributes'
+ATTRIBUTE_DEFINITIONS = 'attribute_definitions'
 FACES = 'faces'
-SETTINGS = 'settings'
-DEFAULT_NODE_ATTRIBUTES = 'default_node_attributes'
-DEFAULT_HEDGE_ATTRIBUTES = 'default_hedge_attributes'
-DEFAULT_FACE_ATTRIBUTES = 'default_face_attributes'
+
+GRAPH = 'graph'
+HEDGE = 'hedge'
+FACE = 'face'
+NODE = 'node'

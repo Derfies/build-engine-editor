@@ -1,11 +1,12 @@
 import io
 from collections import defaultdict
+from dataclasses import fields
 from pathlib import Path
 
-from PySide6.QtCore import QPointF
-
+from editor.constants import ATTRIBUTES, ATTRIBUTE_DEFINITIONS, NODE, HEDGE, FACE, FACES
 from editor.constants import MapFormat
 from editor.graph import Graph
+from editor.readwrite import write_gexf
 from gameengines.build.blood import Map as BloodMap, MapReader as BloodMapReader, MapWriter as BloodMapWriter
 from gameengines.build.duke3d import Map as Duke3dMap, MapReader as Duke3dMapReader, MapWriter as Duke3dMapWriter
 from gameengines.build.map import Sector, Wall
@@ -16,9 +17,14 @@ def import_map(graph: Graph, file_path: str | Path, format: MapFormat):
     # TODO: Pass the graph in or just create a new one? I suppose we want to support
     # merging via imports.
     # Also need to init graph default attrs.
-    graph.data.clear()
-    graph.data.graph['faces'] = {}
-    #graph.faces.clear()
+    #graph.data.clear()
+    #graph.data.graph[FACES] = {}
+
+    # Add default attribute definitions.
+    for field in fields(Wall):
+        graph.add_hedge_attribute_definition(field.name, field.type, field.default)
+    for field in fields(Sector):
+        graph.add_face_attribute_definition(field.name, field.type, field.default)
 
     # TODO: Move this into an import function and let this serialize the native
     # map format.
@@ -79,10 +85,13 @@ def import_map(graph: Graph, file_path: str | Path, format: MapFormat):
         graph.data.add_edge(head, tail)
 
         # Need to set the head data.
-        # graph.data.nodes[head]['x'] = wall_data['x']
-        # graph.data.nodes[head]['y'] = wall_data['y']
-        graph.data.nodes[head]['pos'] = QPointF(wall_data.x, wall_data.y)
-        graph.data.edges[(head, tail)]['data'] = wall_data
+        graph.data.nodes[head].setdefault(ATTRIBUTES, {})['x'] = wall_data.x
+        graph.data.nodes[head].setdefault(ATTRIBUTES, {})['y'] = wall_data.y
+        #graph.data.edges[(head, tail)][ATTRIBUTES] = wall_data
+
+        graph.data.edges[(head, tail)].setdefault(ATTRIBUTES, {})
+        for field in fields(wall_data):
+            graph.data.edges[(head, tail)][ATTRIBUTES][field.name] = getattr(wall_data, field.name)
 
     print('\nedges')
     for edge in graph.data.edges:
@@ -107,7 +116,9 @@ def import_map(graph: Graph, file_path: str | Path, format: MapFormat):
                 # print('break')
                 break
 
-        graph.data.graph['faces'][tuple(poly_nodes)] = {'data': sector_data}
+        graph.data.graph[FACES].setdefault(tuple(poly_nodes), {}).setdefault(ATTRIBUTES, {})
+        for field in fields(sector_data):
+           graph.data.graph[FACES][tuple(poly_nodes)][ATTRIBUTES][field.name] = getattr(sector_data, field.name)
 
     graph.update()
 
@@ -123,6 +134,25 @@ def import_map(graph: Graph, file_path: str | Path, format: MapFormat):
     print('\nfaces:')
     for face in graph.faces:
         print('    ->', face)
+
+
+def do_gexf(graph: Graph, file_path: str, format: MapFormat):
+    g = graph.data.copy()
+    for _, attrs in g.nodes(data=True):
+        for k in list(attrs):
+            if k == 'pos':
+                pos = attrs[k].to_tuple()
+                attrs['viz'] = {'position': {'x': pos[0], 'y': pos[1], 'z': 0}}
+        del attrs['pos']
+
+    # Flatten settings data?
+    for default_attr_set in (NODE, HEDGE, FACE):
+        for attr_dict in g.graph[ATTRIBUTE_DEFINITIONS][default_attr_set]:
+            print(attr_dict)
+            g.graph[attr_dict['name']] = attr_dict['default']
+    del g.graph[ATTRIBUTE_DEFINITIONS]
+
+    write_gexf(g, file_path)
 
 
 def export_map(graph: Graph, file_path: str, format: MapFormat):
@@ -143,13 +173,7 @@ def export_map(graph: Graph, file_path: str, format: MapFormat):
     faces = list(graph.faces)
     for face in faces:
 
-        sector_data = Sector(**face.get_attribute('data'))
-
-        # HAXX. If the face has no sector data, give it some.
-        # if sector_data is None:
-        #     sector_data = Sector()
-        #     face.set_attribute('data', sector_data)
-
+        sector_data = Sector(**face.get_attributes())
         sector_data.floorz = 0
         sector_data.ceilingz = -HEIGHT * 16
         sector_data.wallptr = wallptr
@@ -157,13 +181,7 @@ def export_map(graph: Graph, file_path: str, format: MapFormat):
 
         for i, hedge in enumerate(face.hedges):
 
-            wall_data = Wall(**hedge.get_attribute('data'))
-
-            # HAXX. If the edge has no wall data, give it some.
-            # if wall_data is None:
-            #     wall_data = Wall()
-            #     hedge.set_attribute('data', wall_data)
-
+            wall_data = Wall(**hedge.get_attributes())
             wall_data.x = int(hedge.head.pos.x())
             wall_data.y = int(hedge.head.pos.y())
             hedges.append(hedge)

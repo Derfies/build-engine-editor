@@ -4,17 +4,16 @@ import json
 import logging
 from collections import defaultdict
 from functools import singledispatchmethod
+from pathlib import Path
 from typing import Any
 
-import marshmallow_dataclass
 import networkx as nx
 from PySide6.QtCore import QPointF
 from networkx.readwrite import json_graph
 
 from applicationframework.contentbase import ContentBase
 from editor import maths
-from editor.constants import FACES, SETTINGS, DEFAULT_NODE_ATTRIBUTES, DEFAULT_HEDGE_ATTRIBUTES, DEFAULT_FACE_ATTRIBUTES
-from gameengines.build.map import Sector, Wall
+from editor.constants import ATTRIBUTES, ATTRIBUTE_DEFINITIONS, FACE, FACES, GRAPH, HEDGE, NODE
 
 # noinspection PyUnresolvedReferences
 from __feature__ import snake_case
@@ -26,7 +25,6 @@ logger = logging.getLogger(__name__)
 TYPES = {
     type_.__name__: type_
     for type_ in {bool, int, float, str}
-
 }
 
 
@@ -53,6 +51,10 @@ class Element(metaclass=abc.ABCMeta):
     def set_attribute(self, key, value):
         ...
 
+    @abc.abstractmethod
+    def get_attributes(self):
+        ...
+
     @property
     @abc.abstractmethod
     def nodes(self) -> tuple:
@@ -60,6 +62,8 @@ class Element(metaclass=abc.ABCMeta):
 
     @property
     def is_selected(self):
+
+        # TODO: Put outside of attributes so it doesnt get serialzied.
         return self.get_attribute('is_selected')
 
     @is_selected.setter
@@ -70,10 +74,16 @@ class Element(metaclass=abc.ABCMeta):
 class Node(Element):
 
     def get_attribute(self, key, default=None):
-        return self.graph.data.nodes[self.data].get(key, default)
+        return self.graph.data.nodes[self.data].get(ATTRIBUTES, {}).get(key, default)
 
     def set_attribute(self, key, value):
-        self.graph.data.nodes[self.data][key] = value
+        self.graph.data.nodes[self.data].setdefault(ATTRIBUTES, {})[key] = value
+
+    def get_attributes(self):
+        return {
+            attr_def['name']: self.get_attribute(attr_def['name'])
+            for attr_def in self.graph.data.graph[ATTRIBUTE_DEFINITIONS][NODE]
+        }
 
     @property
     def nodes(self) -> tuple:
@@ -101,11 +111,12 @@ class Node(Element):
 
     @property
     def pos(self) -> QPointF:
-        return self.get_attribute('pos')
+        return QPointF(self.get_attribute('x'), self.get_attribute('y'))
 
     @pos.setter
     def pos(self, pos: QPointF):
-        self.set_attribute('pos', pos)
+        self.set_attribute('x', pos.x())
+        self.set_attribute('y', pos.y())
 
 
 class Edge(Element):
@@ -118,10 +129,16 @@ class Edge(Element):
         return node in self.nodes
 
     def get_attribute(self, key, default=None):
-        return self.graph.undirected_data.edges[self.data].get(key, default)
+        return self.graph.undirected_data.edges[self.data].get(ATTRIBUTES, {}).get(key, default)
 
     def set_attribute(self, key, value):
-        self.graph.undirected_data.edges[self.data][key] = value
+        self.graph.undirected_data.edges[self.data].setdefault(ATTRIBUTES, {})[key] = value
+
+    def get_attributes(self):
+        return {
+            attr_def['name']: self.get_attribute(attr_def['name'])
+            for attr_def in self.graph.data.graph[ATTRIBUTE_DEFINITIONS][HEDGE]
+        }
 
     @property
     def head(self):
@@ -151,10 +168,15 @@ class Hedge(Element):
         return node in self.nodes
 
     def get_attribute(self, key, default=None):
-        return self.graph.data.edges[self.data].get(key, default)
+        return self.graph.data.edges[self.data].get(ATTRIBUTES, {}).get(key, default)
 
     def set_attribute(self, key, value):
-        self.graph.data.edges[self.data][key] = value
+        self.graph.data.edges[self.data].setdefault(ATTRIBUTES, {})[key] = value
+
+    def get_attributes(self):
+
+        # TODO: Whats the correct approach here??
+        return {}
 
     @property
     def head(self):
@@ -196,10 +218,16 @@ class Face(Element):
         return hedge in self.hedges
 
     def get_attribute(self, key, default=None):
-        return self.graph.data.graph['faces'][self].get(key, default)
+        return self.graph.data.graph[FACES][self].get(ATTRIBUTES, {}).get(key, default)
 
     def set_attribute(self, key, value):
-        self.graph.data.graph['faces'][self][key] = value
+        self.graph.data.graph[FACES][self].setdefault(ATTRIBUTES, {})[key] = value
+
+    def get_attributes(self):
+        return {
+            attr_def['name']: self.get_attribute(attr_def['name'])
+            for attr_def in self.graph.data.graph[ATTRIBUTE_DEFINITIONS][FACE]
+        }
 
     @property
     def nodes(self) -> tuple[Node]:
@@ -226,12 +254,16 @@ class Graph(ContentBase):
         # TODO: Put this in a new method - it's already tripped me over once
         # during load / save
         self.data = nx.DiGraph()
-        self.data.graph['faces'] = {}
-        self.data.graph[SETTINGS] = {
-            DEFAULT_NODE_ATTRIBUTES: [],
-            DEFAULT_HEDGE_ATTRIBUTES: [],
-            DEFAULT_FACE_ATTRIBUTES: [],
+        self.data.graph[FACES] = {}
+        self.data.graph[ATTRIBUTE_DEFINITIONS] = {
+            GRAPH: [],
+            NODE: [],
+            HEDGE: [],
+            FACE: [],
         }
+
+        # HAXXOR
+        self.data.graph[ATTRIBUTES] = {}
 
         # Maps.
         self.node_to_edges = defaultdict(set)
@@ -254,20 +286,42 @@ class Graph(ContentBase):
 
         self.update()
 
+    # TODO: Rename to attributes
     def _get_default_data(self, key: str):
         return {
             attribute['name']: TYPES[attribute['type']](attribute['default'])
-            for attribute in self.data.graph[SETTINGS][key]
+            for attribute in self.data.graph[ATTRIBUTE_DEFINITIONS][key]
         }
 
     def get_default_node_data(self):
-        return self._get_default_data(DEFAULT_NODE_ATTRIBUTES)
+        return self._get_default_data(NODE)
 
     def get_default_hedge_data(self):
-        return self._get_default_data(DEFAULT_HEDGE_ATTRIBUTES)
+        return self._get_default_data(HEDGE)
 
     def get_default_face_data(self):
-        return self._get_default_data(DEFAULT_FACE_ATTRIBUTES)
+        return self._get_default_data(FACE)
+
+    def _add_attribute_definition(self, key: str, name: str, type_: type, default):
+
+        # TODO: Probably want to serialize type as string only during i/o.
+        self.data.graph[ATTRIBUTE_DEFINITIONS][key].append({
+            'name': name,
+            'type': type_.__name__,
+            'default': default
+        })
+
+    def add_graph_attribute_definition(self, name: str, type_: type, default):
+        self._add_attribute_definition(GRAPH, name, type_, default)
+
+    def add_node_attribute_definition(self, name: str, type_: type, default):
+        self._add_attribute_definition(NODE, name, type_, default)
+
+    def add_hedge_attribute_definition(self, name: str, type_: type, default):
+        self._add_attribute_definition(HEDGE, name, type_, default)
+
+    def add_face_attribute_definition(self, name: str, type_: type, default):
+        self._add_attribute_definition(FACE, name, type_, default)
 
     def update(self):
 
@@ -291,7 +345,7 @@ class Graph(ContentBase):
 
         self.undirected_data = self.data.to_undirected()
 
-        for face in self.data.graph['faces']:
+        for face in self.data.graph[FACES]:
             #print('UPDATE FACE:', face, type(face))
             face_ = self.get_face(face)
             self.face_to_nodes[face].extend([self.get_node(node) for node in face])
@@ -358,7 +412,7 @@ class Graph(ContentBase):
 
     @property
     def faces(self) -> set[Face]:
-        return {self.get_face(face) for face in self.data.graph['faces']}
+        return {self.get_face(face) for face in self.data.graph[FACES]}
 
     def get_node(self, node) -> Node:
         assert node in self.data, f'Node not found: {node}'
@@ -373,7 +427,7 @@ class Graph(ContentBase):
         return Hedge(self, (head, tail))
 
     def get_face(self, face: tuple) -> Face:
-        assert face in self.data.graph['faces'], f'Face not found: {face}'
+        assert face in self.data.graph[FACES], f'Face not found: {face}'
         return Face(self, face)
 
     def has_node(self, node: Any):
@@ -383,13 +437,21 @@ class Graph(ContentBase):
         return (head, tail) in self.data.edges
 
     def add_node(self, node: Any, **node_attrs):
-        self.data.add_node(node, **node_attrs)
+
+        # TODO: Dont init each time
+        self.data.add_node(node)
+        for key, value in node_attrs.items():
+            Node(self, node).set_attribute(key, value)
 
     def add_hedge(self, hedge: tuple[Any, Any], **hedge_attrs):
-        self.data.add_edge(*hedge, **hedge_attrs)
+        self.data.add_edge(*hedge)
+        for key, value in hedge_attrs.items():
+            Hedge(self, hedge).set_attribute(key, value)
 
     def add_face(self, face: tuple[Any, ...], **face_attrs):
-        self.data.graph['faces'][face] = face_attrs
+        self.data.graph[FACES][face] = {}
+        for key, value in face_attrs.items():
+            Face(self, face).set_attribute(key, value)
 
     def remove_node(self, node: Any):
         self.data.remove_node(node)
@@ -398,9 +460,9 @@ class Graph(ContentBase):
         self.data.remove_edge(*hedge)
 
     def remove_face(self, face: tuple[Any, ...]):
-        del self.data.graph['faces'][face]
+        del self.data.graph[FACES][face]
 
-    def load(self, file_path: str):
+    def load(self, file_path: str | Path):
         """
         TODO: Remove Qpoints somehow.
 
@@ -415,7 +477,7 @@ class Graph(ContentBase):
             g = json_graph.node_link_graph(json.load(f))
         g.graph[FACES] = {
             tuple(face_nodes.split(', ')): face_attrs
-            for face_nodes, face_attrs in g.graph['faces'].items()
+            for face_nodes, face_attrs in g.graph[FACES].items()
         }
         for n, attrs in g.nodes(data=True):
             g.add_node(n, **{k: deserialize_attr(k, v) for k, v in attrs.items()})
@@ -427,19 +489,53 @@ class Graph(ContentBase):
         TODO: Remove Qpoints somehow.
 
         """
-        def serialize_attr(obj):
-            if isinstance(obj, QPointF):
-                return obj.to_tuple()
-            else:
-               return obj
+        # def serialize_attr(obj):
+        #     if isinstance(obj, QPointF):
+        #         return obj.to_tuple()
+        #     else:
+        #        return obj
+        #
+        # g = nx.DiGraph(self.data)
+        # g.graph[FACES] = {
+        #     ', '.join(face_nodes): face_attrs
+        #     for face_nodes, face_attrs in g.graph['faces'].items()
+        # }
+        # for n, attrs in self.data.nodes(data=True):
+        #     g.add_node(n, **{k: serialize_attr(v) for k, v in attrs.items()})
+        # data = json_graph.node_link_data(g)
+        # with open(file_path, 'w') as f:
+        #     json.dump(data, f, indent=2)
 
-        g = nx.DiGraph(self.data)
+        g = self.data.copy()
+
+        for face_nodes, face_attrs in g.graph[FACES].items():
+            print(face_nodes)
+            for node in face_nodes:
+                print(node, type(node))
+            print(face_attrs)
+            print('')
+
         g.graph[FACES] = {
-            ', '.join(face_nodes): face_attrs
-            for face_nodes, face_attrs in g.graph['faces'].items()
+            ', '.join([str(face_node) for face_node in face_nodes]): face_attrs
+            for face_nodes, face_attrs in g.graph[FACES].items()
         }
-        for n, attrs in self.data.nodes(data=True):
-            g.add_node(n, **{k: serialize_attr(v) for k, v in attrs.items()})
+
+
+        for _, attrs in g.nodes(data=True):
+            for k in list(attrs[ATTRIBUTES]):
+                if k == 'pos':
+                    pos = attrs[ATTRIBUTES][k].to_tuple()
+                    attrs[ATTRIBUTES][k] = pos
+            #del attrs[ATTRIBUTES]
+
+        # for _, attrs in g.nodes(data=True):
+        #     for k in list(attrs):
+        #         if k == 'pos':
+        #             pos = attrs[k].to_tuple()
+        #             #attrs['viz'] = {'position': {'x': pos[0], 'y': pos[1], 'z': 0}}
+        #             attrs[k] = pos
+        #     del attrs['pos']
+
         data = json_graph.node_link_data(g)
         with open(file_path, 'w') as f:
             json.dump(data, f, indent=2)

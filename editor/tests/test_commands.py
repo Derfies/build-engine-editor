@@ -1,6 +1,5 @@
 import unittest
 import uuid
-from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from PySide6.QtCore import QPointF
@@ -13,27 +12,44 @@ from editor.mapdocument import MapDocument
 from editor.updateflag import UpdateFlag
 
 
-class ContentTestCase(unittest.TestCase):
+_instance = None
+
+
+class UsesQApplication(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.mock_app = SimpleNamespace(action_manager=ActionManager(), updated=Mock())
+        global _instance
+        if _instance is None:
+            _instance = QApplication([])
+            _instance.action_manager = ActionManager()
+            _instance.updated=Mock()
+        cls.mock_app = _instance
+
+    @classmethod
+    def tearDownClass(cls):
+        del cls.mock_app
+
+
+class CommandsTestCase(UsesQApplication):
 
     def setUp(self):
+        super().setUp()
         self.mock_app.doc = MapDocument(None, Graph(), UpdateFlag)
 
     @property
     def c(self):
         return self.mock_app.doc.content
 
-    def create_polygon(self, *points: list[QPointF]):
+    def create_polygon(self, *points: tuple[float, float]):
         num_nodes = len(points)
         num_existing_nodes = len(self.c.data)
         nodes = tuple(range(num_existing_nodes, num_existing_nodes + num_nodes))
         hedges = [(nodes[i], nodes[(i + 1) % num_nodes]) for i in range(num_nodes)]
         self.c.data.add_edges_from(hedges)
         for i, node in enumerate(nodes):
-            self.c.get_node(node).pos = points[i]
+            self.c.get_node(node).set_attribute('x', points[i][0])
+            self.c.get_node(node).set_attribute('y', points[i][1])
         self.c.add_face(nodes)
         self.c.update()
 
@@ -120,23 +136,22 @@ class ContentTestCase(unittest.TestCase):
         """
         # Set up test data.
         self.create_polygon(
-            QPointF(0, 0),
-            QPointF(0, 1),
-            QPointF(1, 1),
-            QPointF(1, 0),
+            (0, 0),
+            (0, 1),
+            (1, 1),
+            (1, 0),
         )
         self.create_polygon(
-            QPointF(2, 0),
-            QPointF(2, 1),
-            QPointF(3, 1),
-            QPointF(3, 0),
+            (2, 0),
+            (2, 1),
+            (3, 1),
+            (3, 0),
         )
 
         # Start test.
         e1 = self.c.get_hedge(2, 3)
         e2 = self.c.get_hedge(4, 5)
-        with patch.object(QApplication, 'instance', return_value=self.mock_app), \
-                patch.object(uuid, 'uuid4', side_effect=('A', 'B')):
+        with patch.object(uuid, 'uuid4', side_effect=('A', 'B')):
             add_tweak, rem_tweak = commands.join_edges(e1, e2)
 
         # Assert results.
@@ -146,12 +161,12 @@ class ContentTestCase(unittest.TestCase):
         self.assertSetEqual(add_tweak.hedges, {(1, 'A'), ('A', 'B'), ('B', 0), (7, 'B'), ('B', 'A'), ('A', 6)})
         self.assertSetEqual(rem_tweak.faces, {(0, 1, 2, 3), (4, 5, 6, 7)})
         self.assertSetEqual(add_tweak.faces, {(0, 1, 'A', 'B'), ('B', 'A', 6, 7)})
-        self.assertEqual(rem_tweak.node_attrs[2]['pos'], QPointF(1, 1))
-        self.assertEqual(rem_tweak.node_attrs[3]['pos'], QPointF(1, 0))
-        self.assertEqual(rem_tweak.node_attrs[4]['pos'], QPointF(2, 0))
-        self.assertEqual(rem_tweak.node_attrs[5]['pos'], QPointF(2, 1))
-        self.assertEqual(add_tweak.node_attrs['A']['pos'], QPointF(1.5, 1))
-        self.assertEqual(add_tweak.node_attrs['B']['pos'], QPointF(1.5, 0))
+        self.assertEqual((rem_tweak.node_attrs[2]['x'], rem_tweak.node_attrs[2]['y']), (1, 1))
+        self.assertEqual((rem_tweak.node_attrs[3]['x'], rem_tweak.node_attrs[3]['y']), (1, 0))
+        self.assertEqual((rem_tweak.node_attrs[4]['x'], rem_tweak.node_attrs[4]['y']), (2, 0))
+        self.assertEqual((rem_tweak.node_attrs[5]['x'], rem_tweak.node_attrs[5]['y']), (2, 1))
+        self.assertEqual((add_tweak.node_attrs['A']['x'], add_tweak.node_attrs['A']['y']), (1.5, 1))
+        self.assertEqual((add_tweak.node_attrs['B']['x'], add_tweak.node_attrs['B']['y']), (1.5, 0))
 
     def test_join_edges_double(self):
         # TODO: Test face / edge data is retained.
@@ -181,20 +196,20 @@ class ContentTestCase(unittest.TestCase):
         """
         # Set up test data.
         self.create_polygon(
-            QPointF(0, 0),
-            QPointF(0, 0.5),
-            QPointF(0, 1),
-            QPointF(1, 1),
-            QPointF(1, 0.5),
-            QPointF(1, 0),
+            (0, 0),
+            (0, 0.5),
+            (0, 1),
+            (1, 1),
+            (1, 0.5),
+            (1, 0),
         )
         self.create_polygon(
-            QPointF(2, 0),
-            QPointF(2, 0.5),
-            QPointF(2, 1),
-            QPointF(3, 1),
-            QPointF(3, 0.5),
-            QPointF(3, 0),
+            (2, 0),
+            (2, 0.5),
+            (2, 1),
+            (3, 1),
+            (3, 0.5),
+            (3, 0),
         )
 
         # Start test.
@@ -202,8 +217,7 @@ class ContentTestCase(unittest.TestCase):
         e2 = self.c.get_hedge(4, 5)
         e3 = self.c.get_hedge(6, 7)
         e4 = self.c.get_hedge(7, 8)
-        with patch.object(QApplication, 'instance', return_value=self.mock_app), \
-                patch.object(uuid, 'uuid4', side_effect=('C', 'B', 'A')):
+        with patch.object(uuid, 'uuid4', side_effect=('C', 'B', 'A')):
             add_tweak, rem_tweak = commands.join_edges(e1, e2, e3, e4)
 
         # Assert results.
@@ -213,12 +227,12 @@ class ContentTestCase(unittest.TestCase):
         self.assertSetEqual(add_tweak.hedges, {(2, 'A'), ('A', 'B'), ('B', 'C'), ('C', 0), (11, 'C'), ('C', 'B'), ('B', 'A'), ('A', 9)})
         self.assertSetEqual(rem_tweak.faces, {(0, 1, 2, 3, 4, 5), (6, 7, 8, 9, 10, 11)})
         self.assertSetEqual(add_tweak.faces, {(0, 1, 2, 'A', 'B', 'C'), ('C', 'B', 'A', 9, 10, 11)})
-        self.assertEqual(rem_tweak.node_attrs[3]['pos'], QPointF(1, 1))
-        self.assertEqual(rem_tweak.node_attrs[4]['pos'], QPointF(1, 0.5))
-        self.assertEqual(rem_tweak.node_attrs[5]['pos'], QPointF(1, 0))
-        self.assertEqual(rem_tweak.node_attrs[6]['pos'], QPointF(2, 0))
-        self.assertEqual(rem_tweak.node_attrs[7]['pos'], QPointF(2, 0.5))
-        self.assertEqual(rem_tweak.node_attrs[8]['pos'], QPointF(2, 1))
-        self.assertEqual(add_tweak.node_attrs['A']['pos'], QPointF(1.5, 1))
-        self.assertEqual(add_tweak.node_attrs['B']['pos'], QPointF(1.5, 0.5))
-        self.assertEqual(add_tweak.node_attrs['C']['pos'], QPointF(1.5, 0))
+        self.assertEqual((rem_tweak.node_attrs[3]['x'], rem_tweak.node_attrs[3]['y']), (1, 1))
+        self.assertEqual((rem_tweak.node_attrs[4]['x'], rem_tweak.node_attrs[4]['y']), (1, 0.5))
+        self.assertEqual((rem_tweak.node_attrs[5]['x'], rem_tweak.node_attrs[5]['y']), (1, 0))
+        self.assertEqual((rem_tweak.node_attrs[6]['x'], rem_tweak.node_attrs[6]['y']), (2, 0))
+        self.assertEqual((rem_tweak.node_attrs[7]['x'], rem_tweak.node_attrs[7]['y']), (2, 0.5))
+        self.assertEqual((rem_tweak.node_attrs[8]['x'], rem_tweak.node_attrs[8]['y']), (2, 1))
+        self.assertEqual((add_tweak.node_attrs['A']['x'], add_tweak.node_attrs['A']['y']), (1.5, 1))
+        self.assertEqual((add_tweak.node_attrs['B']['x'], add_tweak.node_attrs['B']['y']), (1.5, 0.5))
+        self.assertEqual((add_tweak.node_attrs['C']['x'], add_tweak.node_attrs['C']['y']), (1.5, 0))
