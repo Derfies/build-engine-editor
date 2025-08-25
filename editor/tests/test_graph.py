@@ -95,7 +95,7 @@ class GraphTestCase(unittest.TestCase):
         }
         self.assertListEqual(g.data.graph[ATTRIBUTE_DEFINITIONS][FACE], [attr_def])
 
-    def test_get_default_node_data(self):
+    def test_get_default_node_attributes(self):
 
         # Set up test data.
         g = Graph()
@@ -106,12 +106,12 @@ class GraphTestCase(unittest.TestCase):
         })
 
         # Start test.
-        data = g.get_default_node_data()
+        data = g.get_default_node_attributes()
 
         # Assert results.
         self.assertDictEqual({'bar': 2}, data)
 
-    def test_get_default_hedge_data(self):
+    def test_get_default_hedge_attributes(self):
 
         # Set up test data.
         g = Graph()
@@ -122,12 +122,12 @@ class GraphTestCase(unittest.TestCase):
         })
 
         # Start test.
-        data = g.get_default_hedge_data()
+        data = g.get_default_hedge_attributes()
 
         # Assert results.
         self.assertDictEqual({'baz': 3.0}, data)
 
-    def test_get_default_face_data(self):
+    def test_get_default_face_attributes(self):
 
         # Set up test data.
         g = Graph()
@@ -138,7 +138,7 @@ class GraphTestCase(unittest.TestCase):
         })
 
         # Start test.
-        data = g.get_default_face_data()
+        data = g.get_default_face_attributes()
 
         # Assert results.
         self.assertDictEqual({'qux': 'four'}, data)

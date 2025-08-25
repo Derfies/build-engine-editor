@@ -296,20 +296,20 @@ class Graph(ContentBase):
         self.update()
 
     # TODO: Rename to attributes
-    def _get_default_data(self, key: str):
+    def _get_default_attributes(self, key: str):
         return {
             attribute['name']: TYPES[attribute['type']](attribute['default'])
             for attribute in self.data.graph[ATTRIBUTE_DEFINITIONS][key]
         }
 
-    def get_default_node_data(self):
-        return self._get_default_data(NODE)
+    def get_default_node_attributes(self):
+        return self._get_default_attributes(NODE)
 
-    def get_default_hedge_data(self):
-        return self._get_default_data(HEDGE)
+    def get_default_hedge_attributes(self):
+        return self._get_default_attributes(HEDGE)
 
-    def get_default_face_data(self):
-        return self._get_default_data(FACE)
+    def get_default_face_attributes(self):
+        return self._get_default_attributes(FACE)
 
     def _add_attribute_definition(self, key: str, name: str, type_: type, default):
 
@@ -450,17 +450,17 @@ class Graph(ContentBase):
         return (head, tail) in self.data.edges
 
     def add_node(self, node: Any, **node_attrs):
-        default_node_attrs = self.get_default_node_data()
+        default_node_attrs = self.get_default_node_attributes()
         default_node_attrs.update(node_attrs)
         self.data.add_node(node, **{ATTRIBUTES: default_node_attrs})
 
     def add_hedge(self, hedge: tuple[Any, Any], **hedge_attrs):
-        default_hedge_attrs = self.get_default_hedge_data()
+        default_hedge_attrs = self.get_default_hedge_attributes()
         default_hedge_attrs.update(hedge_attrs)
         self.data.add_edge(*hedge, **{ATTRIBUTES: default_hedge_attrs})
 
     def add_face(self, face: tuple[Any, ...], **face_attrs):
-        default_face_attrs = self.get_default_face_data()
+        default_face_attrs = self.get_default_face_attributes()
         default_face_attrs.update(face_attrs)
         self.data.graph[FACES][face] = {ATTRIBUTES: default_face_attrs}
 

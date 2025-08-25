@@ -156,8 +156,8 @@ def export_gexf(graph: Graph, file_path: str, format: MapFormat):
     for attr_dict in g.graph[ATTRIBUTE_DEFINITIONS][GRAPH]:
         g.graph[attr_dict['name']] = attr_dict['default']
 
-    g.graph['node_default'] = graph.get_default_node_data()
-    g.graph['edge_default'] = graph.get_default_hedge_data()
+    g.graph['node_default'] = graph.get_default_node_attributes()
+    g.graph['edge_default'] = graph.get_default_hedge_attributes()
     del g.graph[ATTRIBUTE_DEFINITIONS]
 
     write_gexf(g, file_path)
