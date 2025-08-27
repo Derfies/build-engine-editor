@@ -417,46 +417,26 @@ class Graph(ContentBase):
         del self.data.graph[FACES][face]
 
     def load(self, file_path: str | Path):
-        """
-        TODO: Remove Qpoints somehow.
-
-        """
-        def deserialize_attr(key, obj):
-            if key == 'pos':
-                return QPointF(*obj)
-            else:
-                return obj
-
         with open(file_path, 'r') as f:
             g = json_graph.node_link_graph(json.load(f))
+
+        # Build faces from comma-separated list.
         g.graph[FACES] = {
             tuple(face_nodes.split(', ')): face_attrs
             for face_nodes, face_attrs in g.graph[FACES].items()
         }
-        for n, attrs in g.nodes(data=True):
-            g.add_node(n, **{k: deserialize_attr(k, v) for k, v in attrs.items()})
+
         self.data = g
         self.update()
 
     def save(self, file_path: str):
-        """
-        TODO: Remove Qpoints somehow.
-
-        """
-
-
         g = self.data.copy()
 
+        # Convert faces to a comma-separated list.
         g.graph[FACES] = {
             ', '.join([str(face_node) for face_node in face_nodes]): face_attrs
             for face_nodes, face_attrs in g.graph[FACES].items()
         }
-
-        for _, attrs in g.nodes(data=True):
-            for k in list(attrs[ATTRIBUTES]):
-                if k == 'pos':
-                    pos = attrs[ATTRIBUTES][k].to_tuple()
-                    attrs[ATTRIBUTES][k] = pos
 
         data = json_graph.node_link_data(g)
         with open(file_path, 'w') as f:
