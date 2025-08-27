@@ -25,6 +25,6 @@ class MapDocument(Document):
     def selected_elements(self) -> set[Element]:
         return {
             element
-            for element in self.content.nodes | self.content.edges | self.content.hedges | set(self.content.faces)
+            for element in self.content.nodes | self.content.edges | self.content.hedges | self.content.faces
             if element.is_selected
         }

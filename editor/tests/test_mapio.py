@@ -107,11 +107,10 @@ class MapioTestCase(TestCaseBase):
         # TODO: Assert results.
 
         # Set up test data.
-        g = Graph()
-        g.add_graph_attribute_definition('foo', bool, True)
-        g.add_node_attribute_definition('bar', int, 2)
-        g.add_hedge_attribute_definition('baz', float, 3.0)
-        g.add_face_attribute_definition('qux', str, 'four')
+        g = Graph(foo=True)
+        g.add_node_attribute_definition('bar', 2)
+        g.add_hedge_attribute_definition('baz', 3.0)
+        g.add_face_attribute_definition('qux', 'four')
         self.create_polygon(g, (0, 0), (100, 0), (100, 100), (0, 100))
 
         handle, file_path = tempfile.mkstemp()

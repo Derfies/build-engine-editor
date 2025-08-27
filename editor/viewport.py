@@ -1,6 +1,7 @@
 import math
 import sys
 import time
+import traceback
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -156,7 +157,7 @@ class Viewport(QOpenGLWidget):
                     self.meshes.append(quad2)
 
             except Exception as e:
-                print(e)
+                traceback.print_exc()
 
             self.done_current()
 

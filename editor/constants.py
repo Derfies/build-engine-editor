@@ -33,10 +33,9 @@ class MapFormat(Enum):
 
 
 ATTRIBUTES = 'attributes'
-ATTRIBUTE_DEFINITIONS = 'attribute_definitions'
+NODE_DEFAULT = 'node_default'
+EDGE_DEFAULT = 'edge_default'
+FACE_DEFAULT = 'face_default'
 FACES = 'faces'
-
-GRAPH = 'graph'
-HEDGE = 'hedge'
 FACE = 'face'
-NODE = 'node'
+IS_SELECTED = 'is_selected'

@@ -1,5 +1,6 @@
 from __future__ import annotations
 import abc
+import copy
 import json
 import logging
 from collections import defaultdict
@@ -13,7 +14,7 @@ from networkx.readwrite import json_graph
 
 from applicationframework.contentbase import ContentBase
 from editor import maths
-from editor.constants import ATTRIBUTES, ATTRIBUTE_DEFINITIONS, FACE, FACES, GRAPH, HEDGE, NODE
+from editor.constants import ATTRIBUTES, EDGE_DEFAULT, FACES, FACE_DEFAULT, IS_SELECTED, NODE_DEFAULT
 
 # noinspection PyUnresolvedReferences
 from __feature__ import snake_case
@@ -44,16 +45,17 @@ class Element(metaclass=abc.ABCMeta):
         return hash(self) == hash(other)
 
     @abc.abstractmethod
-    def get_attribute(self, key, default=None):
+    def get_private_attributes(self):
         ...
 
-    @abc.abstractmethod
-    def set_attribute(self, key, value):
-        ...
-
-    @abc.abstractmethod
     def get_attributes(self):
-        ...
+        return self.get_private_attributes()[ATTRIBUTES]
+
+    def get_attribute(self, key, default=None):
+        return self.get_attributes().get(key, default)
+
+    def set_attribute(self, key, value):
+        self.get_attributes()[key] = value
 
     @property
     @abc.abstractmethod
@@ -62,28 +64,17 @@ class Element(metaclass=abc.ABCMeta):
 
     @property
     def is_selected(self):
-
-        # TODO: Put outside of attributes so it doesnt get serialzied.
-        return self.get_attribute('is_selected')
+        return self.get_private_attributes().get(IS_SELECTED, False)
 
     @is_selected.setter
     def is_selected(self, value: bool):
-        self.set_attribute('is_selected', value)
+        self.get_private_attributes()[IS_SELECTED] = value
 
 
 class Node(Element):
 
-    def get_attribute(self, key, default=None):
-        return self.graph.data.nodes[self.data][ATTRIBUTES].get(key, default)
-
-    def set_attribute(self, key, value):
-        self.graph.data.nodes[self.data][ATTRIBUTES][key] = value
-
-    def get_attributes(self):
-        return {
-            attr_def['name']: self.get_attribute(attr_def['name'])
-            for attr_def in self.graph.data.graph[ATTRIBUTE_DEFINITIONS][NODE]
-        }
+    def get_private_attributes(self):
+        return self.graph.data.nodes[self.data]
 
     @property
     def nodes(self) -> tuple:
@@ -132,17 +123,8 @@ class Edge(Element):
     def __contains__(self, node: Node):
         return node in self.nodes
 
-    def get_attribute(self, key, default=None):
-        return self.graph.undirected_data.edges[self.data][ATTRIBUTES].get(key, default)
-
-    def set_attribute(self, key, value):
-        self.graph.undirected_data.edges[self.data][ATTRIBUTES][key] = value
-
-    def get_attributes(self):
-        return {
-            attr_def['name']: self.get_attribute(attr_def['name'])
-            for attr_def in self.graph.data.graph[ATTRIBUTE_DEFINITIONS][HEDGE]
-        }
+    def get_private_attributes(self):
+        return self.graph.undirected_data.edges[self.data]
 
     @property
     def head(self):
@@ -171,21 +153,12 @@ class Hedge(Element):
     def __contains__(self, node: Node):
         return node in self.nodes
 
-    def get_attribute(self, key, default=None):
-        return self.graph.data.edges[self.data][ATTRIBUTES].get(key, default)
-
-    def set_attribute(self, key, value):
-        self.graph.data.edges[self.data][ATTRIBUTES][key] = value
-
-    def get_attributes(self):
+    def get_private_attributes(self):
 
         # TODO: Whats the correct approach here??
         # The editor will select undirected edges, so that needs to report both
         # sets of attributes, ie one for each hedge.
-        return {
-            attr_def['name']: self.get_attribute(attr_def['name'])
-            for attr_def in self.graph.data.graph[ATTRIBUTE_DEFINITIONS][HEDGE]
-        }
+        return self.graph.data.edges[self.data]
 
     @property
     def head(self):
@@ -226,17 +199,8 @@ class Face(Element):
     def _(self, hedge: Hedge):
         return hedge in self.hedges
 
-    def get_attribute(self, key, default=None):
-        return self.graph.data.graph[FACES][self][ATTRIBUTES].get(key, default)
-
-    def set_attribute(self, key, value):
-        self.graph.data.graph[FACES][self][ATTRIBUTES][key] = value
-
-    def get_attributes(self):
-        return {
-            attr_def['name']: self.get_attribute(attr_def['name'])
-            for attr_def in self.graph.data.graph[ATTRIBUTE_DEFINITIONS][FACE]
-        }
+    def get_private_attributes(self):
+        return self.graph.data.graph[FACES][self]
 
     @property
     def nodes(self) -> tuple[Node]:
@@ -257,22 +221,18 @@ class Face(Element):
 
 class Graph(ContentBase):
 
-    def __init__(self):
+    def __init__(self, **default_attrs):
 
         # TODO: Allow setting of whatever kind of graph we like.
+        self.data = nx.DiGraph()
+
         # TODO: Put this in a new method - it's already tripped me over once
         # during load / save
-        self.data = nx.DiGraph()
+        self.data.graph[ATTRIBUTES] = default_attrs
+        self.data.graph[NODE_DEFAULT] = {}
+        self.data.graph[EDGE_DEFAULT] = {}
+        self.data.graph[FACE_DEFAULT] = {}
         self.data.graph[FACES] = {}
-        self.data.graph[ATTRIBUTE_DEFINITIONS] = {
-            GRAPH: [],
-            NODE: [],
-            HEDGE: [],
-            FACE: [],
-        }
-
-        # HAXXOR
-        self.data.graph[ATTRIBUTES] = {}
 
         # Maps.
         self.node_to_edges = defaultdict(set)
@@ -295,46 +255,29 @@ class Graph(ContentBase):
 
         self.update()
 
-    # TODO: Rename to attributes
-    def _get_default_attributes(self, key: str):
-        return {
-            attribute['name']: TYPES[attribute['type']](attribute['default'])
-            for attribute in self.data.graph[ATTRIBUTE_DEFINITIONS][key]
-        }
+    def _get_element_default_attributes(self, key: str):
+        return copy.deepcopy(self.data.graph[key])
 
-    def get_default_node_attributes(self):
-        return self._get_default_attributes(NODE)
+    def get_node_default_attributes(self):
+        return self._get_element_default_attributes(NODE_DEFAULT)
 
-    def get_default_hedge_attributes(self):
-        return self._get_default_attributes(HEDGE)
+    def get_hedge_default_attributes(self):
+        return self._get_element_default_attributes(EDGE_DEFAULT)
 
-    def get_default_face_attributes(self):
-        return self._get_default_attributes(FACE)
+    def get_face_default_attributes(self):
+        return self._get_element_default_attributes(FACE_DEFAULT)
 
-    def _add_attribute_definition(self, key: str, name: str, type_: type, default):
+    def _add_element_attribute_definition(self, element: str, name: str, default):
+        self.data.graph[element][name] = default
 
-        # TODO: Guh. These should probably be dicts keyed by name.
+    def add_node_attribute_definition(self, name: str, default):
+        self._add_element_attribute_definition(NODE_DEFAULT, name, default)
 
-        # TODO: Do we even need type here? Default isn't optional...
+    def add_hedge_attribute_definition(self, name: str, default):
+        self._add_element_attribute_definition(EDGE_DEFAULT, name, default)
 
-        # TODO: Probably want to serialize type as string only during i/o.
-        self.data.graph[ATTRIBUTE_DEFINITIONS][key].append({
-            'name': name,
-            'type': type_.__name__,
-            'default': default
-        })
-
-    def add_graph_attribute_definition(self, name: str, type_: type, default):
-        self._add_attribute_definition(GRAPH, name, type_, default)
-
-    def add_node_attribute_definition(self, name: str, type_: type, default):
-        self._add_attribute_definition(NODE, name, type_, default)
-
-    def add_hedge_attribute_definition(self, name: str, type_: type, default):
-        self._add_attribute_definition(HEDGE, name, type_, default)
-
-    def add_face_attribute_definition(self, name: str, type_: type, default):
-        self._add_attribute_definition(FACE, name, type_, default)
+    def add_face_attribute_definition(self, name: str, default):
+        self._add_element_attribute_definition(FACE_DEFAULT, name, default)
 
     def update(self):
 
@@ -450,17 +393,17 @@ class Graph(ContentBase):
         return (head, tail) in self.data.edges
 
     def add_node(self, node: Any, **node_attrs):
-        default_node_attrs = self.get_default_node_attributes()
+        default_node_attrs = self.get_node_default_attributes()
         default_node_attrs.update(node_attrs)
         self.data.add_node(node, **{ATTRIBUTES: default_node_attrs})
 
     def add_hedge(self, hedge: tuple[Any, Any], **hedge_attrs):
-        default_hedge_attrs = self.get_default_hedge_attributes()
+        default_hedge_attrs = self.get_hedge_default_attributes()
         default_hedge_attrs.update(hedge_attrs)
         self.data.add_edge(*hedge, **{ATTRIBUTES: default_hedge_attrs})
 
     def add_face(self, face: tuple[Any, ...], **face_attrs):
-        default_face_attrs = self.get_default_face_attributes()
+        default_face_attrs = self.get_face_default_attributes()
         default_face_attrs.update(face_attrs)
         self.data.graph[FACES][face] = {ATTRIBUTES: default_face_attrs}
 

@@ -41,6 +41,39 @@ class CommandsTestCase(UsesQApplication, TestCaseBase):
     def c(self):
         return self.mock_app.doc.content
 
+    def test_add_face(self):
+        """
+        1           2
+          ┌───────┐
+          │       │
+          │       │
+          │       │
+          └───────┘
+        0           3
+
+        """
+        # Set up test data.
+        points = (
+            (0, 0),
+            (0, 1),
+            (1, 1),
+            (1, 0),
+        )
+
+        # Start test.
+        with patch.object(uuid, 'uuid4', side_effect=('A', 'B', 'C', 'D')):
+            add_tweak, _ = commands.add_face(points)
+
+        # Assert results.
+        # NOTE: Winding order was different to input since we wind CC be default.
+        self.assertSetEqual(add_tweak.nodes, {'A', 'B', 'C', 'D'})
+        self.assertSetEqual(add_tweak.hedges, {('A', 'B'), ('B', 'C'), ('C', 'D'), ('D', 'A')})
+        self.assertSetEqual(add_tweak.faces, {('A', 'B', 'C', 'D')})
+        self.assertEqual((add_tweak.node_attrs['A']['x'], add_tweak.node_attrs['A']['y']), (0, 0))
+        self.assertEqual((add_tweak.node_attrs['B']['x'], add_tweak.node_attrs['B']['y']), (1, 0))
+        self.assertEqual((add_tweak.node_attrs['C']['x'], add_tweak.node_attrs['C']['y']), (1, 1))
+        self.assertEqual((add_tweak.node_attrs['D']['x'], add_tweak.node_attrs['D']['y']), (0, 1))
+
     # def test_split_face(self):
     #     """
     #     +----+----+

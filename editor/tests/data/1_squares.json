@@ -2,55 +2,26 @@
   "directed": true,
   "multigraph": false,
   "graph": {
+    "attributes": {
+      "foo": true
+    },
+    "node_default": {
+      "x": 0.1,
+      "y": 0.2,
+      "bar": 2
+    },
+    "edge_default": {
+      "baz": 3.0
+    },
+    "face_default": {
+      "qux": "four"
+    },
     "faces": {
       "0, 1, 2, 3": {
         "attributes": {
           "qux": "five"
         }
       }
-    },
-    "attribute_definitions": {
-      "graph": [
-        {
-          "name": "foo",
-          "type": "bool",
-          "default": true
-        }
-      ],
-      "node": [
-        {
-          "name": "x",
-          "type": "float",
-          "default": 0.1
-        },
-        {
-          "name": "y",
-          "type": "float",
-          "default": 0.2
-        },
-        {
-          "name": "bar",
-          "type": "int",
-          "default": 2
-        }
-      ],
-      "hedge": [
-        {
-          "name": "baz",
-          "type": "float",
-          "default": 3.0
-        }
-      ],
-      "face": [
-        {
-          "name": "qux",
-          "type": "str",
-          "default": "four"
-        }
-      ]
-    },
-    "attributes": {
-      "foo": false
     }
   },
   "nodes": [

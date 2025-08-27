@@ -3,7 +3,7 @@ from collections import defaultdict
 from dataclasses import fields
 from pathlib import Path
 
-from editor.constants import ATTRIBUTES, ATTRIBUTE_DEFINITIONS, FACE, FACES, GRAPH, HEDGE, NODE
+from editor.constants import ATTRIBUTES, FACES
 from editor.constants import MapFormat
 from editor.graph import Graph
 from editor.readwrite import write_gexf
@@ -22,9 +22,9 @@ def import_map(graph: Graph, file_path: str | Path, format: MapFormat):
 
     # Add default attribute definitions.
     for field in fields(Wall):
-        graph.add_hedge_attribute_definition(field.name, field.type, field.default)
+        graph.add_hedge_attribute_definition(field.name, field.default)
     for field in fields(Sector):
-        graph.add_face_attribute_definition(field.name, field.type, field.default)
+        graph.add_face_attribute_definition(field.name, field.default)
 
     # TODO: Move this into an import function and let this serialize the native
     # map format.
@@ -136,29 +136,16 @@ def import_map(graph: Graph, file_path: str | Path, format: MapFormat):
 
 
 def export_gexf(graph: Graph, file_path: str, format: MapFormat):
-
-    # TODO: Comment.
     g = graph.data.copy()
 
+    # Move all attribute dicts to the root of the element so the exporter picks
+    # them up. Node coords require special treatment for the GEXF format.
+    g.graph.update(g.graph.pop(ATTRIBUTES))
     for node, attrs in g.nodes(data=True):
         attrs.update(attrs.pop(ATTRIBUTES))
         attrs['viz'] = {'position': {'x': attrs.pop('x'), 'y': attrs.pop('y'), 'z': 0}}
-
-        # TODO: Move this attr
-        attrs.pop('is_selected', None)
-
     for head, tail, attrs in g.edges(data=True):
         attrs.update(attrs.pop(ATTRIBUTES))
-
-        attrs.pop('is_selected', None)
-
-    # Flatten settings data?
-    for attr_dict in g.graph[ATTRIBUTE_DEFINITIONS][GRAPH]:
-        g.graph[attr_dict['name']] = attr_dict['default']
-
-    g.graph['node_default'] = graph.get_default_node_attributes()
-    g.graph['edge_default'] = graph.get_default_hedge_attributes()
-    del g.graph[ATTRIBUTE_DEFINITIONS]
 
     write_gexf(g, file_path)
 
@@ -178,20 +165,16 @@ def export_map(graph: Graph, file_path: str, format: MapFormat):
     sector = 0
     faces = list(graph.faces)
     for face in faces:
-
         sector_data = Sector(**face.get_attributes())
         sector_data.wallptr = wallptr
         sector_data.wallnum = len(face.data)
-
         for i, hedge in enumerate(face.hedges):
             wall_data = Wall(**hedge.get_attributes())
             wall_data.x = int(hedge.head.pos.x())
             wall_data.y = int(hedge.head.pos.y())
             hedges.append(hedge)
             m.walls.append(wall_data)
-
             edge_to_next_edge[hedge] = face.hedges[(i + 1) % len(face.hedges)]
-
         m.sectors.append(sector_data)
         sector += 1
         wallptr += len(face.nodes)

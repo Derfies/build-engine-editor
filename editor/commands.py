@@ -9,8 +9,9 @@ from shapely.geometry import LineString, Polygon
 from shapely.geometry.polygon import orient
 from shapely.ops import split as split_ops
 
-from applicationframework.actions import Composite, SetAttribute, SetKey
+from applicationframework.actions import Composite, SetAttribute
 from editor.actions import Add, Remove, SetElementAttribute, Tweak
+from editor.constants import IS_SELECTED
 from editor.graph import Edge, Face, Hedge, Node
 from editor.maths import lerp, long_line_through, midpoint
 from editor.updateflag import UpdateFlag
@@ -26,9 +27,9 @@ MAX_DISTANCE = 10000.0
 def select_elements(elements: Iterable[Node] | Iterable[Edge] | Iterable[Hedge] | Iterable[Face]):
     actions = []
     for element in QApplication.instance().doc.selected_elements:
-        actions.append(SetAttribute('is_selected', False, element))
+        actions.append(SetAttribute(IS_SELECTED, False, element))
     for element in elements:
-        actions.append(SetAttribute('is_selected', True, element))
+        actions.append(SetAttribute(IS_SELECTED, True, element))
     action = Composite(actions, flags=UpdateFlag.SELECTION)
     QApplication.instance().action_manager.push(action)
     QApplication.instance().doc.updated(action(), dirty=False)
@@ -67,11 +68,12 @@ def transform_node_items(node_items):
 
 def add_face(points: Iterable[tuple]):
 
+    # TODO: Rename to add_polygon.
     # Ensure winding order is consistent.
     poly = orient(Polygon(points), sign=1.0)
     coords = poly.exterior.coords[:-1]
 
-    tweak = Tweak()
+    add_tweak = Tweak()
     nodes = [str(uuid.uuid4()) for _ in range(len(coords))]
     hedges = []
     face = tuple(nodes)
@@ -79,16 +81,18 @@ def add_face(points: Iterable[tuple]):
         head = nodes[i]
         tail = nodes[(i + 1) % len(nodes)]
         hedges.append((head, tail))
-        tweak.node_attrs[nodes[i]]['x'] = coords[i][0]
-        tweak.node_attrs[nodes[i]]['y'] = coords[i][1]
+        add_tweak.node_attrs[nodes[i]]['x'] = coords[i][0]
+        add_tweak.node_attrs[nodes[i]]['y'] = coords[i][1]
 
-    tweak.nodes.update(nodes)
-    tweak.hedges.update(hedges)
-    tweak.faces.add(face)
+    add_tweak.nodes.update(nodes)
+    add_tweak.hedges.update(hedges)
+    add_tweak.faces.add(face)
 
-    action = Add(tweak, QApplication.instance().doc.content)
+    action = Add(add_tweak, QApplication.instance().doc.content)
     QApplication.instance().action_manager.push(action)
     QApplication.instance().doc.updated(action(), dirty=True)
+
+    return add_tweak, None
 
 
 def split_face(*splits: tuple[Hedge, float]):

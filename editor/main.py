@@ -16,14 +16,7 @@ from applicationframework.mainwindow import MainWindow as MainWindowBase
 from editor import commands
 from editor import mapio
 from editor.constants import MapFormat, ModalTool, SelectionMode
-from editor.constants import (
-    ATTRIBUTES,
-    ATTRIBUTE_DEFINITIONS,
-    FACE,
-    GRAPH,
-    HEDGE,
-    NODE,
-)
+from editor.constants import EDGE_DEFAULT, FACE_DEFAULT
 from editor.editorpropertygrid import PropertyGrid
 from editor.graph import Graph
 from editor.graphicsscene import GraphicsScene
@@ -295,38 +288,28 @@ class MainWindow(MainWindowBase):
         tool_bar.add_action(self.play_in_nblood_action)
 
     def create_document(self, file_path: str = None) -> Document:
-        content = Graph()
+        content = Graph(foo=True)
 
-        # content.add_graph_attribute_definition('foo', bool, True)
-        # content.add_node_attribute_definition('x', float, 0)
-        # content.add_node_attribute_definition('y', float, 0)
-        # content.add_node_attribute_definition('bar', int, 2)
-        # content.add_hedge_attribute_definition('baz', float, 3.0)
-        # content.add_face_attribute_definition('qux', str, 'four')
+        # content.add_node_attribute_definition('x', 0)
+        # content.add_node_attribute_definition('y', 0)
+        # content.add_node_attribute_definition('bar', 2)
+        # content.add_hedge_attribute_definition('baz', 3.0)
+        # content.add_face_attribute_definition('qux', 'four')
 
         # TODO: Move this somewhere else / add method of indirection.
         from gameengines.build.map import Sector, Wall
 
         for field in fields(Wall):
-            content.add_hedge_attribute_definition(field.name, field.type, field.default)
+            content.add_hedge_attribute_definition(field.name, field.default)
 
         for field in fields(Sector):
-            content.add_face_attribute_definition(field.name, field.type, field.default)
+            content.add_face_attribute_definition(field.name, field.default)
 
         # Sensible default values.
-        # TODO: Make dict keyed by name.
-        for attribute in content.data.graph[ATTRIBUTE_DEFINITIONS][HEDGE]:
-            if attribute['name'] == 'xrepeat':
-                attribute['default'] = 32
-                print('FOUND xrepeat')
-            elif attribute['name'] == 'yrepeat':
-                attribute['default'] = 32
-                print('FOUND yrepeat')
-        for attribute in content.data.graph[ATTRIBUTE_DEFINITIONS][FACE]:
-            if attribute['name'] == 'ceilingz':
-                attribute['default'] = -1024 * 16
-
-
+        content.data.graph[EDGE_DEFAULT]['xrepeat'] = 32
+        content.data.graph[EDGE_DEFAULT]['yrepeat'] = 32
+        content.data.graph[FACE_DEFAULT]['floorz'] = 0
+        content.data.graph[FACE_DEFAULT]['ceilingz'] = -1024 * 16
 
         return MapDocument(file_path, content, UpdateFlag)
 

@@ -21,7 +21,7 @@ class GEXFWriter(BaseGEXFWriter):
         attrs_els = self.graph_element.findall('attributes[@class=""][@mode="static"]')
         assert len(attrs_els) < 2, 'Should only be one attributes element'
         if not attrs_els:
-            attrs_el = et.Element('attributes', attrib={'class': '', 'mode': 'static'})
+            attrs_el = et.Element('attributes', attrib={'mode': 'static', 'class': ''})
             self.graph_element.insert(0, attrs_el)
         else:
             attrs_el = attrs_els[0]
@@ -30,7 +30,7 @@ class GEXFWriter(BaseGEXFWriter):
 
             # TODO:
             if type(value) not in type_map:
-                print('skip:', key)
+                print('skip:', key, '->', type(value))
                 continue
 
             attr_el = et.Element('attribute', attrib={'id': key, 'title': key, 'type': type_map[type(value)]})
