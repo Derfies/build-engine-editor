@@ -1,25 +1,32 @@
 from __future__ import annotations
 import abc
+import copy
 import json
 import logging
 from collections import defaultdict
 from functools import singledispatchmethod
+from pathlib import Path
 from typing import Any
 
-import marshmallow_dataclass
 import networkx as nx
 from PySide6.QtCore import QPointF
 from networkx.readwrite import json_graph
 
 from applicationframework.contentbase import ContentBase
 from editor import maths
-from gameengines.build.map import Sector, Wall
+from editor.constants import ATTRIBUTES, EDGE_DEFAULT, FACES, FACE_DEFAULT, IS_SELECTED, NODE_DEFAULT
 
 # noinspection PyUnresolvedReferences
 from __feature__ import snake_case
 
 
 logger = logging.getLogger(__name__)
+
+
+TYPES = {
+    type_.__name__: type_
+    for type_ in {bool, int, float, str}
+}
 
 
 class Element(metaclass=abc.ABCMeta):
@@ -38,12 +45,17 @@ class Element(metaclass=abc.ABCMeta):
         return hash(self) == hash(other)
 
     @abc.abstractmethod
-    def get_attribute(self, key, default=None):
+    def get_private_attributes(self):
         ...
 
-    @abc.abstractmethod
+    def get_attributes(self):
+        return self.get_private_attributes()[ATTRIBUTES]
+
+    def get_attribute(self, key, default=None):
+        return self.get_attributes().get(key, default)
+
     def set_attribute(self, key, value):
-        ...
+        self.get_attributes()[key] = value
 
     @property
     @abc.abstractmethod
@@ -52,20 +64,17 @@ class Element(metaclass=abc.ABCMeta):
 
     @property
     def is_selected(self):
-        return self.get_attribute('is_selected')
+        return self.get_private_attributes().get(IS_SELECTED, False)
 
     @is_selected.setter
     def is_selected(self, value: bool):
-        self.set_attribute('is_selected', value)
+        self.get_private_attributes()[IS_SELECTED] = value
 
 
 class Node(Element):
 
-    def get_attribute(self, key, default=None):
-        return self.graph.data.nodes[self.data].get(key, default)
-
-    def set_attribute(self, key, value):
-        self.graph.data.nodes[self.data][key] = value
+    def get_private_attributes(self):
+        return self.graph.data.nodes[self.data]
 
     @property
     def nodes(self) -> tuple:
@@ -93,11 +102,16 @@ class Node(Element):
 
     @property
     def pos(self) -> QPointF:
-        return self.get_attribute('pos')
+
+        # TODO: Wean off QPointF type.
+        return QPointF(self.get_attribute('x'), self.get_attribute('y'))
 
     @pos.setter
     def pos(self, pos: QPointF):
-        self.set_attribute('pos', pos)
+
+        # TODO: Wean off QPointF type.
+        self.set_attribute('x', pos.x())
+        self.set_attribute('y', pos.y())
 
 
 class Edge(Element):
@@ -109,11 +123,8 @@ class Edge(Element):
     def __contains__(self, node: Node):
         return node in self.nodes
 
-    def get_attribute(self, key, default=None):
-        return self.graph.undirected_data.edges[self.data].get(key, default)
-
-    def set_attribute(self, key, value):
-        self.graph.undirected_data.edges[self.data][key] = value
+    def get_private_attributes(self):
+        return self.graph.undirected_data.edges[self.data]
 
     @property
     def head(self):
@@ -142,11 +153,12 @@ class Hedge(Element):
     def __contains__(self, node: Node):
         return node in self.nodes
 
-    def get_attribute(self, key, default=None):
-        return self.graph.data.edges[self.data].get(key, default)
+    def get_private_attributes(self):
 
-    def set_attribute(self, key, value):
-        self.graph.data.edges[self.data][key] = value
+        # TODO: Whats the correct approach here??
+        # The editor will select undirected edges, so that needs to report both
+        # sets of attributes, ie one for each hedge.
+        return self.graph.data.edges[self.data]
 
     @property
     def head(self):
@@ -187,11 +199,8 @@ class Face(Element):
     def _(self, hedge: Hedge):
         return hedge in self.hedges
 
-    def get_attribute(self, key, default=None):
-        return self.graph.data.graph['faces'][self].get(key, default)
-
-    def set_attribute(self, key, value):
-        self.graph.data.graph['faces'][self][key] = value
+    def get_private_attributes(self):
+        return self.graph.data.graph[FACES][self]
 
     @property
     def nodes(self) -> tuple[Node]:
@@ -212,14 +221,18 @@ class Face(Element):
 
 class Graph(ContentBase):
 
-    def __init__(self):
+    def __init__(self, **default_attrs):
 
         # TODO: Allow setting of whatever kind of graph we like.
+        self.data = nx.DiGraph()
+
         # TODO: Put this in a new method - it's already tripped me over once
         # during load / save
-        self.data = nx.DiGraph()
-        self.data.graph['faces'] = {}
-        #self.data.graph['faces'] = {}
+        self.data.graph[ATTRIBUTES] = default_attrs
+        self.data.graph[NODE_DEFAULT] = {}
+        self.data.graph[EDGE_DEFAULT] = {}
+        self.data.graph[FACE_DEFAULT] = {}
+        self.data.graph[FACES] = {}
 
         # Maps.
         self.node_to_edges = defaultdict(set)
@@ -241,6 +254,30 @@ class Graph(ContentBase):
         self.face_to_hedges = defaultdict(list)
 
         self.update()
+
+    def _get_element_default_attributes(self, key: str):
+        return copy.deepcopy(self.data.graph[key])
+
+    def get_node_default_attributes(self):
+        return self._get_element_default_attributes(NODE_DEFAULT)
+
+    def get_hedge_default_attributes(self):
+        return self._get_element_default_attributes(EDGE_DEFAULT)
+
+    def get_face_default_attributes(self):
+        return self._get_element_default_attributes(FACE_DEFAULT)
+
+    def _add_element_attribute_definition(self, element: str, name: str, default):
+        self.data.graph[element][name] = default
+
+    def add_node_attribute_definition(self, name: str, default):
+        self._add_element_attribute_definition(NODE_DEFAULT, name, default)
+
+    def add_hedge_attribute_definition(self, name: str, default):
+        self._add_element_attribute_definition(EDGE_DEFAULT, name, default)
+
+    def add_face_attribute_definition(self, name: str, default):
+        self._add_element_attribute_definition(FACE_DEFAULT, name, default)
 
     def update(self):
 
@@ -264,7 +301,7 @@ class Graph(ContentBase):
 
         self.undirected_data = self.data.to_undirected()
 
-        for face in self.data.graph['faces']:
+        for face in self.data.graph[FACES]:
             #print('UPDATE FACE:', face, type(face))
             face_ = self.get_face(face)
             self.face_to_nodes[face].extend([self.get_node(node) for node in face])
@@ -331,7 +368,7 @@ class Graph(ContentBase):
 
     @property
     def faces(self) -> set[Face]:
-        return {self.get_face(face) for face in self.data.graph['faces']}
+        return {self.get_face(face) for face in self.data.graph[FACES]}
 
     def get_node(self, node) -> Node:
         assert node in self.data, f'Node not found: {node}'
@@ -346,7 +383,7 @@ class Graph(ContentBase):
         return Hedge(self, (head, tail))
 
     def get_face(self, face: tuple) -> Face:
-        assert face in self.data.graph['faces'], f'Face not found: {face}'
+        assert face in self.data.graph[FACES], f'Face not found: {face}'
         return Face(self, face)
 
     def has_node(self, node: Any):
@@ -356,13 +393,19 @@ class Graph(ContentBase):
         return (head, tail) in self.data.edges
 
     def add_node(self, node: Any, **node_attrs):
-        self.data.add_node(node, **node_attrs)
+        default_node_attrs = self.get_node_default_attributes()
+        default_node_attrs.update(node_attrs)
+        self.data.add_node(node, **{ATTRIBUTES: default_node_attrs})
 
     def add_hedge(self, hedge: tuple[Any, Any], **hedge_attrs):
-        self.data.add_edge(*hedge, **hedge_attrs)
+        default_hedge_attrs = self.get_hedge_default_attributes()
+        default_hedge_attrs.update(hedge_attrs)
+        self.data.add_edge(*hedge, **{ATTRIBUTES: default_hedge_attrs})
 
     def add_face(self, face: tuple[Any, ...], **face_attrs):
-        self.data.graph['faces'][face] = face_attrs
+        default_face_attrs = self.get_face_default_attributes()
+        default_face_attrs.update(face_attrs)
+        self.data.graph[FACES][face] = {ATTRIBUTES: default_face_attrs}
 
     def remove_node(self, node: Any):
         self.data.remove_node(node)
@@ -371,67 +414,29 @@ class Graph(ContentBase):
         self.data.remove_edge(*hedge)
 
     def remove_face(self, face: tuple[Any, ...]):
-        del self.data.graph['faces'][face]
+        del self.data.graph[FACES][face]
 
-    def load(self, file_path: str):
-        """
-        Feels pretty ugly. Can we use marshmallow better for this...?
-
-        """
-        def deserialize_attr(key, obj):
-            if key == 'pos':
-                return QPointF(*obj)
-            elif key == 'wall':
-                return Wall(**obj)
-            else:
-                return obj
-
+    def load(self, file_path: str | Path):
         with open(file_path, 'r') as f:
-            data = json_graph.node_link_graph(json.load(f))
+            g = json_graph.node_link_graph(json.load(f))
 
-        g = nx.DiGraph()
-        for n, attrs in data.nodes(data=True):
-            g.add_node(n, **{k: deserialize_attr(k, v) for k, v in attrs.items()})
-        for u, v, attrs in data.edges(data=True):
-            g.add_edge(u, v, **{k: deserialize_attr(k, v) for k, v in attrs.items()})
-        g.graph['faces'] = {}
-        for face_nodes, face_data in data.graph['faces'].items():
-            nodes = face_nodes.split(', ')
-            schema = marshmallow_dataclass.class_schema(Sector)()
-            g.graph['faces'][tuple(nodes)] = {'sector': schema.load(face_data['sector'])}
+        # Build faces from comma-separated list.
+        g.graph[FACES] = {
+            tuple(face_nodes.split(', ')): face_attrs
+            for face_nodes, face_attrs in g.graph[FACES].items()
+        }
 
         self.data = g
         self.update()
 
     def save(self, file_path: str):
-        """
-        Feels pretty ugly. Can we use marshmallow better for this...?
+        g = self.data.copy()
 
-        """
-        def serialize_attr(obj):
-            if isinstance(obj, QPointF):
-                return obj.to_tuple()
-            elif isinstance(obj, Wall):
-                schema = marshmallow_dataclass.class_schema(Wall)()
-                return schema.dump(obj)
-            elif isinstance(obj, Sector):
-                schema = marshmallow_dataclass.class_schema(Sector)()
-                return schema.dump(obj)
-            elif isinstance(obj, list):
-                return [serialize_attr(v) for v in obj]
-            elif isinstance(obj, dict):
-               return {k: serialize_attr(v) for k, v in obj.items()}
-            else:
-               return obj
-
-        g = nx.DiGraph()
-        g.graph['faces'] = {}
-        for k, v in self.data.graph['faces'].items():
-            g.graph['faces'][', '.join(k)] = serialize_attr(v)
-        for n, attrs in self.data.nodes(data=True):
-            g.add_node(n, **{k: serialize_attr(v) for k, v in attrs.items()})
-        for u, v, attrs in self.data.edges(data=True):
-            g.add_edge(u, v, **{k: serialize_attr(v) for k, v in attrs.items()})
+        # Convert faces to a comma-separated list.
+        g.graph[FACES] = {
+            ', '.join([str(face_node) for face_node in face_nodes]): face_attrs
+            for face_nodes, face_attrs in g.graph[FACES].items()
+        }
 
         data = json_graph.node_link_data(g)
         with open(file_path, 'w') as f:

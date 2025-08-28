@@ -4,7 +4,6 @@ from PySide6.QtCore import QCoreApplication
 from PySide6.QtWidgets import QApplication
 
 from applicationframework.document import Document
-from editor.graph import Edge, Node, Face
 from editor.updateflag import UpdateFlag
 from propertygrid.widget import Widget as PropertyGridBase
 
@@ -34,17 +33,8 @@ class PropertyGrid(PropertyGridBase):
         self.model().clear()
 
         # TODO: Multi-select
+        # TODO: How do we display both sets of hedge data for each edge?
         if doc.selected_elements:
             element = list(doc.selected_elements)[0]
-
-            # TODO: Instead of using different key names, just lump it under one key?
-            data = None
-            if isinstance(element, Node):
-                data = element.get_attribute('wall')
-            elif isinstance(element, Edge):
-                data = element.get_attribute('wall')
-            elif isinstance(element, Face):
-                data = element.get_attribute('sector')
-            if data is not None:
-                self.add_object(data)
+            self.model().add_dict(element.get_attributes(), obj=element)
         self.block_signals(False)

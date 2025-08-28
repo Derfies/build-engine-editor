@@ -1,6 +1,7 @@
 import logging
 import subprocess
 import sys
+from dataclasses import fields
 from pathlib import Path
 
 import marshmallow_dataclass
@@ -15,6 +16,7 @@ from applicationframework.mainwindow import MainWindow as MainWindowBase
 from editor import commands
 from editor import mapio
 from editor.constants import MapFormat, ModalTool, SelectionMode
+from editor.constants import EDGE_DEFAULT, FACE_DEFAULT
 from editor.editorpropertygrid import PropertyGrid
 from editor.graph import Graph
 from editor.graphicsscene import GraphicsScene
@@ -24,6 +26,7 @@ from editor.preferencesdialog import PreferencesDialog
 from editor.settings import ColourSettings, GeneralSettings, GridSettings, HotkeySettings, PlaySettings
 from editor.updateflag import UpdateFlag
 from editor.viewport import Viewport
+from propertygrid.model import ModelEvent
 
 # noinspection PyUnresolvedReferences
 from __feature__ import snake_case
@@ -60,6 +63,7 @@ class MainWindow(MainWindowBase):
         self.view_2d = GraphicsView(self.scene)
         self.view_3d = Viewport()
         self.property_grid = PropertyGrid()
+        self.property_grid.model().data_changed.connect(self.on_data_changed)
 
         # Moving openGl widget sometimes crashes :/
         wrapper = QWidget()
@@ -284,7 +288,30 @@ class MainWindow(MainWindowBase):
         tool_bar.add_action(self.play_in_nblood_action)
 
     def create_document(self, file_path: str = None) -> Document:
-        return MapDocument(file_path, Graph(), UpdateFlag)
+        content = Graph(foo=True)
+
+        # content.add_node_attribute_definition('x', 0)
+        # content.add_node_attribute_definition('y', 0)
+        # content.add_node_attribute_definition('bar', 2)
+        # content.add_hedge_attribute_definition('baz', 3.0)
+        # content.add_face_attribute_definition('qux', 'four')
+
+        # TODO: Move this somewhere else / add method of indirection.
+        from gameengines.build.map import Sector, Wall
+
+        for field in fields(Wall):
+            content.add_hedge_attribute_definition(field.name, field.default)
+
+        for field in fields(Sector):
+            content.add_face_attribute_definition(field.name, field.default)
+
+        # Sensible default values.
+        content.data.graph[EDGE_DEFAULT]['xrepeat'] = 32
+        content.data.graph[EDGE_DEFAULT]['yrepeat'] = 32
+        content.data.graph[FACE_DEFAULT]['floorz'] = 0
+        content.data.graph[FACE_DEFAULT]['ceilingz'] = -1024 * 16
+
+        return MapDocument(file_path, content, UpdateFlag)
 
     def on_tool_action_group(self):
         action = self.tool_action_group.checked_action().data()
@@ -331,6 +358,9 @@ class MainWindow(MainWindowBase):
 
     def split_edges(self):
         print('split')
+
+    def on_data_changed(self, event: ModelEvent):
+        commands.set_attribute(event.object(), event.name(), event.value())
 
     def frame_selection(self):
 
@@ -393,7 +423,8 @@ class MainWindow(MainWindowBase):
             self.connect_hotkeys()
 
     def import_event(self):
-        file_path, file_format = QFileDialog.get_open_file_name(caption='Import')
+        file_formats = ';;'.join([fmt.value for fmt in MapFormat])
+        file_path, file_format = QFileDialog.get_open_file_name(caption='Import', filter=file_formats)
         if not file_path:
             return False
         mapio.import_map(self.app().doc.content, file_path, MapFormat(file_format))
@@ -404,7 +435,14 @@ class MainWindow(MainWindowBase):
         file_path, file_format = QFileDialog.get_save_file_name(caption='Export', filter=file_formats)
         if not file_path:
             return False
-        mapio.export_map(self.app().doc.content, file_path, MapFormat(file_format))
+
+        # TODO: Would make more sense to have plugin architecture to map each
+        # format to each exporter.
+        map_format = MapFormat(file_format)
+        if map_format == MapFormat.GEXF:
+            mapio.export_gexf(self.app().doc.content, file_path, map_format)
+        else:
+            mapio.export_map(self.app().doc.content, file_path, map_format)
 
 
 if __name__ == '__main__':

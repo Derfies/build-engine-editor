@@ -1,18 +1,30 @@
 import io
 from collections import defaultdict
+from dataclasses import fields
+from pathlib import Path
 
-from PySide6.QtCore import QPointF
-
+from editor.constants import ATTRIBUTES, FACES
 from editor.constants import MapFormat
 from editor.graph import Graph
+from editor.readwrite import write_gexf
 from gameengines.build.blood import Map as BloodMap, MapReader as BloodMapReader, MapWriter as BloodMapWriter
 from gameengines.build.duke3d import Map as Duke3dMap, MapReader as Duke3dMapReader, MapWriter as Duke3dMapWriter
 from gameengines.build.map import Sector, Wall
 
 
-def import_map(graph: Graph, file_path: str, format: MapFormat):
-    graph.data.clear()
-    graph.faces.clear()
+def import_map(graph: Graph, file_path: str | Path, format: MapFormat):
+
+    # TODO: Pass the graph in or just create a new one? I suppose we want to support
+    # merging via imports.
+    # Also need to init graph default attrs.
+    #graph.data.clear()
+    #graph.data.graph[FACES] = {}
+
+    # Add default attribute definitions.
+    for field in fields(Wall):
+        graph.add_hedge_attribute_definition(field.name, field.default)
+    for field in fields(Sector):
+        graph.add_face_attribute_definition(field.name, field.default)
 
     # TODO: Move this into an import function and let this serialize the native
     # map format.
@@ -40,8 +52,7 @@ def import_map(graph: Graph, file_path: str, format: MapFormat):
         wall_to_walls[wall].add(wall)
         if wall_data.nextwall > -1:
             nextwall_data = m.walls[wall_data.nextwall]
-            wall_set = wall_to_walls.get(nextwall_data.point2,
-                                         wall_to_walls[wall])
+            wall_set = wall_to_walls.get(nextwall_data.point2, wall_to_walls[wall])
             wall_set.add(wall)
             wall_to_walls[wall] = wall_to_walls[nextwall_data.point2] = wall_set
 
@@ -74,10 +85,12 @@ def import_map(graph: Graph, file_path: str, format: MapFormat):
         graph.data.add_edge(head, tail)
 
         # Need to set the head data.
-        # graph.data.nodes[head]['x'] = wall_data.x
-        # graph.data.nodes[head]['y'] = wall_data.y
-        graph.data.nodes[head]['pos'] = QPointF(wall_data.x, wall_data.y)
-        graph.data.edges[(head, tail)]['wall'] = wall_data
+        graph.data.nodes[head].setdefault(ATTRIBUTES, {})['x'] = wall_data.x
+        graph.data.nodes[head].setdefault(ATTRIBUTES, {})['y'] = wall_data.y
+
+        graph.data.edges[(head, tail)].setdefault(ATTRIBUTES, {})
+        for field in fields(wall_data):
+            graph.data.edges[(head, tail)][ATTRIBUTES][field.name] = getattr(wall_data, field.name)
 
     print('\nedges')
     for edge in graph.data.edges:
@@ -102,7 +115,9 @@ def import_map(graph: Graph, file_path: str, format: MapFormat):
                 # print('break')
                 break
 
-        graph.graph['faces'][tuple(poly_nodes)] = {'sector': sector_data}
+        graph.data.graph[FACES].setdefault(tuple(poly_nodes), {}).setdefault(ATTRIBUTES, {})
+        for field in fields(sector_data):
+           graph.data.graph[FACES][tuple(poly_nodes)][ATTRIBUTES][field.name] = getattr(sector_data, field.name)
 
     graph.update()
 
@@ -120,9 +135,22 @@ def import_map(graph: Graph, file_path: str, format: MapFormat):
         print('    ->', face)
 
 
+def export_gexf(graph: Graph, file_path: str, format: MapFormat):
+    g = graph.data.copy()
+
+    # Move all attribute dicts to the root of the element so the exporter picks
+    # them up. Node coords require special treatment for the GEXF format.
+    g.graph.update(g.graph.pop(ATTRIBUTES))
+    for node, attrs in g.nodes(data=True):
+        attrs.update(attrs.pop(ATTRIBUTES))
+        attrs['viz'] = {'position': {'x': attrs.pop('x'), 'y': attrs.pop('y'), 'z': 0}}
+    for head, tail, attrs in g.edges(data=True):
+        attrs.update(attrs.pop(ATTRIBUTES))
+
+    write_gexf(g, file_path)
+
+
 def export_map(graph: Graph, file_path: str, format: MapFormat):
-    METER = 512
-    HEIGHT = 2 * METER
 
     map_cls = {
         MapFormat.BLOOD: BloodMap,
@@ -137,35 +165,16 @@ def export_map(graph: Graph, file_path: str, format: MapFormat):
     sector = 0
     faces = list(graph.faces)
     for face in faces:
-
-        sector_data = face.get_attribute('sector')
-
-        # HAXX. If the face has no sector data, give it some.
-        if sector_data is None:
-            sector_data = Sector()
-            face.set_attribute('sector', sector_data)
-
-        sector_data.floorz = 0
-        sector_data.ceilingz = -HEIGHT * 16
+        sector_data = Sector(**face.get_attributes())
         sector_data.wallptr = wallptr
         sector_data.wallnum = len(face.data)
-
         for i, hedge in enumerate(face.hedges):
-
-            wall_data = hedge.get_attribute('wall')
-
-            # HAXX. If the edge has no wall data, give it some.
-            if wall_data is None:
-                wall_data = Wall()
-                hedge.set_attribute('wall', wall_data)
-
+            wall_data = Wall(**hedge.get_attributes())
             wall_data.x = int(hedge.head.pos.x())
             wall_data.y = int(hedge.head.pos.y())
             hedges.append(hedge)
             m.walls.append(wall_data)
-
             edge_to_next_edge[hedge] = face.hedges[(i + 1) % len(face.hedges)]
-
         m.sectors.append(sector_data)
         sector += 1
         wallptr += len(face.nodes)

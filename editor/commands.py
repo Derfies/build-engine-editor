@@ -10,11 +10,11 @@ from shapely.geometry.polygon import orient
 from shapely.ops import split as split_ops
 
 from applicationframework.actions import Composite, SetAttribute
-from editor.actions import Add, Remove, Tweak
+from editor.actions import Add, Remove, SetElementAttribute, Tweak
+from editor.constants import IS_SELECTED
 from editor.graph import Edge, Face, Hedge, Node
 from editor.maths import lerp, long_line_through, midpoint
 from editor.updateflag import UpdateFlag
-from gameengines.build.map import Sector, Wall
 
 # noinspection PyUnresolvedReferences
 from __feature__ import snake_case
@@ -27,9 +27,9 @@ MAX_DISTANCE = 10000.0
 def select_elements(elements: Iterable[Node] | Iterable[Edge] | Iterable[Hedge] | Iterable[Face]):
     actions = []
     for element in QApplication.instance().doc.selected_elements:
-        actions.append(SetAttribute('is_selected', False, element))
+        actions.append(SetAttribute(IS_SELECTED, False, element))
     for element in elements:
-        actions.append(SetAttribute('is_selected', True, element))
+        actions.append(SetAttribute(IS_SELECTED, True, element))
     action = Composite(actions, flags=UpdateFlag.SELECTION)
     QApplication.instance().action_manager.push(action)
     QApplication.instance().doc.updated(action(), dirty=False)
@@ -68,13 +68,12 @@ def transform_node_items(node_items):
 
 def add_face(points: Iterable[tuple]):
 
+    # TODO: Rename to add_polygon.
     # Ensure winding order is consistent.
     poly = orient(Polygon(points), sign=1.0)
     coords = poly.exterior.coords[:-1]
 
-    # TODO: Factory for default data? How else do walls / sectors get here
-    # without knowing the build data requirements?
-    tweak = Tweak()
+    add_tweak = Tweak()
     nodes = [str(uuid.uuid4()) for _ in range(len(coords))]
     hedges = []
     face = tuple(nodes)
@@ -82,16 +81,18 @@ def add_face(points: Iterable[tuple]):
         head = nodes[i]
         tail = nodes[(i + 1) % len(nodes)]
         hedges.append((head, tail))
-        tweak.node_attrs[nodes[i]]['pos'] = QPointF(*coords[i])
-        tweak.hedge_attrs[(head, tail)]['wall'] = Wall()
-    tweak.face_attrs[face]['sector'] = Sector()
-    tweak.nodes.update(nodes)
-    tweak.hedges.update(hedges)
-    tweak.faces.add(face)
+        add_tweak.node_attrs[nodes[i]]['x'] = coords[i][0]
+        add_tweak.node_attrs[nodes[i]]['y'] = coords[i][1]
 
-    action = Add(tweak, QApplication.instance().doc.content)
+    add_tweak.nodes.update(nodes)
+    add_tweak.hedges.update(hedges)
+    add_tweak.faces.add(face)
+
+    action = Add(add_tweak, QApplication.instance().doc.content)
     QApplication.instance().action_manager.push(action)
     QApplication.instance().doc.updated(action(), dirty=True)
+
+    return add_tweak, None
 
 
 def split_face(*splits: tuple[Hedge, float]):
@@ -330,8 +331,8 @@ def join_edges(*edges: Iterable[Edge] | Iterable[Hedge]) -> tuple[Tweak, Tweak]:
         node_to_new_node[hedge1.tail] = node_to_new_node[hedge2.head] = new_node2
         midpoint1 = midpoint(hedge1.head.pos.to_tuple(), hedge2.tail.pos.to_tuple())
         midpoint2 = midpoint(hedge1.tail.pos.to_tuple(), hedge2.head.pos.to_tuple())
-        node_to_new_pos[new_node1] = QPointF(*midpoint1)
-        node_to_new_pos[new_node2] = QPointF(*midpoint2)
+        node_to_new_pos[new_node1] = midpoint1
+        node_to_new_pos[new_node2] = midpoint2
 
         print('')
         print('    mapping:')
@@ -346,8 +347,10 @@ def join_edges(*edges: Iterable[Edge] | Iterable[Hedge]) -> tuple[Tweak, Tweak]:
         # Nodes.
         rem_tweak.nodes.add(node.data)
         add_tweak.nodes.add(new_node)
-        rem_tweak.node_attrs[node.data]['pos'] = node.pos
-        add_tweak.node_attrs[new_node]['pos'] = node_to_new_pos[new_node]
+        rem_tweak.node_attrs[node.data]['x'] = node.get_attribute('x')
+        rem_tweak.node_attrs[node.data]['y'] = node.get_attribute('y')
+        add_tweak.node_attrs[new_node]['x'] = node_to_new_pos[new_node][0]
+        add_tweak.node_attrs[new_node]['y'] = node_to_new_pos[new_node][1]
 
         # Edges.
         for in_hedge in node.in_hedges:
@@ -362,7 +365,8 @@ def join_edges(*edges: Iterable[Edge] | Iterable[Hedge]) -> tuple[Tweak, Tweak]:
         # Faces.
         rem_tweak.faces.update({face.data for face in node.faces})
         for face in node.faces:
-            add_tweak.faces.add(tuple([node_to_new_node.get(node, node.data) for node in face.nodes]))
+            face_nodes = tuple([node_to_new_node.get(node, node.data) for node in face.nodes])
+            add_tweak.faces.add(face_nodes)
 
     print('\nrem tweak:')
     print(rem_tweak)
@@ -378,3 +382,9 @@ def join_edges(*edges: Iterable[Edge] | Iterable[Hedge]) -> tuple[Tweak, Tweak]:
     QApplication.instance().doc.updated(action(), dirty=False)
 
     return add_tweak, rem_tweak
+
+
+def set_attribute(obj: object, name: str, value: object):
+    action = SetElementAttribute(name, value, obj)
+    QApplication.instance().action_manager.push(action)
+    QApplication.instance().doc.updated(action())

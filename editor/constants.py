@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from enum import Enum, IntEnum, auto
 
 
@@ -23,5 +25,17 @@ class SelectionMode(IntEnum):
 
 class MapFormat(Enum):
 
+    # TODO: Do all build versions get lumped here with other non-game types?
+
     DUKE_3D = 'Duke Nukem 3D (*.map)'
     BLOOD = 'Blood (*.map)'
+    GEXF = 'Graph Exchange XML (*.gexf)'
+
+
+ATTRIBUTES = 'attributes'
+NODE_DEFAULT = 'node_default'
+EDGE_DEFAULT = 'edge_default'
+FACE_DEFAULT = 'face_default'
+FACES = 'faces'
+FACE = 'face'
+IS_SELECTED = 'is_selected'
