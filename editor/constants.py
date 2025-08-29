@@ -30,6 +30,7 @@ class MapFormat(Enum):
     DUKE_3D = 'Duke Nukem 3D (*.map)'
     BLOOD = 'Blood (*.map)'
     GEXF = 'Graph Exchange XML (*.gexf)'
+    DOOM = 'Doom WAD (*.map)'
 
 
 ATTRIBUTES = 'attributes'
