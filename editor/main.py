@@ -112,7 +112,13 @@ class MainWindow(MainWindowBase):
         #self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\editor\tests\data\2_squares.map')
         #self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\test5.map')
 
+        #self.import_event()
+
+        mapio.import_doom(self.app().doc.content, r'C:\Program Files (x86)\GOG Galaxy\Games\DOOM\DOOM.WAD', MapFormat.DOOM)
+
         self.app().doc.updated(dirty=False)
+
+
 
         #self.app().doc.file_path = r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\out.map'
         #self.app().doc.save()
@@ -427,8 +433,16 @@ class MainWindow(MainWindowBase):
         file_path, file_format = QFileDialog.get_open_file_name(caption='Import', filter=file_formats)
         if not file_path:
             return False
-        mapio.import_map(self.app().doc.content, file_path, MapFormat(file_format))
-        self.app().doc.updated(dirty=False)
+        #mapio.import_map(self.app().doc.content, file_path, MapFormat(file_format))
+        #self.app().doc.updated(dirty=False)
+
+        # TODO: Would make more sense to have plugin architecture to map each
+        # format to each exporter.
+        map_format = MapFormat(file_format)
+        if map_format == MapFormat.DOOM:
+            mapio.import_doom(self.app().doc.content, file_path, MapFormat(file_format))
+        else:
+            mapio.import_map(self.app().doc.content, file_path, MapFormat(file_format))
 
     def export_event(self):
         file_formats = ';;'.join([fmt.value for fmt in MapFormat])
