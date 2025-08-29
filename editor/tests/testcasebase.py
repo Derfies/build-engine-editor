@@ -12,8 +12,8 @@ class TestCaseBase(unittest.TestCase):
         nodes = tuple(range(num_existing_nodes, num_existing_nodes + num_nodes))
         for i, node in enumerate(nodes):
             graph.add_node(node, x=points[i][0], y=points[i][1])
-        hedges = [(nodes[i], nodes[(i + 1) % num_nodes]) for i in range(num_nodes)]
-        for hedge in hedges:
-            graph.add_hedge(hedge)
+        edges = [(nodes[i], nodes[(i + 1) % num_nodes]) for i in range(num_nodes)]
+        for edge in edges:
+            graph.add_edge(edge)
         graph.add_face(nodes)
         graph.update()

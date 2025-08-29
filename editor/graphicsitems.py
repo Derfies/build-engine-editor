@@ -13,7 +13,7 @@ NODE_RADIUS = 2
 
 class GraphicsItemBaseMixin:
 
-    def __init__(self, element: Edge | Node | Face, *args, **kwargs):
+    def __init__(self, element: Node | Edge | Face, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.pen = None
