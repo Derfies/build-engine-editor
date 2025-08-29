@@ -214,10 +214,18 @@ class GraphicsScene(QGraphicsScene):
                 self.add_item(node_item)
                 self._node_to_node_item[node] = node_item
                 self.points.append(node_item.pos())
+
+            # for edge in doc.content.edges:
+            #     #logger.debug(f'Adding edge: {edge}')
+            #     edge_item = EdgeGraphicsItem(edge)
+            #     self.add_item(edge_item)
+
+            # TODO: Dont draw double edges.
             for edge in doc.content.edges:
                 #logger.debug(f'Adding edge: {edge}')
                 edge_item = EdgeGraphicsItem(edge)
                 self.add_item(edge_item)
+
             for face in doc.content.faces:
                 #logger.debug(f'Adding face: {face}')
                 face_item = FaceGraphicsItem(face)
@@ -231,7 +239,6 @@ class GraphicsScene(QGraphicsScene):
             # self._node_to_items.clear()
             # self._node_to_node_item.clear()
             for item in self.items():
-
                 item_nodes = item.element().nodes
                 self._item_to_nodes[item] = set(item_nodes)
                 for node in item_nodes:

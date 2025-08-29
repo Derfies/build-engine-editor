@@ -22,7 +22,7 @@ def import_map(graph: Graph, file_path: str | Path, format: MapFormat):
 
     # Add default attribute definitions.
     for field in fields(Wall):
-        graph.add_hedge_attribute_definition(field.name, field.default)
+        graph.add_edge_attribute_definition(field.name, field.default)
     for field in fields(Sector):
         graph.add_face_attribute_definition(field.name, field.default)
 
@@ -127,9 +127,9 @@ def import_map(graph: Graph, file_path: str | Path, format: MapFormat):
     print('\nedges:')
     for edge in graph.edges:
         print('    ->', edge)
-    print('\nhedges:')
-    for hedge in graph.hedges:
-        print('    ->', hedge, '->', hedge.face)
+    print('\nedges:')
+    for edge in graph.edges:
+        print('    ->', edge, '->', edge.face)
     print('\nfaces:')
     for face in graph.faces:
         print('    ->', face)
@@ -158,7 +158,7 @@ def export_map(graph: Graph, file_path: str, format: MapFormat):
     }[format]
     m = map_cls()
 
-    hedges = []
+    edges = []
     edge_to_next_edge = {}
 
     wallptr = 0
@@ -168,13 +168,13 @@ def export_map(graph: Graph, file_path: str, format: MapFormat):
         sector_data = Sector(**face.get_attributes())
         sector_data.wallptr = wallptr
         sector_data.wallnum = len(face.data)
-        for i, hedge in enumerate(face.hedges):
-            wall_data = Wall(**hedge.get_attributes())
-            wall_data.x = int(hedge.head.pos.x())
-            wall_data.y = int(hedge.head.pos.y())
-            hedges.append(hedge)
+        for i, edge in enumerate(face.edges):
+            wall_data = Wall(**edge.get_attributes())
+            wall_data.x = int(edge.head.pos.x())
+            wall_data.y = int(edge.head.pos.y())
+            edges.append(edge)
             m.walls.append(wall_data)
-            edge_to_next_edge[hedge] = face.hedges[(i + 1) % len(face.hedges)]
+            edge_to_next_edge[edge] = face.edges[(i + 1) % len(face.edges)]
         m.sectors.append(sector_data)
         sector += 1
         wallptr += len(face.nodes)
@@ -186,22 +186,25 @@ def export_map(graph: Graph, file_path: str, format: MapFormat):
     #     print(foo, '->', bar)
 
     # Now we have all walls, go back through and fixup the point2.
-    for wall, hedge in enumerate(hedges):
+    for wall, edge in enumerate(edges):
         wall_data = m.walls[wall]
-        next_edge = edge_to_next_edge[hedge]
-        wall_data.point2 = hedges.index(next_edge)
+        next_edge = edge_to_next_edge[edge]
+        wall_data.point2 = edges.index(next_edge)
 
     # Do portals.
-    for wall, hedge in enumerate(hedges):
+    for wall, edge in enumerate(edges):
 
-        head, tail = hedge.head, hedge.tail
-        if graph.has_hedge(tail, head):
-            rhedge = graph.get_hedge(tail, head)
-            next_sector = faces.index(rhedge.face)
+        head, tail = edge.head, edge.tail
+        if graph.has_edge(tail, head):
+            redge = graph.get_edge(tail, head)
+            try:
+                next_sector = faces.index(redge.face)
+            except:
+                continue
 
             wall_data = m.walls[wall]
             wall_data.nextsector = next_sector
-            wall_data.nextwall = hedges.index(rhedge)
+            wall_data.nextwall = edges.index(redge)
 
     print('\nheader')
     print(m.header)

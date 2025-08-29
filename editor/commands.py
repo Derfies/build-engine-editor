@@ -12,7 +12,7 @@ from shapely.ops import split as split_ops
 from applicationframework.actions import Composite, SetAttribute
 from editor.actions import Add, Remove, SetElementAttribute, Tweak
 from editor.constants import IS_SELECTED
-from editor.graph import Edge, Face, Hedge, Node
+from editor.graph import Face, Edge, Node
 from editor.maths import lerp, long_line_through, midpoint
 from editor.updateflag import UpdateFlag
 
@@ -24,7 +24,7 @@ NORMAL_TOLERANCE = 0
 MAX_DISTANCE = 10000.0
 
 
-def select_elements(elements: Iterable[Node] | Iterable[Edge] | Iterable[Hedge] | Iterable[Face]):
+def select_elements(elements: Iterable[Node] | Iterable[Edge] | Iterable[Face]):
     actions = []
     for element in QApplication.instance().doc.selected_elements:
         actions.append(SetAttribute(IS_SELECTED, False, element))
@@ -43,11 +43,11 @@ def remove_elements(elements: set[Node] | set[Edge] | set[Face]):
     for element in elements:
         if isinstance(element, Node):
             tweak.nodes.add(element.data)
-            tweak.hedges.update([hedge.data for hedge in element.hedges])
+            tweak.edges.update([edge.data for edge in element.edges])
             tweak.faces.update([face.data for face in element.faces])
             tweak.node_attrs[element.data]['pos'] = element.pos
         if isinstance(element, Edge):
-            tweak.hedges.update([hedge.data for hedge in element.hedges])
+            tweak.edges.update([edge.data for edge in element.edges])
             tweak.faces.update([face.data for face in element.faces])
         if isinstance(element, Face):
             tweak.faces.add(element.data)
@@ -75,17 +75,17 @@ def add_face(points: Iterable[tuple]):
 
     add_tweak = Tweak()
     nodes = [str(uuid.uuid4()) for _ in range(len(coords))]
-    hedges = []
+    edges = []
     face = tuple(nodes)
     for i in range(len(nodes)):
         head = nodes[i]
         tail = nodes[(i + 1) % len(nodes)]
-        hedges.append((head, tail))
+        edges.append((head, tail))
         add_tweak.node_attrs[nodes[i]]['x'] = coords[i][0]
         add_tweak.node_attrs[nodes[i]]['y'] = coords[i][1]
 
     add_tweak.nodes.update(nodes)
-    add_tweak.hedges.update(hedges)
+    add_tweak.edges.update(edges)
     add_tweak.faces.add(face)
 
     action = Add(add_tweak, QApplication.instance().doc.content)
@@ -95,12 +95,12 @@ def add_face(points: Iterable[tuple]):
     return add_tweak, None
 
 
-def split_face(*splits: tuple[Hedge, float]):
+def split_face(*splits: tuple[Edge, float]):
 
     print('\nsplits:')
     for i, split in enumerate(splits):
-        hedge, pct = split
-        print(i, '->', hedge, pct)
+        edge, pct = split
+        print(i, '->', edge, pct)
 
     # Remove those edges to be split.
     add_tweak = Tweak()
@@ -110,23 +110,23 @@ def split_face(*splits: tuple[Hedge, float]):
 
     last_cut_point = None
     for i, split in enumerate(splits):
-        hedge, pct = split
-        cut_point = lerp(hedge.head.pos, hedge.tail.pos, pct)
+        edge, pct = split
+        cut_point = lerp(edge.head.pos, edge.tail.pos, pct)
 
-        rem_tweak.hedges.add(hedge.data)
+        rem_tweak.edges.add(edge.data)
 
-        if hedge.face is not None:
-            rem_tweak.faces.add(hedge.face.data)
+        if edge.face is not None:
+            rem_tweak.faces.add(edge.face.data)
 
         #if i > 0:
         if i % 2:
 
-            if hedge.face is None:
-                print('skip hedge:', hedge)
+            if edge.face is None:
+                print('skip edge:', edge)
                 continue
 
             # Create Shapely cut line and polygon.
-            face_nodes = hedge.face.nodes
+            face_nodes = edge.face.nodes
             x1, y1 = cut_point.to_tuple()
             x2, y2 = last_cut_point.to_tuple()
             #cut_line = LineString(((x1, y1), (x2, y2)))
@@ -223,10 +223,10 @@ def split_face(*splits: tuple[Hedge, float]):
             add_tweak.node_attrs.update(face1)
             add_tweak.node_attrs.update(face2)
 
-            add_tweak.hedges.update([
+            add_tweak.edges.update([
                 (nodes1[i], nodes1[(i + 1) % len(nodes1)]) for i in range(len(nodes1))
             ])
-            add_tweak.hedges.update([
+            add_tweak.edges.update([
                 (nodes2[i], nodes2[(i + 1) % len(nodes2)]) for i in
                 range(len(nodes2))
             ])
@@ -245,92 +245,92 @@ def split_face(*splits: tuple[Hedge, float]):
     QApplication.instance().doc.updated(action(), dirty=False)
 
 
-def find_all_candidate_matches(hedges: Iterable[Hedge], max_distance: float = 50.0, normal_tolerance: float = 0.0):
+def find_all_candidate_matches(edges: Iterable[Edge], max_distance: float = 50.0, normal_tolerance: float = 0.0):
     candidates = []
-    for i, (hedge1, hedge2) in enumerate(combinations(hedges, 2)):
+    for i, (edge1, edge2) in enumerate(combinations(edges, 2)):
 
-        # Don't attempt to match hedges that belong to the same face.
-        if hedge1.face == hedge2.face:
+        # Don't attempt to match edges that belong to the same face.
+        if edge1.face == edge2.face:
             continue
 
         # Ignore when edge normals aren't pointed roughly towards each other.
-        n1 = hedge1.normal
-        n2 = hedge2.normal
+        n1 = edge1.normal
+        n2 = edge2.normal
         if np.dot(n1, n2) > normal_tolerance:
             continue
 
         # Don't merge if edge midpoints are too far apart.
-        mid1 = LineString((hedge1.head.pos.to_tuple(), hedge1.tail.pos.to_tuple())).interpolate(0.5, normalized=True)
-        mid2 = LineString((hedge2.head.pos.to_tuple(), hedge2.tail.pos.to_tuple())).interpolate(0.5, normalized=True)
+        mid1 = LineString((edge1.head.pos.to_tuple(), edge1.tail.pos.to_tuple())).interpolate(0.5, normalized=True)
+        mid2 = LineString((edge2.head.pos.to_tuple(), edge2.tail.pos.to_tuple())).interpolate(0.5, normalized=True)
         dist = mid1.distance(mid2)
         if dist > max_distance:
             continue
 
-        candidates.append((dist, hedge1, hedge2))
+        candidates.append((dist, edge1, edge2))
 
     # Sort all valid candidates by score.
     candidates.sort(key=lambda c: c[0])
     return candidates
 
 
-def join_edges(*edges: Iterable[Edge] | Iterable[Hedge]) -> tuple[Tweak, Tweak]:
+def join_edges(*edges: Iterable[Edge]) -> tuple[Tweak, Tweak]:
 
-    # TODO: Decide what func sig should look like. Does it take hedges or edges?
+    # TODO: Decide what func sig should look like. Does it take edges or edges?
     # If this is meant to be a programmer's interface, it should probably not be ambiguous
     # Only joins faces to other faces. Even though the editor techincally supports
     # face-less edges, for the purposes of joining edges that feels like a restriction
     # we can make.
-    hedges = set()
-    for edge in edges:
-        if isinstance(edge, Edge):
-            hedges.update(edge.hedges)
-        else:
-            hedges.add(edge)
+    # edges = set()
+    # for edge in edges:
+    #     # if isinstance(edge, Edge):
+    #     #     edges.update(edge.edges)
+    #     # else:
+    #     edges.add(edge)
 
 
-    print('hedges:', hedges)
-    groups = find_all_candidate_matches(hedges, MAX_DISTANCE, NORMAL_TOLERANCE)
+    print('edges:', edges)
+    groups = find_all_candidate_matches(edges, MAX_DISTANCE, NORMAL_TOLERANCE)
     print('\ngroups:')
-    for _, hedge1, hedge2 in groups:
-        print('    hedge1, hedge2:', hedge1, hedge2)
+    for _, edge1, edge2 in groups:
+        print('    edge1, edge2:', edge1, edge2)
 
     # Create maps for new node names and positions.
     matched = set()
     node_to_new_node = {}
     node_to_new_pos = {}
-    for _, hedge1, hedge2 in groups:
+    for _, edge1, edge2 in groups:
 
-        if hedge1 in matched or hedge2 in matched:
+        if edge1 in matched or edge2 in matched:
             continue
-        matched.add(hedge1)
-        matched.add(hedge2)
+        matched.add(edge1)
+        matched.add(edge2)
 
-        print('\nhedge1, hedge2:', hedge1, hedge2)
-        new_node1 = node_to_new_node.get(hedge1.head, node_to_new_node.get(hedge2.tail))#, str(uuid.uuid4()))
-        new_node2 = node_to_new_node.get(hedge1.tail, node_to_new_node.get(hedge2.head))#, str(uuid.uuid4()))
+        print('\nedge1, edge2:', edge1, edge2)
+        new_node1 = node_to_new_node.get(edge1.head, node_to_new_node.get(edge2.tail))#, str(uuid.uuid4()))
+        new_node2 = node_to_new_node.get(edge1.tail, node_to_new_node.get(edge2.head))#, str(uuid.uuid4()))
 
-        print('    hedge1.head:', hedge1.head)
-        print('    hedge2.tail:', hedge2.tail)
+        print('    edge1.head:', edge1.head)
+        print('    edge2.tail:', edge2.tail)
         print('    new_node1:', new_node1)
 
-        # Do we need to search for the equivalent hedge2 head / tail if the above
+        # Do we need to search for the equivalent edge2 head / tail if the above
         # cannot be found?
         if new_node1 is None:
             new_node1 = str(uuid.uuid4())
             print('    create new_node1:', new_node1)
 
         print('')
-        print('    hedge1.tail:', hedge1.tail)
-        print('    hedge2.head:', hedge2.head)
+        print('    edge1.tail:', edge1.tail)
+        print('    edge2.head:', edge2.head)
         print('    new_node2:', new_node2)
 
         if new_node2 is None:
             new_node2 = str(uuid.uuid4())
             print('    create new_node2:', new_node2)
-        node_to_new_node[hedge1.head] = node_to_new_node[hedge2.tail] = new_node1
-        node_to_new_node[hedge1.tail] = node_to_new_node[hedge2.head] = new_node2
-        midpoint1 = midpoint(hedge1.head.pos.to_tuple(), hedge2.tail.pos.to_tuple())
-        midpoint2 = midpoint(hedge1.tail.pos.to_tuple(), hedge2.head.pos.to_tuple())
+        node_to_new_node[edge1.head] = node_to_new_node[edge2.tail] = new_node1
+        node_to_new_node[edge1.tail] = node_to_new_node[edge2.head] = new_node2
+        midpoint1 = midpoint(edge1.head.pos.to_tuple(), edge2.tail.pos.to_tuple())
+        midpoint2 = midpoint(edge1.tail.pos.to_tuple(), edge2.head.pos.to_tuple())
         node_to_new_pos[new_node1] = midpoint1
         node_to_new_pos[new_node2] = midpoint2
 
@@ -353,14 +353,14 @@ def join_edges(*edges: Iterable[Edge] | Iterable[Hedge]) -> tuple[Tweak, Tweak]:
         add_tweak.node_attrs[new_node]['y'] = node_to_new_pos[new_node][1]
 
         # Edges.
-        for in_hedge in node.in_hedges:
-            rem_tweak.hedges.add(in_hedge.data)
-            new_in_hedge = (node_to_new_node.get(in_hedge.head, in_hedge.head.data), node_to_new_node[in_hedge.tail])
-            add_tweak.hedges.add(new_in_hedge)
-        for out_hedge in node.out_hedges:
-            rem_tweak.hedges.add(out_hedge.data)
-            new_out_hedge = (node_to_new_node[out_hedge.head], node_to_new_node.get(out_hedge.tail, out_hedge.tail.data))
-            add_tweak.hedges.add(new_out_hedge)
+        for in_edge in node.in_edges:
+            rem_tweak.edges.add(in_edge.data)
+            new_in_edge = (node_to_new_node.get(in_edge.head, in_edge.head.data), node_to_new_node[in_edge.tail])
+            add_tweak.edges.add(new_in_edge)
+        for out_edge in node.out_edges:
+            rem_tweak.edges.add(out_edge.data)
+            new_out_edge = (node_to_new_node[out_edge.head], node_to_new_node.get(out_edge.tail, out_edge.tail.data))
+            add_tweak.edges.add(new_out_edge)
 
         # Faces.
         rem_tweak.faces.update({face.data for face in node.faces})
