@@ -27,9 +27,14 @@ class Entity:
     position: QVector3D = field(default_factory=QVector3D)
 
 
+def build_shade_to_brightness(shade: int, mode="dark_only") -> float:
+    shade = max(0, min(64, shade))  # clamp
+    return 1.0 - (shade / 64.0)
+
+
 class Mesh:
 
-    def __init__(self, vertices: np.ndarray):
+    def __init__(self, vertices: np.ndarray, shade: float = 1.0):
         self.vertex_count = len(vertices)
         self.vbo = QOpenGLBuffer(QOpenGLBuffer.VertexBuffer)
         self.vbo.create()
@@ -39,6 +44,8 @@ class Mesh:
 
         self.vao = QOpenGLVertexArrayObject()
         self.vao.create()
+
+        self.shade = shade
 
     def bind(self, program):
         self.vao.bind()
@@ -116,9 +123,10 @@ class Viewport(QOpenGLWidget):
             return
 
         #self.block_signals(True)
+        start = time.time()
         if flags != UpdateFlag.SELECTION and flags != UpdateFlag.SETTINGS:
 
-            start = time.time()
+
 
             print('FULL UPDATE')
 
@@ -132,6 +140,12 @@ class Viewport(QOpenGLWidget):
 
                 for face in doc.content.faces:
 
+                    floor_shade = face.get_attribute('floorshade')
+                    ceiling_shade = face.get_attribute('ceilingshade')
+
+                    y1 = face.get_attribute('floorz') / -16
+                    y2 = face.get_attribute('ceilingz') / -16
+
                     sector = Polygon([node.pos.to_tuple() for node in face.nodes])
                     sector = orient(sector, sign=1.0)
                     triangles = triangulate(sector)
@@ -142,19 +156,41 @@ class Viewport(QOpenGLWidget):
                         for coord in tri.exterior.coords[:-1]:
 
                             # NOTE: Ratio of z axis to other axes is 16:1.
-                            floor_vertices.append((coord[0], face.get_attribute('floorz') / -16, coord[1]))
-                            ceiling_vertices.append((coord[0], face.get_attribute('ceilingz') / -16, coord[1]))
+                            floor_vertices.append((coord[0], y1, coord[1]))
+                            ceiling_vertices.append((coord[0], y2, coord[1]))
 
-                    quad = Mesh(np.array(floor_vertices, dtype=np.float32))
+                    quad = Mesh(np.array(floor_vertices, dtype=np.float32), shade=build_shade_to_brightness(floor_shade))
                     quad.bind(self.program)
                     self.meshes.append(quad)
 
-                    #print(np.array(ceiling_vertices, dtype=np.float32))
-                    #print(np.array(list(reversed(ceiling_vertices)), dtype=np.float32))
-
-                    quad2 = Mesh(np.array(list(reversed(ceiling_vertices)), dtype=np.float32))
+                    quad2 = Mesh(np.array(ceiling_vertices, dtype=np.float32)[::-1], shade=build_shade_to_brightness(ceiling_shade))
                     quad2.bind(self.program)
                     self.meshes.append(quad2)
+
+                    # Do walls.
+                    for i in range(len(sector.exterior.coords) - 1):
+                        wall_shade = face.edges[i].get_attribute('shade')
+                        #print(wall_shade)
+                        xz1 = sector.exterior.coords[i]
+                        xz2 = sector.exterior.coords[i + 1]
+                        tri1 = [
+                            [xz2[0], y2, xz2[1]],
+                            [xz2[0], y1, xz2[1]],
+                            [xz1[0], y1, xz1[1]],
+                        ]
+                        tri1_mesh = Mesh(np.array(tri1, dtype=np.float32), shade=build_shade_to_brightness(wall_shade))
+                        tri1_mesh.bind(self.program)
+                        self.meshes.append(tri1_mesh)
+
+                        tri2 = [
+                            [xz1[0], y1, xz1[1]],
+                            [xz1[0], y2, xz1[1]],
+                            [xz2[0], y2, xz2[1]],
+                        ]
+                        tri2_mesh = Mesh(np.array(tri2, dtype=np.float32), shade=build_shade_to_brightness(wall_shade))
+                        tri2_mesh.bind(self.program)
+                        self.meshes.append(tri2_mesh)
+
 
             except Exception as e:
                 traceback.print_exc()
@@ -163,8 +199,8 @@ class Viewport(QOpenGLWidget):
 
             self.update()
 
-            end = time.time()
-            print('viewport:', end - start)
+        end = time.time()
+        print('viewport:', end - start)
 
         #self.block_signals(False)
 
@@ -178,20 +214,21 @@ class Viewport(QOpenGLWidget):
 
         self.program = QOpenGLShaderProgram()
         self.program.add_shader_from_source_code(QOpenGLShader.Vertex, """
-                    #version 330
-                    layout(location = 0) in vec3 position;
-                    uniform mat4 mvp;
-                    void main() {
-                        gl_Position = mvp * vec4(position, 1.0);
-                    }
-                """)
+            #version 330
+            layout(location = 0) in vec3 position;
+            uniform mat4 mvp;
+            void main() {
+                gl_Position = mvp * vec4(position, 1.0);
+            }
+        """)
         self.program.add_shader_from_source_code(QOpenGLShader.Fragment, """
-                    #version 330
-                    out vec4 fragColor;
-                    void main() {
-                        fragColor = vec4(1.0, 0.5, 0.2, 1.0);
-                    }
-                """)
+            #version 330
+            out vec4 fragColor;
+            uniform float shade;
+            void main() {
+                fragColor =  vec4(vec3(1.0, 0.5, 0.2) * shade, 1.0);
+            }
+        """)
         self.program.link()
 
         self.camera = OrbitCamera()
@@ -218,8 +255,11 @@ class Viewport(QOpenGLWidget):
         view = self.camera.get_view_matrix()
         self.program.bind()
         self.program.set_uniform_value('mvp', proj * view)
+
         for mesh in self.meshes:
-            #print('mesh:', mesh)
+            loc = self.program.uniform_location('shade')
+            self.program.set_uniform_value1f(loc, mesh.shade)
+
             mesh.draw(self.gl)
         self.program.release()
 
