@@ -32,7 +32,6 @@ class MapioTestCase(TestCaseBase):
         # Assert results.
         self.assertEqual(len(g.nodes), 4)
         self.assertEqual(len(g.edges), 4)
-        self.assertEqual(len(g.edges), 4)
         self.assertEqual(len(g.faces), 1)
 
     def test_load_2_squares(self):
@@ -50,7 +49,6 @@ class MapioTestCase(TestCaseBase):
 
         # Assert results.
         self.assertEqual(len(g.nodes), 6)
-        #self.assertEqual(len(g.edges), 7)
         self.assertEqual(len(g.edges), 8)
         self.assertEqual(len(g.faces), 2)
 
@@ -71,7 +69,6 @@ class MapioTestCase(TestCaseBase):
 
         # Assert results.
         self.assertEqual(len(g.nodes), 8)
-        #self.assertEqual(len(g.edges), 10)
         self.assertEqual(len(g.edges), 12)
         self.assertEqual(len(g.faces), 3)
 
@@ -92,7 +89,6 @@ class MapioTestCase(TestCaseBase):
 
         # Assert results.
         self.assertEqual(len(g.nodes), 9)
-        #self.assertEqual(len(g.edges), 12)
         self.assertEqual(len(g.edges), 16)
         self.assertEqual(len(g.faces), 4)
 

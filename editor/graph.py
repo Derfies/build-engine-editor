@@ -250,7 +250,6 @@ class Graph(ContentBase):
         self.undirected_data = self.data.to_undirected()
 
         for face in self.data.graph[FACES]:
-            print('UPDATE FACE:', face, type(face))
             face_ = self.get_face(face)
             self.face_to_nodes[face].extend([self.get_node(node) for node in face])
 

@@ -215,11 +215,6 @@ class GraphicsScene(QGraphicsScene):
                 self._node_to_node_item[node] = node_item
                 self.points.append(node_item.pos())
 
-            # for edge in doc.content.edges:
-            #     #logger.debug(f'Adding edge: {edge}')
-            #     edge_item = EdgeGraphicsItem(edge)
-            #     self.add_item(edge_item)
-
             # TODO: Dont draw double edges.
             for edge in doc.content.edges:
                 #logger.debug(f'Adding edge: {edge}')

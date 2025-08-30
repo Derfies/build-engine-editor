@@ -275,19 +275,7 @@ def find_all_candidate_matches(edges: Iterable[Edge], max_distance: float = 50.0
 
 def join_edges(*edges: Iterable[Edge]) -> tuple[Tweak, Tweak]:
 
-    # TODO: Decide what func sig should look like. Does it take edges or edges?
-    # If this is meant to be a programmer's interface, it should probably not be ambiguous
-    # Only joins faces to other faces. Even though the editor techincally supports
-    # face-less edges, for the purposes of joining edges that feels like a restriction
-    # we can make.
-    # edges = set()
-    # for edge in edges:
-    #     # if isinstance(edge, Edge):
-    #     #     edges.update(edge.edges)
-    #     # else:
-    #     edges.add(edge)
-
-
+    # TODO: Decide what func sig should look like. Does it take edges or hedges?
     print('edges:', edges)
     groups = find_all_candidate_matches(edges, MAX_DISTANCE, NORMAL_TOLERANCE)
     print('\ngroups:')

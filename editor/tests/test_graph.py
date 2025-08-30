@@ -104,16 +104,11 @@ class GraphTestCase(TestCaseBase):
 
         # Set up test data.
         g = Graph(foo=True)
-        # g.data.graph[NODE_DEFAULT]['x'] = 0.1
-        # g.data.graph[NODE_DEFAULT]['y'] = 0.2
-        # g.data.graph[NODE_DEFAULT]['bar'] = 2
-        # g.data.graph[EDGE_DEFAULT]['baz'] = 3.0
-        # g.data.graph[FACE_DEFAULT]['qux'] = 'four'
-        g.add_node_attribute_definition('x', 0.1)
-        g.add_node_attribute_definition('y', 0.2)
-        g.add_node_attribute_definition('bar', 2)
-        g.add_edge_attribute_definition('baz', 3.0)
-        g.add_face_attribute_definition('qux', 'four')
+        g.data.graph[NODE_DEFAULT]['x'] = 0.1
+        g.data.graph[NODE_DEFAULT]['y'] = 0.2
+        g.data.graph[NODE_DEFAULT]['bar'] = 2
+        g.data.graph[EDGE_DEFAULT]['baz'] = 3.0
+        g.data.graph[FACE_DEFAULT]['qux'] = 'four'
         self.create_polygon(g, (0, 0), (1, 0), (1, 1), (0, 1))
 
         handle, file_path = tempfile.mkstemp()
@@ -126,7 +121,6 @@ class GraphTestCase(TestCaseBase):
             # Assert results.
             with open(file_path, 'r') as f:
                 data = json.load(f)
-            print(json.dumps(data, indent=2))
             self.assertDictEqual(data['graph'][ATTRIBUTES], {'foo': True})
             self.assertDictEqual(data['graph'][NODE_DEFAULT], {'x': 0.1, 'y': 0.2, 'bar': 2})
             self.assertDictEqual(data['graph'][EDGE_DEFAULT], {'baz': 3.0})
