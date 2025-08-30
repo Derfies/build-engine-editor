@@ -245,6 +245,7 @@ class Viewport(QOpenGLWidget):
         self.gl.glViewport(0, 0, w, h)
 
     def paintGL(self):
+        start = time.time()
         #print('PAINT')
         self.gl.glClearColor(0.1, 0.1, 0.1, 1.0)
         self.gl.glClear(GL_COLOR_BUFFER_BIT)
@@ -262,6 +263,9 @@ class Viewport(QOpenGLWidget):
 
             mesh.draw(self.gl)
         self.program.release()
+
+        end = time.time()
+        #print('viewport:', end - start)
 
     def mouse_press_event(self, event):
         self.last_mouse_pos = event.position().to_point()
@@ -317,19 +321,3 @@ class Viewport(QOpenGLWidget):
     def wheel_event(self, event):
         self.camera.zoom(0.9 if event.angle_delta().y() > 0 else 1.1)
         self.update()
-
-
-class MainWindow(QMainWindow):
-
-    def __init__(self):
-        super().__init__()
-        self.set_window_title("OpenGL Triangle")
-        self.set_central_widget(Viewport())
-        self.resize(600, 600)
-
-
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    window = MainWindow()
-    window.show()
-    sys.exit(app.exec())

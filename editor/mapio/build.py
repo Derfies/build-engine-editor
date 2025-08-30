@@ -6,13 +6,12 @@ from pathlib import Path
 from editor.constants import ATTRIBUTES, FACES
 from editor.constants import MapFormat
 from editor.graph import Graph
-from editor.readwrite import write_gexf
 from gameengines.build.blood import Map as BloodMap, MapReader as BloodMapReader, MapWriter as BloodMapWriter
 from gameengines.build.duke3d import Map as Duke3dMap, MapReader as Duke3dMapReader, MapWriter as Duke3dMapWriter
 from gameengines.build.map import Sector, Wall
 
 
-def import_map(graph: Graph, file_path: str | Path, format: MapFormat):
+def import_build(graph: Graph, file_path: str | Path, format: MapFormat):
 
     # TODO: Pass the graph in or just create a new one? I suppose we want to support
     # merging via imports.
@@ -135,22 +134,7 @@ def import_map(graph: Graph, file_path: str | Path, format: MapFormat):
         print('    ->', face)
 
 
-def export_gexf(graph: Graph, file_path: str, format: MapFormat):
-    g = graph.data.copy()
-
-    # Move all attribute dicts to the root of the element so the exporter picks
-    # them up. Node coords require special treatment for the GEXF format.
-    g.graph.update(g.graph.pop(ATTRIBUTES))
-    for node, attrs in g.nodes(data=True):
-        attrs.update(attrs.pop(ATTRIBUTES))
-        attrs['viz'] = {'position': {'x': attrs.pop('x'), 'y': attrs.pop('y'), 'z': 0}}
-    for head, tail, attrs in g.edges(data=True):
-        attrs.update(attrs.pop(ATTRIBUTES))
-
-    write_gexf(g, file_path)
-
-
-def export_map(graph: Graph, file_path: str, format: MapFormat):
+def export_build(graph: Graph, file_path: str, format: MapFormat):
 
     map_cls = {
         MapFormat.BLOOD: BloodMap,

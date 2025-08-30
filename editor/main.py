@@ -14,14 +14,16 @@ from applicationframework.application import Application
 from applicationframework.document import Document
 from applicationframework.mainwindow import MainWindow as MainWindowBase
 from editor import commands
-from editor import mapio
-from editor.constants import MapFormat, ModalTool, SelectionMode
 from editor.constants import EDGE_DEFAULT, FACE_DEFAULT
+from editor.constants import MapFormat, ModalTool, SelectionMode
 from editor.editorpropertygrid import PropertyGrid
 from editor.graph import Graph
 from editor.graphicsscene import GraphicsScene
 from editor.graphicsview import GraphicsView
 from editor.mapdocument import MapDocument
+from editor.mapio import build
+from editor.mapio import doom
+from editor.mapio import gexf
 from editor.preferencesdialog import PreferencesDialog
 from editor.settings import ColourSettings, GeneralSettings, GridSettings, HotkeySettings, PlaySettings
 from editor.updateflag import UpdateFlag
@@ -37,6 +39,16 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_COMPANY_NAME = 'Enron'
 DEFAULT_APP_NAME = 'Build Engine Map Editor'
+IMPORTERS = {
+    MapFormat.BLOOD: build.import_build,
+    MapFormat.DUKE_3D: build.import_build,
+    MapFormat.DOOM: doom.import_doom,
+}
+EXPORTERS = {
+    MapFormat.BLOOD: build.export_build,
+    MapFormat.DUKE_3D: build.export_build,
+    MapFormat.GEXF: gexf.export_gexf,
+}
 
 
 class MainWindow(MainWindowBase):
@@ -112,7 +124,13 @@ class MainWindow(MainWindowBase):
         #self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\editor\tests\data\2_squares.map')
         #self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\test5.map')
 
+        #self.import_event()
+
+        #mapio.doom.import_doom(self.app().doc.content, r'C:\Program Files (x86)\GOG Galaxy\Games\DOOM\DOOM.WAD', MapFormat.DOOM)
+
         self.app().doc.updated(dirty=False)
+
+
 
         #self.app().doc.file_path = r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\out.map'
         #self.app().doc.save()
@@ -387,7 +405,7 @@ class MainWindow(MainWindowBase):
         # TODO: Since we're loading an external non-blocking process not sure
         # how to clean up properly here.
         temp_map_path = exe_path.parent.joinpath('out.map')
-        mapio.export_map(self.app().doc.content, temp_map_path, map_format)
+        build.export_build(self.app().doc.content, temp_map_path, map_format)
 
         # Launch game executable.
         # TODO: Different build exes might require different args / flags here.
@@ -430,7 +448,9 @@ class MainWindow(MainWindowBase):
         file_path, file_format = QFileDialog.get_open_file_name(caption='Import', filter=file_formats)
         if not file_path:
             return False
-        mapio.import_map(self.app().doc.content, file_path, MapFormat(file_format))
+
+        map_format = MapFormat(file_format)
+        IMPORTERS[map_format](self.app().doc.content, file_path, MapFormat(file_format))
         self.app().doc.updated(dirty=False)
 
     def export_event(self):
@@ -439,13 +459,8 @@ class MainWindow(MainWindowBase):
         if not file_path:
             return False
 
-        # TODO: Would make more sense to have plugin architecture to map each
-        # format to each exporter.
         map_format = MapFormat(file_format)
-        if map_format == MapFormat.GEXF:
-            mapio.export_gexf(self.app().doc.content, file_path, map_format)
-        else:
-            mapio.export_map(self.app().doc.content, file_path, map_format)
+        EXPORTERS[map_format](self.app().doc.content, file_path, MapFormat(file_format))
 
 
 if __name__ == '__main__':

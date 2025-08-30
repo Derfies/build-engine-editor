@@ -1,7 +1,25 @@
-import xml.etree.ElementTree as et
+from xml.etree import ElementTree as et
 
 from networkx.readwrite.gexf import GEXFWriter as BaseGEXFWriter
 from networkx.utils import open_file
+
+from editor.constants import MapFormat, ATTRIBUTES
+from editor.graph import Graph
+
+
+def export_gexf(graph: Graph, file_path: str, format: MapFormat):
+    g = graph.data.copy()
+
+    # Move all attribute dicts to the root of the element so the exporter picks
+    # them up. Node coords require special treatment for the GEXF format.
+    g.graph.update(g.graph.pop(ATTRIBUTES))
+    for node, attrs in g.nodes(data=True):
+        attrs.update(attrs.pop(ATTRIBUTES))
+        attrs['viz'] = {'position': {'x': attrs.pop('x'), 'y': attrs.pop('y'), 'z': 0}}
+    for head, tail, attrs in g.edges(data=True):
+        attrs.update(attrs.pop(ATTRIBUTES))
+
+    write_gexf(g, file_path)
 
 
 type_map = {
