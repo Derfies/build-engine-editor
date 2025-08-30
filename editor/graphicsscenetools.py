@@ -16,7 +16,7 @@ from shapely.affinity import rotate, scale, translate
 
 from editor import commands
 from editor.constants import SelectionMode
-from editor.graph import Edge, Face, Node
+from editor.graph import Face, Edge, Node
 from editor.graphicsitems import EdgeGraphicsItem
 from editor.maths import percentage_along_line
 
@@ -175,6 +175,9 @@ class SelectTool(GraphicsSceneToolBase):
         select_elements = self.app().doc.selected_elements
         select_elements = select_elements.copy() if add or toggle else set()
         for item in items:
+            #if isinstance(item, EdgeGraphicsItem):
+
+            # TODO: Does converting to edges help us here?
             element = item.element()
             if toggle:
                 select_elements.symmetric_difference_update({element})
@@ -362,7 +365,7 @@ class SplitFacesTool(GraphicsSceneToolBase):
         self._edges = []
 
     def _get_face(self):
-        for a, b in product(self._edges[-2].hedges, self._edges[-1].hedges):
+        for a, b in product(self._edges[-2].edges, self._edges[-1].edges):
             if a.face == b.face:
                 return a, b
 
@@ -399,7 +402,7 @@ class SplitFacesTool(GraphicsSceneToolBase):
             #     a, b = self._get_face()
             #     self._splits.append((b, percentage_along_line(b.head.pos, b.tail.pos, self._points[-1])))
             # else:
-            #     h = next(iter(self._edges[-1].hedges))
+            #     h = next(iter(self._edges[-1].edges))
             #     self._splits.append((h, percentage_along_line(h.head.pos,  h.tail.pos, self._points[-1])))
             splits = self._splits[:]
             self.cancel()

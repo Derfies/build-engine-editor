@@ -293,14 +293,14 @@ class MainWindow(MainWindowBase):
         # content.add_node_attribute_definition('x', 0)
         # content.add_node_attribute_definition('y', 0)
         # content.add_node_attribute_definition('bar', 2)
-        # content.add_hedge_attribute_definition('baz', 3.0)
+        # content.add_edge_attribute_definition('baz', 3.0)
         # content.add_face_attribute_definition('qux', 'four')
 
         # TODO: Move this somewhere else / add method of indirection.
         from gameengines.build.map import Sector, Wall
 
         for field in fields(Wall):
-            content.add_hedge_attribute_definition(field.name, field.default)
+            content.add_edge_attribute_definition(field.name, field.default)
 
         for field in fields(Sector):
             content.add_face_attribute_definition(field.name, field.default)
@@ -310,6 +310,9 @@ class MainWindow(MainWindowBase):
         content.data.graph[EDGE_DEFAULT]['yrepeat'] = 32
         content.data.graph[FACE_DEFAULT]['floorz'] = 0
         content.data.graph[FACE_DEFAULT]['ceilingz'] = -1024 * 16
+
+        # For rooms
+        #content.add_edge_attribute_definition('door', False)
 
         return MapDocument(file_path, content, UpdateFlag)
 

@@ -32,7 +32,6 @@ class MapioTestCase(TestCaseBase):
         # Assert results.
         self.assertEqual(len(g.nodes), 4)
         self.assertEqual(len(g.edges), 4)
-        self.assertEqual(len(g.hedges), 4)
         self.assertEqual(len(g.faces), 1)
 
     def test_load_2_squares(self):
@@ -50,8 +49,7 @@ class MapioTestCase(TestCaseBase):
 
         # Assert results.
         self.assertEqual(len(g.nodes), 6)
-        self.assertEqual(len(g.edges), 7)
-        self.assertEqual(len(g.hedges), 8)
+        self.assertEqual(len(g.edges), 8)
         self.assertEqual(len(g.faces), 2)
 
     def test_load_3_squares(self):
@@ -71,8 +69,7 @@ class MapioTestCase(TestCaseBase):
 
         # Assert results.
         self.assertEqual(len(g.nodes), 8)
-        self.assertEqual(len(g.edges), 10)
-        self.assertEqual(len(g.hedges), 12)
+        self.assertEqual(len(g.edges), 12)
         self.assertEqual(len(g.faces), 3)
 
     def test_load_4_squares(self):
@@ -92,8 +89,7 @@ class MapioTestCase(TestCaseBase):
 
         # Assert results.
         self.assertEqual(len(g.nodes), 9)
-        self.assertEqual(len(g.edges), 12)
-        self.assertEqual(len(g.hedges), 16)
+        self.assertEqual(len(g.edges), 16)
         self.assertEqual(len(g.faces), 4)
 
     def test_export_gexf(self):
@@ -109,7 +105,7 @@ class MapioTestCase(TestCaseBase):
         # Set up test data.
         g = Graph(foo=True)
         g.add_node_attribute_definition('bar', 2)
-        g.add_hedge_attribute_definition('baz', 3.0)
+        g.add_edge_attribute_definition('baz', 3.0)
         g.add_face_attribute_definition('qux', 'four')
         self.create_polygon(g, (0, 0), (100, 0), (100, 100), (0, 100))
 

@@ -12,10 +12,10 @@ from __feature__ import snake_case
 class Tweak:
 
     nodes: set[Any] = field(default_factory=set)
-    hedges: set[tuple] = field(default_factory=set)
+    edges: set[tuple] = field(default_factory=set)
     faces: set[tuple] = field(default_factory=set)
     node_attrs: dict[Any, dict] = field(default_factory=lambda: defaultdict(dict))
-    hedge_attrs: dict[tuple, dict] = field(default_factory=lambda: defaultdict(dict))
+    edge_attrs: dict[tuple, dict] = field(default_factory=lambda: defaultdict(dict))
     face_attrs: dict[tuple, dict] = field(default_factory=lambda: defaultdict(dict))
 
 
@@ -28,8 +28,8 @@ class AddRemoveBase(Edit):
     def remove(self):
         for face in self.tweak.faces:
             self.obj.remove_face(face)
-        for edge in self.tweak.hedges:
-            self.obj.remove_hedge(edge)
+        for edge in self.tweak.edges:
+            self.obj.remove_edge(edge)
         for node in self.tweak.nodes:
             self.obj.remove_node(node)
         self.obj.update()
@@ -37,8 +37,8 @@ class AddRemoveBase(Edit):
     def add(self):
         for node in self.tweak.nodes:
             self.obj.add_node(node, **self.tweak.node_attrs.get(node, {}))
-        for hedge in self.tweak.hedges:
-            self.obj.add_hedge(hedge, **self.tweak.hedge_attrs.get(hedge, {}))
+        for edge in self.tweak.edges:
+            self.obj.add_edge(edge, **self.tweak.edge_attrs.get(edge, {}))
         for face in self.tweak.faces:
             self.obj.add_face(face, **self.tweak.face_attrs.get(face, {}))
         self.obj.update()
