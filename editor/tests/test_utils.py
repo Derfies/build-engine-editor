@@ -19,8 +19,8 @@ class UtilsTestCase(unittest.TestCase):
         graph = Graph()
         for i, node in enumerate(face_):
             graph.add_node(node, x=positions[i][0], y=positions[i][1])
-        for hedge in utils.edges(face_):
-            graph.add_hedge(hedge)
+        for edge in utils.edges(face_):
+            graph.add_edge(edge)
         graph.add_face(face_)
         graph.update()
         return graph.get_face(face_)

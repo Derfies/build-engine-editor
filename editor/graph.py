@@ -85,16 +85,16 @@ class Node(Element):
         return self
 
     @property
-    def hedges(self) -> tuple[Hedge]:
-        return tuple(self.graph.node_to_hedges[self])
+    def edges(self) -> tuple[Edge]:
+        return tuple(self.graph.node_to_edges[self])
 
     @property
-    def in_hedges(self) -> tuple[Hedge]:
-        return tuple(self.graph.node_to_in_hedges[self])
+    def in_edges(self) -> tuple[Edge]:
+        return tuple(self.graph.node_to_in_edges[self])
 
     @property
-    def out_hedges(self) -> tuple[Hedge]:
-        return tuple(self.graph.node_to_out_hedges[self])
+    def out_edges(self) -> tuple[Edge]:
+        return tuple(self.graph.node_to_out_edges[self])
 
     @property
     def faces(self) -> tuple[Face]:
@@ -116,15 +116,12 @@ class Node(Element):
 
 class Edge(Element):
 
-    def __hash__(self):
-        return hash(frozenset(self.data))
-
     @singledispatchmethod
     def __contains__(self, node: Node):
         return node in self.nodes
 
     def get_private_attributes(self):
-        return self.graph.undirected_data.edges[self.data]
+        return self.graph.data.edges[self.data]
 
     @property
     def head(self):
@@ -139,46 +136,8 @@ class Edge(Element):
         return tuple(self.graph.edge_to_nodes[self])
 
     @property
-    def hedges(self) -> tuple[Hedge]:
-        return tuple(self.graph.edge_to_hedges[self])
-
-    @property
-    def faces(self) -> tuple[Face]:
-        return tuple(self.graph.edge_to_faces[self])
-
-
-class Hedge(Element):
-
-    @singledispatchmethod
-    def __contains__(self, node: Node):
-        return node in self.nodes
-
-    def get_private_attributes(self):
-
-        # TODO: Whats the correct approach here??
-        # The editor will select undirected edges, so that needs to report both
-        # sets of attributes, ie one for each hedge.
-        return self.graph.data.edges[self.data]
-
-    @property
-    def head(self):
-        return self.graph.get_node(self.data[0])
-
-    @property
-    def tail(self):
-        return self.graph.get_node(self.data[1])
-
-    @property
-    def nodes(self) -> tuple[Node]:
-        return tuple(self.graph.hedge_to_nodes[self])
-
-    @property
-    def edges(self) -> tuple[Edge]:
-        return tuple(self.graph.hedge_to_edge[self])
-
-    @property
     def face(self) -> Face | None:
-        return self.graph.hedge_to_face.get(self)
+        return self.graph.edge_to_face.get(self)
 
     @property
     def normal(self):
@@ -195,10 +154,6 @@ class Face(Element):
     def _(self, edge: Edge):
         return edge in self.edges
 
-    @__contains__.register
-    def _(self, hedge: Hedge):
-        return hedge in self.hedges
-
     def get_private_attributes(self):
         return self.graph.data.graph[FACES][self]
 
@@ -209,10 +164,6 @@ class Face(Element):
     @property
     def edges(self) -> tuple[Edge]:
         return tuple(self.graph.face_to_edges[self])
-
-    @property
-    def hedges(self) -> tuple[Hedge]:
-        return tuple(self.graph.face_to_hedges[self])
 
     @property
     def faces(self) -> tuple[Face]:
@@ -236,22 +187,20 @@ class Graph(ContentBase):
 
         # Maps.
         self.node_to_edges = defaultdict(set)
-        self.node_to_hedges = defaultdict(set)
-        self.node_to_in_hedges = defaultdict(set)
-        self.node_to_out_hedges = defaultdict(set)
+        self.node_to_in_edges = defaultdict(set)
+        self.node_to_out_edges = defaultdict(set)
         self.node_to_faces = defaultdict(set)
 
         self.edge_to_nodes = defaultdict(set)
-        self.edge_to_hedges = {}
+        self.edge_to_edges = {}
         self.edge_to_faces = defaultdict(set)
 
-        self.hedge_to_nodes = defaultdict(set)
-        self.hedge_to_edge = {}
-        self.hedge_to_face = {}
+        self.edge_to_nodes = defaultdict(set)
+        self.edge_to_edge = {}
+        self.edge_to_face = {}
 
         self.face_to_nodes = defaultdict(list)
         self.face_to_edges = defaultdict(list)
-        self.face_to_hedges = defaultdict(list)
 
         self.update()
 
@@ -261,7 +210,7 @@ class Graph(ContentBase):
     def get_node_default_attributes(self):
         return self._get_element_default_attributes(NODE_DEFAULT)
 
-    def get_hedge_default_attributes(self):
+    def get_edge_default_attributes(self):
         return self._get_element_default_attributes(EDGE_DEFAULT)
 
     def get_face_default_attributes(self):
@@ -273,7 +222,7 @@ class Graph(ContentBase):
     def add_node_attribute_definition(self, name: str, default):
         self._add_element_attribute_definition(NODE_DEFAULT, name, default)
 
-    def add_hedge_attribute_definition(self, name: str, default):
+    def add_edge_attribute_definition(self, name: str, default):
         self._add_element_attribute_definition(EDGE_DEFAULT, name, default)
 
     def add_face_attribute_definition(self, name: str, default):
@@ -281,28 +230,26 @@ class Graph(ContentBase):
 
     def update(self):
 
+        #self.node_to_edges.clear()
         self.node_to_edges.clear()
-        self.node_to_hedges.clear()
-        self.node_to_in_hedges.clear()
-        self.node_to_out_hedges.clear()
+        self.node_to_in_edges.clear()
+        self.node_to_out_edges.clear()
         self.node_to_faces.clear()
 
         self.edge_to_nodes.clear()
-        self.edge_to_hedges.clear()
+        self.edge_to_edges.clear()
         self.edge_to_faces.clear()
 
-        self.hedge_to_nodes.clear()
-        self.hedge_to_edge.clear()
-        self.hedge_to_face.clear()
+        self.edge_to_nodes.clear()
+        self.edge_to_edge.clear()
+        self.edge_to_face.clear()
 
         self.face_to_nodes.clear()
         self.face_to_edges.clear()
-        self.face_to_hedges.clear()
 
         self.undirected_data = self.data.to_undirected()
 
         for face in self.data.graph[FACES]:
-            #print('UPDATE FACE:', face, type(face))
             face_ = self.get_face(face)
             self.face_to_nodes[face].extend([self.get_node(node) for node in face])
 
@@ -310,49 +257,28 @@ class Graph(ContentBase):
                 head, tail = face[i], face[(i + 1) % len(face)]
 
                 node_ = self.get_node(head)
-                edge_ = self.get_edge(head, tail)
-                hedge = self.get_hedge(head, tail)
-                self.face_to_edges[face].append(edge_)
-                self.face_to_hedges[face].append(hedge)
+                edge = self.get_edge(head, tail)
+                self.face_to_edges[face].append(edge)
 
-                self.edge_to_faces[edge_].add(face_)
+                #self.edge_to_faces[edge_].add(face_)
 
-                self.hedge_to_face[hedge] = face_
+                self.edge_to_face[edge] = face_
 
                 self.node_to_faces[node_].add(face_)
 
         for node in self.data.nodes:
             node_ = self.get_node(node)
-            in_hedges = set(self.data.in_edges(node))
-            self.node_to_in_hedges[node_].update([self.get_hedge(*hedge) for hedge in in_hedges])
-            out_hedges = set(self.data.out_edges(node))
-            self.node_to_out_hedges[node_].update([self.get_hedge(*hedge) for hedge in out_hedges])
-            hedges = in_hedges | out_hedges
-            self.node_to_hedges[node_].update([self.get_hedge(*hedge) for hedge in hedges])
+            in_edges = set(self.data.in_edges(node))
+            self.node_to_in_edges[node_].update([self.get_edge(*edge) for edge in in_edges])
+            out_edges = set(self.data.out_edges(node))
+            self.node_to_out_edges[node_].update([self.get_edge(*edge) for edge in out_edges])
+            edges = in_edges | out_edges
+            self.node_to_edges[node_].update([self.get_edge(*edge) for edge in edges])
 
-        for hedge in self.data.edges:
-            hedge_ = self.get_hedge(*hedge)
-            self.hedge_to_nodes[hedge].add(hedge_.head)
-            self.hedge_to_nodes[hedge].add(hedge_.tail)
-
-
-        for head, tail in self.undirected_data.edges:
-            head_ = self.get_node(head)
-            tail_ = self.get_node(tail)
-
-            edge_ = self.get_edge(head, tail)
-            self.edge_to_nodes[edge_].add(head_)
-            self.edge_to_nodes[edge_].add(tail_)
-
-            # TODO: Test removing this - edges hash both ways.
-            rev_edge_ = self.get_edge(tail, head)
-            self.edge_to_nodes[rev_edge_].add(head_)
-            self.edge_to_nodes[rev_edge_].add(tail_)
-
-            if self.has_hedge(head, tail):
-                self.edge_to_hedges.setdefault(edge_, set()).add(self.get_hedge(head, tail))
-            if self.has_hedge(tail, head):
-                self.edge_to_hedges.setdefault(edge_, set()).add(self.get_hedge(tail, head))
+        for edge in self.data.edges:
+            edge_ = self.get_edge(*edge)
+            self.edge_to_nodes[edge].add(edge_.head)
+            self.edge_to_nodes[edge].add(edge_.tail)
 
     @property
     def nodes(self) -> set[Node]:
@@ -360,11 +286,7 @@ class Graph(ContentBase):
 
     @property
     def edges(self) -> set[Edge]:
-        return {self.get_edge(*edge) for edge in self.undirected_data.edges}
-
-    @property
-    def hedges(self) -> set[Hedge]:
-        return {self.get_hedge(*edge) for edge in self.data.edges}
+        return {self.get_edge(*edge) for edge in self.data.edges}
 
     @property
     def faces(self) -> set[Face]:
@@ -375,12 +297,8 @@ class Graph(ContentBase):
         return Node(self, node)
 
     def get_edge(self, head, tail) -> Edge:
-        assert (head, tail) in self.undirected_data.edges, f'Edge not found: {(head, tail)}'
+        assert (head, tail) in self.data.edges, f'Edge not found: {(head, tail)}'
         return Edge(self, (head, tail))
-
-    def get_hedge(self, head, tail) -> Hedge:
-        assert (head, tail) in self.data.edges, f'Half edge not found: {(head, tail)}'
-        return Hedge(self, (head, tail))
 
     def get_face(self, face: tuple) -> Face:
         assert face in self.data.graph[FACES], f'Face not found: {face}'
@@ -389,29 +307,34 @@ class Graph(ContentBase):
     def has_node(self, node: Any):
         return node in self.data.nodes
 
-    def has_hedge(self, head, tail):
+    def has_edge(self, head, tail):
         return (head, tail) in self.data.edges
 
     def add_node(self, node: Any, **node_attrs):
         default_node_attrs = self.get_node_default_attributes()
         default_node_attrs.update(node_attrs)
         self.data.add_node(node, **{ATTRIBUTES: default_node_attrs})
+        return self.get_node(node)
 
-    def add_hedge(self, hedge: tuple[Any, Any], **hedge_attrs):
-        default_hedge_attrs = self.get_hedge_default_attributes()
-        default_hedge_attrs.update(hedge_attrs)
-        self.data.add_edge(*hedge, **{ATTRIBUTES: default_hedge_attrs})
+    def add_edge(self, edge: tuple[Any, Any], **edge_attrs):
+        default_edge_attrs = self.get_edge_default_attributes()
+        default_edge_attrs.update(edge_attrs)
+        self.data.add_edge(*edge, **{ATTRIBUTES: default_edge_attrs})
+        return self.get_edge(*edge)
 
     def add_face(self, face: tuple[Any, ...], **face_attrs):
+
+        # TODO: Test node actually exists?
         default_face_attrs = self.get_face_default_attributes()
         default_face_attrs.update(face_attrs)
         self.data.graph[FACES][face] = {ATTRIBUTES: default_face_attrs}
+        return self.get_face(face)
 
     def remove_node(self, node: Any):
         self.data.remove_node(node)
 
-    def remove_hedge(self, hedge: tuple[Any, Any]):
-        self.data.remove_edge(*hedge)
+    def remove_edge(self, edge: tuple[Any, Any]):
+        self.data.remove_edge(*edge)
 
     def remove_face(self, face: tuple[Any, ...]):
         del self.data.graph[FACES][face]
