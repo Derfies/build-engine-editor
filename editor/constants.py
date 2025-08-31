@@ -9,6 +9,7 @@ class ModalTool(IntEnum):
     MOVE = auto()
     ROTATE = auto()
     SCALE = auto()
+    CREATE_NODE = auto()
     CREATE_POLYGON = auto()
     CREATE_FREEFORM_POLYGON = auto()
     SPLIT_FACES = auto()

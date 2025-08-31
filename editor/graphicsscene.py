@@ -11,6 +11,7 @@ from editor.constants import ModalTool, SelectionMode
 from editor.graphicsitems import EdgeGraphicsItem, NodeGraphicsItem, FaceGraphicsItem
 from editor.graphicsscenetools import (
     CreateFreeformPolygonTool,
+    CreateNodeTool,
     CreatePolygonTool,
     MoveTool,
     RotateTool,
@@ -130,6 +131,7 @@ class GraphicsScene(QGraphicsScene):
             ModalTool.MOVE: MoveTool,
             ModalTool.ROTATE: RotateTool,
             ModalTool.SCALE: ScaleTool,
+            ModalTool.CREATE_NODE: CreateNodeTool,
             ModalTool.CREATE_POLYGON: CreatePolygonTool,
             ModalTool.CREATE_FREEFORM_POLYGON: CreateFreeformPolygonTool,
             ModalTool.SPLIT_FACES: SplitFacesTool,

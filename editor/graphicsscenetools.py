@@ -282,6 +282,13 @@ class ScaleTool(SelectXformToolBase):
         return scale(points, 1 + delta.x() / 1000, 1 - delta.y() / 1000, origin=self._snapped_start_point.to_tuple())
 
 
+class CreateNodeTool(GraphicsSceneToolBase):
+
+    def mouse_release_event(self, event):
+        if event.button() == Qt.LeftButton:
+            commands.add_node(self.scene.apply_snapping(event.scene_pos()).to_tuple())
+
+
 class CreatePolygonTool(GraphicsSceneToolBase):
 
     def __init__(self, *args, **kwargs):
@@ -318,7 +325,7 @@ class CreatePolygonTool(GraphicsSceneToolBase):
         if event.button() == Qt.LeftButton:
             points = [p.to_tuple() for p in self.preview.polygon()]
             self.cancel()
-            commands.add_face(points)
+            commands.add_polygon(points)
 
 
 class CreateFreeformPolygonTool(GraphicsSceneToolBase):
@@ -344,7 +351,7 @@ class CreateFreeformPolygonTool(GraphicsSceneToolBase):
                 return
             points = [p.to_tuple() for p in self._points]
             self.cancel()
-            commands.add_face(points)
+            commands.add_polygon(points)
 
     def mouse_move_event(self, event):
         if self._points:

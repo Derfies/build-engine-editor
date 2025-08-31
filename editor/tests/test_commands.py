@@ -41,7 +41,17 @@ class CommandsTestCase(UsesQApplication, TestCaseBase):
     def c(self):
         return self.mock_app.doc.content
 
-    def test_add_face(self):
+    def test_add_node(self):
+
+        # Start test.
+        with patch.object(uuid, 'uuid4', side_effect=('A')):
+            add_tweak, _ = commands.add_node((1, 2))
+
+        # Assert results.
+        self.assertSetEqual(add_tweak.nodes, {'A'})
+        self.assertEqual((add_tweak.node_attrs['A']['x'], add_tweak.node_attrs['A']['y']), (1, 2))
+
+    def test_add_polygon(self):
         """
         1           2
           ┌───────┐
@@ -62,7 +72,7 @@ class CommandsTestCase(UsesQApplication, TestCaseBase):
 
         # Start test.
         with patch.object(uuid, 'uuid4', side_effect=('A', 'B', 'C', 'D')):
-            add_tweak, _ = commands.add_face(points)
+            add_tweak, _ = commands.add_polygon(points)
 
         # Assert results.
         # NOTE: Winding order was different to input since we wind CC be default.

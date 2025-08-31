@@ -66,9 +66,20 @@ def transform_node_items(node_items):
     QApplication.instance().doc.updated(action(), dirty=False)
 
 
-def add_face(points: Iterable[tuple]):
+def add_node(point: tuple) -> tuple[Tweak | None, Tweak | None]:
+    node = str(uuid.uuid4())
+    add_tweak = Tweak()
+    add_tweak.nodes.add(node)
+    add_tweak.node_attrs[node]['x'] = point[0]
+    add_tweak.node_attrs[node]['y'] = point[1]
+    action = Add(add_tweak, QApplication.instance().doc.content)
+    QApplication.instance().action_manager.push(action)
+    QApplication.instance().doc.updated(action(), dirty=True)
+    return add_tweak, None
 
-    # TODO: Rename to add_polygon.
+
+def add_polygon(points: Iterable[tuple]):
+
     # Ensure winding order is consistent.
     poly = orient(Polygon(points), sign=1.0)
     coords = poly.exterior.coords[:-1]
