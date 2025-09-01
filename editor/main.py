@@ -126,7 +126,12 @@ class MainWindow(MainWindowBase):
 
         #self.import_event()
 
-        #mapio.doom.import_doom(self.app().doc.content, r'C:\Program Files (x86)\GOG Galaxy\Games\DOOM\DOOM.WAD', MapFormat.DOOM)
+        #doom.import_doom(self.app().doc.content, r'C:\Program Files (x86)\GOG Galaxy\Games\DOOM\DOOM.WAD', MapFormat.DOOM)
+        #build.import_build(self.app().doc.content, r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\editor\mapio\tests\data\2_squares.map', MapFormat.DUKE_3D)
+        #self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Fallen Aces\AcesData\Episodes\Test\Chapter1\test.json')
+        #self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\test.json')
+        #fallenaces.export_fallen_aces(self.app().doc.content, r'C:\Program Files (x86)\Steam\steamapps\common\Fallen Aces\AcesData\Episodes\Test\Chapter1\level1.txt', MapFormat.FALLEN_ACES)
+        build.import_build(self.app().doc.content, r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\DX-MINIDOOM.MAP', MapFormat.DUKE_3D)
 
         self.app().doc.updated(dirty=False)
 
@@ -329,15 +334,15 @@ class MainWindow(MainWindowBase):
             content.add_face_attribute_definition(field.name, field.default)
 
         # Sensible default values.
-        content.data.graph[EDGE_DEFAULT]['xrepeat'] = 32
-        content.data.graph[EDGE_DEFAULT]['yrepeat'] = 32
-        content.data.graph[FACE_DEFAULT]['floorz'] = 0
-        content.data.graph[FACE_DEFAULT]['ceilingz'] = -1024 * 16
+        content.add_edge_attribute_definition('xrepeat', 32)
+        content.add_edge_attribute_definition('yrepeat', 32)
+        content.add_face_attribute_definition('floorz', 0)
+        content.add_face_attribute_definition('ceilingz', -1024 * 16)
 
         # For rooms
         #content.add_edge_attribute_definition('door', False)
 
-        return MapDocument(file_path, content, UpdateFlag)
+        return Document(file_path, content, UpdateFlag)
 
     def on_tool_action_group(self):
         action = self.tool_action_group.checked_action().data()
@@ -393,6 +398,7 @@ class MainWindow(MainWindowBase):
         # Gross. We obviously need to keep better track of the mapping between
         # items and elements, but then items can change when we do a full scene
         # rebuild.
+        # TODO: Allow framing independently on either viewport.
         items = [
             item
             for item in self.scene.items()
@@ -400,6 +406,7 @@ class MainWindow(MainWindowBase):
         ]
         items = items or self.scene.items()
         self.view_2d.frame(items)
+        self.view_3d.frame(items)
 
     def play(self, exe_path: str, map_format: MapFormat):
 

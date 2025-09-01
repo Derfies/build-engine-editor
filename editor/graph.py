@@ -143,6 +143,9 @@ class Edge(Element):
     def normal(self):
         return maths.edge_normal(self.head.pos.to_tuple(), self.tail.pos.to_tuple())
 
+    def __reversed__(self):
+        return self.graph.get_edge(self.data[1], self.data[0])
+
 
 class Face(Element):
 

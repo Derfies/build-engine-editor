@@ -20,10 +20,10 @@ def import_build(graph: Graph, file_path: str | Path, format: MapFormat):
     #graph.data.graph[FACES] = {}
 
     # Add default attribute definitions.
-    for field in fields(Wall):
-        graph.add_edge_attribute_definition(field.name, field.default)
-    for field in fields(Sector):
-        graph.add_face_attribute_definition(field.name, field.default)
+    # for field in fields(Wall):
+    #     graph.add_edge_attribute_definition(field.name, field.default)
+    # for field in fields(Sector):
+    #     graph.add_face_attribute_definition(field.name, field.default)
 
     # TODO: Move this into an import function and let this serialize the native
     # map format.

@@ -1,6 +1,9 @@
+import math
 import uuid
-from typing import Any, Callable, Iterable, Optional
+from typing import Any, Iterable
 
+import mapbox_earcut as earcut
+import numpy as np
 from shapely import Polygon
 
 from editor.graph import Face
@@ -10,6 +13,8 @@ from __feature__ import snake_case
 
 
 def edges(nodes: tuple[Any, ...]):
+
+    # TODO: Remove.
     return [(nodes[i], nodes[(i + 1) % len(nodes)]) for i in range(len(nodes))]
 
 
@@ -47,3 +52,45 @@ def map(face: Face, polys: Iterable[Polygon]):
 
         poly_mappings.append(poly_mapping)
     return poly_mappings
+
+
+def triangulate_polygon(polygon: Polygon):
+    """
+    Triangulate a shapely Polygon (concave, with holes) using mapbox_earcut.
+    Returns a list of shapely Polygons (triangles).
+
+    """
+    if not polygon.is_valid:
+        raise ValueError('Input polygon is not valid')
+
+    rings = [list(polygon.exterior.coords)] + [list(h.coords) for h in polygon.interiors]
+
+    # Concatenate all vertices
+    vertices = np.array([pt for ring in rings for pt in ring], dtype=np.float32)
+
+    # ring_end_indices = cumulative vertex counts
+    counts = [len(r) for r in rings]
+    ring_end_indices = np.cumsum(counts).astype(np.uint32)
+
+    # Run earcut
+    triangles = earcut.triangulate_float32(vertices, ring_end_indices)
+
+    # Convert to shapely Polygons
+    shapely_tris = []
+    for i in range(0, len(triangles), 3):
+        idxs = triangles[i:i+3]
+        pts = [tuple(vertices[j]) for j in idxs]
+        shapely_tris.append(Polygon(pts))
+
+    return shapely_tris
+
+
+def compute_bounding_sphere(vertices):
+    center = np.mean(vertices, axis=0)
+    radius = np.max(np.linalg.norm(vertices - center, axis=1))
+    return center, radius
+
+
+def camera_distance(radius, fov_deg):
+    fov_rad = math.radians(fov_deg)
+    return radius / math.sin(fov_rad / 2)

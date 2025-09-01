@@ -7,7 +7,7 @@ from PySide6.QtWidgets import QApplication
 from applicationframework.actions import Manager as ActionManager
 from editor import commands
 from editor.graph import Graph
-from editor.mapdocument import MapDocument
+from editor.document import Document
 from editor.tests.testcasebase import TestCaseBase
 from editor.updateflag import UpdateFlag
 
@@ -35,7 +35,7 @@ class CommandsTestCase(UsesQApplication, TestCaseBase):
 
     def setUp(self):
         super().setUp()
-        self.mock_app.doc = MapDocument(None, Graph(), UpdateFlag)
+        self.mock_app.doc = Document(None, Graph(), UpdateFlag)
 
     @property
     def c(self):

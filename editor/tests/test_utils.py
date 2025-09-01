@@ -14,6 +14,8 @@ from __feature__ import snake_case
 class UtilsTestCase(unittest.TestCase):
 
     def _create_quad(self) -> Face:
+
+        # TODO: Replace with base test class and remove this edges helper fn.
         face_ = (1, 2, 3, 4)
         positions = ((0, 0), (0, 1), (1, 1), (1, 0))
         graph = Graph()

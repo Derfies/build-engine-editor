@@ -1,20 +1,29 @@
 import math
-import sys
 import time
 import traceback
 from dataclasses import dataclass, field
 
 import numpy as np
-from OpenGL.GL import GL_FLOAT, GL_TRIANGLES, GL_COLOR_BUFFER_BIT, GL_CULL_FACE, GL_BACK, GL_CCW, GL_CW
+from OpenGL.GL import (
+    GL_BACK,
+    GL_COLOR_BUFFER_BIT,
+    GL_CULL_FACE,
+    GL_CW,
+    GL_DEPTH_TEST,
+    GL_FLOAT,
+    GL_TRIANGLES,
+)
 from PySide6.QtCore import QCoreApplication, Qt, QPoint
 from PySide6.QtGui import QOpenGLFunctions, QMatrix4x4, QVector3D, QVector4D
 from PySide6.QtOpenGL import QOpenGLShaderProgram, QOpenGLBuffer, QOpenGLVertexArrayObject, QOpenGLShader
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
-from PySide6.QtWidgets import QApplication, QMainWindow
+from PySide6.QtWidgets import QApplication, QGraphicsItem
 from shapely import Polygon
-from shapely.ops import triangulate, orient
+from shapely.ops import orient
 
 from applicationframework.document import Document
+from editor import utils
+from editor.graph import Face
 from editor.updateflag import UpdateFlag
 
 # noinspection PyUnresolvedReferences
@@ -35,19 +44,36 @@ def build_shade_to_brightness(shade: int, mode="dark_only") -> float:
 class Mesh:
 
     def __init__(self, vertices: np.ndarray, shade: float = 1.0):
-        self.vertex_count = len(vertices)
+        self.vertices = vertices
+        self.shade = shade
+
+
+class MeshPool:
+
+    def __init__(self):
+        self.meshes = []
+
         self.vbo = QOpenGLBuffer(QOpenGLBuffer.VertexBuffer)
         self.vbo.create()
-        self.vbo.bind()
-        self.vbo.allocate(vertices.tobytes(), vertices.nbytes)
-        self.vbo.release()
 
         self.vao = QOpenGLVertexArrayObject()
         self.vao.create()
 
-        self.shade = shade
+    def allocate(self):
 
-    def bind(self, program):
+        # TODO: Need to be able to derive len of vertices without writing to .vertices
+        self.vertices = np.vstack([m.vertices for m in self.meshes])
+
+        self.vbo.bind()
+        self.vbo.allocate(self.vertices.tobytes(), self.vertices.nbytes)
+        self.vbo.release()
+
+    def draw(self, gl, program):
+
+        # TODO: Not sure who needs to know about program...
+        if not hasattr(self, 'vertices'):
+            return
+
         self.vao.bind()
         self.vbo.bind()
 
@@ -55,11 +81,13 @@ class Mesh:
         program.set_attribute_buffer(0, GL_FLOAT, 0, 3)
 
         self.vbo.release()
-        self.vao.release()
 
-    def draw(self, gl):
-        self.vao.bind()
-        gl.glDrawArrays(GL_TRIANGLES, 0, self.vertex_count)
+        offset = 0
+        for mesh in self.meshes:
+            loc = program.uniform_location('shade')
+            program.set_uniform_value1f(loc, mesh.shade)
+            gl.glDrawArrays(GL_TRIANGLES, offset, len(mesh.vertices))
+            offset += len(mesh.vertices)
         self.vao.release()
 
     def delete(self):
@@ -81,7 +109,7 @@ class OrbitCamera:
     def orbit(self, delta: QPoint):
         self.azimuth -= delta.x()
         self.elevation += delta.y()
-        self.elevation = max(0, min(89.9, self.elevation))
+        self.elevation = max(-89.9, min(89.9, self.elevation))
 
     def zoom(self, factor: float):
         self.distance *= factor
@@ -108,16 +136,32 @@ class Viewport(QOpenGLWidget):
 
         self.program = None
 
-        self.meshes = []
+        self.mesh_pool = None
         self.app().updated.connect(self.update_event)
 
     def app(self) -> QCoreApplication:
         return QApplication.instance()
 
+    @staticmethod
+    def create_wall_mesh(xz1: tuple[float, float], y1: float, xz2: tuple[float, float], y2: float, shade: float) -> Mesh:
+        x1, z1 = xz1
+        x2, z2 = xz2
+        wall_vertices = [
+
+            # Bottom left.
+            [x1, y1, z1],
+            [x1, y2, z1],
+            [x2, y1, z2],
+
+            # Top right.
+            [x1, y2, z1],
+            [x2, y2, z2],
+            [x2, y1, z2],
+        ]
+        return Mesh(np.array(wall_vertices, dtype=np.float32), shade=shade)
+
     def update_event(self, doc: Document, flags: UpdateFlag):
 
-        #from PySide6.QtGui import QOpenGLContext
-        #print('-->', self.program)
         if self.program is None:
             print('early out')
             return
@@ -126,29 +170,28 @@ class Viewport(QOpenGLWidget):
         start = time.time()
         if flags != UpdateFlag.SELECTION and flags != UpdateFlag.SETTINGS:
 
-
-
             print('FULL UPDATE')
 
             self.make_current()
 
-            for mesh in self.meshes:
-                mesh.delete()
-            self.meshes.clear()
+            if self.mesh_pool is not None:
+                self.mesh_pool.delete()
+            self.mesh_pool = MeshPool()
 
             try:
 
                 for face in doc.content.faces:
 
-                    floor_shade = face.get_attribute('floorshade')
-                    ceiling_shade = face.get_attribute('ceilingshade')
+                    # TODO: Remember these are build-engine z coords, which are
+                    # flipped. Might need to normalise for sanity since we're
+                    # dealing with many map formats.
 
                     y1 = face.get_attribute('floorz') / -16
                     y2 = face.get_attribute('ceilingz') / -16
 
                     sector = Polygon([node.pos.to_tuple() for node in face.nodes])
                     sector = orient(sector, sign=1.0)
-                    triangles = triangulate(sector)
+                    triangles = utils.triangulate_polygon(sector)
 
                     floor_vertices = []
                     ceiling_vertices = []
@@ -159,38 +202,39 @@ class Viewport(QOpenGLWidget):
                             floor_vertices.append((coord[0], y1, coord[1]))
                             ceiling_vertices.append((coord[0], y2, coord[1]))
 
-                    quad = Mesh(np.array(floor_vertices, dtype=np.float32), shade=build_shade_to_brightness(floor_shade))
-                    quad.bind(self.program)
-                    self.meshes.append(quad)
-
-                    quad2 = Mesh(np.array(ceiling_vertices, dtype=np.float32)[::-1], shade=build_shade_to_brightness(ceiling_shade))
-                    quad2.bind(self.program)
-                    self.meshes.append(quad2)
+                    floor_shade = build_shade_to_brightness(face.get_attribute('floorshade'))
+                    ceiling_shade = build_shade_to_brightness(face.get_attribute('ceilingshade'))
+                    self.mesh_pool.meshes.append(Mesh(np.array(floor_vertices, dtype=np.float32), shade=floor_shade))
+                    self.mesh_pool.meshes.append(Mesh(np.array((list(reversed(ceiling_vertices))), dtype=np.float32), shade=ceiling_shade))
 
                     # Do walls.
                     for i in range(len(sector.exterior.coords) - 1):
-                        wall_shade = face.edges[i].get_attribute('shade')
-                        #print(wall_shade)
-                        xz1 = sector.exterior.coords[i]
-                        xz2 = sector.exterior.coords[i + 1]
-                        tri1 = [
-                            [xz2[0], y2, xz2[1]],
-                            [xz2[0], y1, xz2[1]],
-                            [xz1[0], y1, xz1[1]],
-                        ]
-                        tri1_mesh = Mesh(np.array(tri1, dtype=np.float32), shade=build_shade_to_brightness(wall_shade))
-                        tri1_mesh.bind(self.program)
-                        self.meshes.append(tri1_mesh)
 
-                        tri2 = [
-                            [xz1[0], y1, xz1[1]],
-                            [xz1[0], y2, xz1[1]],
-                            [xz2[0], y2, xz2[1]],
-                        ]
-                        tri2_mesh = Mesh(np.array(tri2, dtype=np.float32), shade=build_shade_to_brightness(wall_shade))
-                        tri2_mesh.bind(self.program)
-                        self.meshes.append(tri2_mesh)
+                        wall_shade = build_shade_to_brightness(
+                            face.edges[i].get_attribute('shade'))
 
+                        # If there is no connected face, draw the wall from floor to ceiling.
+                        # If there is a connected face and the floor is lower than ours, dont draw it.
+                        # If there is a connected face and the ceiling is higher than ours, don't draw it.
+                        # TODO: Maybe don't override dunder method?
+                        try:
+                            connected_face = reversed(face.edges[i]).face
+                        except:
+                            connected_face = None
+
+                        xz0 = sector.exterior.coords[i]
+                        xz1 = sector.exterior.coords[i + 1]
+                        if connected_face is None:
+                            self.mesh_pool.meshes.append(self.create_wall_mesh(xz0, y1, xz1, y2, wall_shade))
+                        else:
+                            y3 = connected_face.get_attribute('floorz') / -16
+                            y4 = connected_face.get_attribute('ceilingz') / -16
+                            if face.get_attribute('floorz') < connected_face.get_attribute('floorz'):
+                                self.mesh_pool.meshes.append(self.create_wall_mesh(xz0, y1, xz1, y3, wall_shade))
+                            if face.get_attribute('ceilingz') > connected_face.get_attribute('ceilingz'):
+                                self.mesh_pool.meshes.append(self.create_wall_mesh(xz0, y4, xz1, y2, wall_shade))
+
+                self.mesh_pool.allocate()
 
             except Exception as e:
                 traceback.print_exc()
@@ -199,8 +243,8 @@ class Viewport(QOpenGLWidget):
 
             self.update()
 
-        end = time.time()
-        print('viewport:', end - start)
+        #end = time.time()
+        #print('viewport:', end - start)
 
         #self.block_signals(False)
 
@@ -208,6 +252,7 @@ class Viewport(QOpenGLWidget):
         self.gl = QOpenGLFunctions(self.context())
         self.gl.initializeOpenGLFunctions()
 
+        self.gl.glEnable(GL_DEPTH_TEST)
         self.gl.glEnable(GL_CULL_FACE)
         self.gl.glCullFace(GL_BACK)
         self.gl.glFrontFace(GL_CW)
@@ -234,7 +279,7 @@ class Viewport(QOpenGLWidget):
         self.camera = OrbitCamera()
         self.last_mouse_pos = QPoint()
 
-        self.near_plane = 0.1
+        self.near_plane = 1
         self.far_plane = 1000000.0
         self.fov = 45.0
         self.aspect_ratio = 1.0
@@ -245,7 +290,7 @@ class Viewport(QOpenGLWidget):
         self.gl.glViewport(0, 0, w, h)
 
     def paintGL(self):
-        start = time.time()
+        #start = time.time()
         #print('PAINT')
         self.gl.glClearColor(0.1, 0.1, 0.1, 1.0)
         self.gl.glClear(GL_COLOR_BUFFER_BIT)
@@ -257,14 +302,12 @@ class Viewport(QOpenGLWidget):
         self.program.bind()
         self.program.set_uniform_value('mvp', proj * view)
 
-        for mesh in self.meshes:
-            loc = self.program.uniform_location('shade')
-            self.program.set_uniform_value1f(loc, mesh.shade)
+        if self.mesh_pool is not None:
+            self.mesh_pool.draw(self.gl, self.program)
 
-            mesh.draw(self.gl)
         self.program.release()
 
-        end = time.time()
+        #end = time.time()
         #print('viewport:', end - start)
 
     def mouse_press_event(self, event):
@@ -319,5 +362,35 @@ class Viewport(QOpenGLWidget):
         self.last_mouse_pos = event.position().to_point()
 
     def wheel_event(self, event):
-        self.camera.zoom(0.9 if event.angle_delta().y() > 0 else 1.1)
+        factor = 0.9 if event.angle_delta().y() > 0 else 1.1
+        self.camera.zoom(factor)
+        self.update()
+
+    def frame(self, items: list[QGraphicsItem]):
+
+        # TODO: Doesn't make much sense to take graphics items as the arg.
+        # TODO: This is almost copy-pasted from drawing sectors above. If we
+        # keep a map of graph elements to meshes we probably wont need this, and
+        # then walls etc should work ootb.
+        vertices = []
+        for item in items:
+
+            # TODO: How do we frame edges, etc?
+            if not isinstance(item.element(), Face):
+                continue
+            face = item.element()
+            y1 = face.get_attribute('floorz') / -16
+
+            sector = Polygon([node.pos.to_tuple() for node in face.nodes])
+            sector = orient(sector, sign=1.0)
+            triangles = utils.triangulate_polygon(sector)
+
+            for tri in triangles:
+                for coord in tri.exterior.coords[:-1]:
+                    vertices.append((coord[0], y1, coord[1]))
+
+        center, radius = utils.compute_bounding_sphere(vertices)
+        dist = utils.camera_distance(radius, self.fov)
+        self.camera.target.position = QVector3D(*center)
+        self.camera.distance = dist
         self.update()
