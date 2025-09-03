@@ -369,7 +369,6 @@ def join_edges(*edges: Iterable[Edge]) -> tuple[Tweak, Tweak]:
         rem_tweak.faces.update({face.data for face in node.faces})
         for face in node.faces:
             face_nodes = [node_to_new_node.get(node, node.data) for node in face.nodes]
-            #add_tweak.faces.add(tuple(face_nodes))
             add_tweak.faces.add(tuple(face_nodes + [face_nodes[0]]))
 
     print('\nrem tweak:')

@@ -150,7 +150,6 @@ class FaceGraphicsItem(GraphicsItemBaseMixin, QGraphicsPathItem):
         for ring in face.rings:
             path.add_polygon([node.pos for node in ring.nodes])
             num_nodes += len(ring.nodes)
-        #print('num_nodes:', num_nodes)
         self.set_path(path)
         self.setZValue(0)
 

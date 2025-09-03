@@ -5,7 +5,6 @@ from dataclasses import fields
 from pathlib import Path
 
 import numpy as np
-from shapely import Polygon
 
 from editor.constants import ATTRIBUTES
 from editor.constants import MapFormat
@@ -17,37 +16,12 @@ from gameengines.build.map import Sector, Wall
 
 def get_ring_bounds(m, ring: list[Any]) -> tuple:
     positions = [(m.walls[wall_idx].x, m.walls[wall_idx].y) for wall_idx in ring]
-
-    #p = Polygon(positions)
-
-    #print('positions:', positions)
     min_pos = np.amin(positions, axis=0)
     max_pos = np.amax(positions, axis=0)
-    #print('bb:', tuple(max_pos - min_pos))
-    #print('->', p.bounds)
-    #print(p.boundary)
-    #minx, miny, maxx, maxy = p.bounds
-    #print('->', maxx - minx, maxy - miny)
-    #print('')
     return tuple(max_pos - min_pos)
 
 
 def import_build(graph: Graph, file_path: str | Path, format: MapFormat):
-
-    # TODO: Pass the graph in or just create a new one? I suppose we want to support
-    # merging via imports.
-    # Also need to init graph default attrs.
-    #graph.data.clear()
-    #graph.data.graph[FACES] = {}
-
-    # Add default attribute definitions.
-    # for field in fields(Wall):
-    #     graph.add_edge_attribute_definition(field.name, field.default)
-    # for field in fields(Sector):
-    #     graph.add_face_attribute_definition(field.name, field.default)
-
-    # TODO: Move this into an import function and let this serialize the native
-    # map format.
     map_reader_cls = {
         MapFormat.BLOOD: BloodMapReader,
         MapFormat.DUKE_3D: Duke3dMapReader,
@@ -101,7 +75,6 @@ def import_build(graph: Graph, file_path: str | Path, format: MapFormat):
     for wall, wall_data in enumerate(m.walls):
         head = wall_to_node[wall]
         tail = wall_to_node[wall_data.point2]
-        # print('CREATE:', head, '->', tail)
         graph.data.add_edge(head, tail)
 
         # Need to set the head data.
@@ -122,32 +95,15 @@ def import_build(graph: Graph, file_path: str | Path, format: MapFormat):
         sector_wall_idxs = [[]]
         ring_start_idx = wall_idx = sector.wallptr
         for i in range(sector.wallnum):
-            #sector_wall_idxs[-1].append(wall_to_node[wall_idx])
             sector_wall_idxs[-1].append(wall_idx)
             wall_idx = m.walls[wall_idx].point2
             if wall_idx == ring_start_idx:
-                #sector_wall_idxs[-1].append(wall_to_node[ring_start_idx])
                 sector_wall_idxs[-1].append(ring_start_idx)
-
                 ring_start_idx = wall_idx = sector.wallptr + i + 1
-
                 if i < sector.wallnum - 2:
                     sector_wall_idxs.append([])
 
-        #print('sector_wall_idxs:', sector_wall_idxs)
-        #before = [node for face_ring in sector_wall_idxs for node in face_ring]
-        #print('before:', sector_wall_idxs)
         sorted_sector_wall_idxs = sorted(sector_wall_idxs, key=lambda x: get_ring_bounds(m, x), reverse=True)
-        #print('after:', sector_wall_idxs)
-        #print(before == sector_wall_idxs)
-        if sector_wall_idxs != sorted_sector_wall_idxs:
-            print('CORRECTED')
-            print('1:', sector_wall_idxs)
-            print('2:', sorted_sector_wall_idxs)
-        else:
-            print('NOT TOUCHED')
-
-        # TODO: Map to internal data format.
         face_attrs = {
             field.name: getattr(sector, field.name)
             for field in fields(sector)

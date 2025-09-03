@@ -47,7 +47,7 @@ class ElementBase(metaclass=abc.ABCMeta):
 
     @property
     @abc.abstractmethod
-    def nodes(self) -> tuple:
+    def nodes(self) -> tuple[Node]:
         ...
 
 
@@ -81,7 +81,7 @@ class Node(Element):
         return self.graph.data.nodes[self.data]
 
     @property
-    def nodes(self) -> tuple:
+    def nodes(self) -> tuple[Node]:
         return (self,)
 
     @property
@@ -137,7 +137,7 @@ class Edge(Element):
 
     @property
     def nodes(self) -> tuple[Node]:
-        return tuple(self.graph.edge_to_nodes[self])
+        return self.graph.edge_to_nodes[self]
 
     @property
     def face(self) -> Face | None:
@@ -147,15 +147,23 @@ class Edge(Element):
     def normal(self):
         return maths.edge_normal(self.head.pos.to_tuple(), self.tail.pos.to_tuple())
 
-    def __reversed__(self):
-        return self.graph.get_edge(self.data[1], self.data[0])
+    @property
+    def reversed(self) -> Edge | None:
+        rev_edge = self.data[1], self.data[0]
+        if not self.graph.has_edge(*rev_edge):
+            return None
+        return self.graph.get_edge(*rev_edge)
 
 
 class Ring(ElementBase):
 
     @property
-    def nodes(self) -> tuple:
+    def nodes(self) -> tuple[Node]:
         return self.graph.ring_to_nodes[self]
+
+    @property
+    def edges(self) -> tuple[Edge]:
+        return self.graph.ring_to_edges[self]
 
 
 class Face(Element):
@@ -173,7 +181,7 @@ class Face(Element):
 
     @property
     def nodes(self) -> tuple[Node]:
-        return tuple(self.graph.face_to_nodes[self])
+        return self.graph.face_to_nodes[self]
 
     @property
     def edges(self) -> tuple[Edge]:
@@ -215,6 +223,7 @@ class Graph(ContentBase):
         self.edge_to_face = {}
 
         self.ring_to_nodes = {}
+        self.ring_to_edges = {}
 
         self.face_to_nodes = defaultdict(list)
         self.face_to_edges = {}
@@ -260,6 +269,7 @@ class Graph(ContentBase):
         #self.face_to_edges.clear()
 
         ring_to_nodes = defaultdict(list)
+        ring_to_edges = defaultdict(list)
         face_to_edges = defaultdict(list)
         face_to_rings = defaultdict(list)
 
@@ -283,6 +293,7 @@ class Graph(ContentBase):
 
             for ring in rings:
                 ring_nodes_ = []
+                ring_edges_ = []
                 for i in range(len(ring)):
                     head, tail = ring[i], ring[(i + 1) % len(ring)]
                     node_ = self.get_node(head)
@@ -293,10 +304,12 @@ class Graph(ContentBase):
                     self.face_to_nodes[face].append(node_)
 
                     ring_nodes_.append(node_)
+                    ring_edges_.append(edge)
 
                 ring_ = Ring(self, tuple(ring_nodes_))
                 face_to_rings[face].append(ring_)
                 ring_to_nodes[ring_].extend(ring_nodes_)
+                ring_to_edges[ring_].extend(ring_edges_)
 
         for node in self.data.nodes:
             node_ = self.get_node(node)
@@ -312,9 +325,10 @@ class Graph(ContentBase):
             self.edge_to_nodes[edge].add(edge_.head)
             self.edge_to_nodes[edge].add(edge_.tail)
 
+        self.ring_to_nodes = {k: tuple(v) for k, v in ring_to_nodes.items()}
+        self.ring_to_edges = {k: tuple(v) for k, v in ring_to_edges.items()}
         self.face_to_edges = {k: tuple(v) for k, v in face_to_edges.items()}
         self.face_to_rings = {k: tuple(v) for k, v in face_to_rings.items()}
-        self.ring_to_nodes = {k: tuple(v) for k, v in ring_to_nodes.items()}
 
     @property
     def nodes(self) -> set[Node]:
