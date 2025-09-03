@@ -14,16 +14,13 @@ from applicationframework.application import Application
 from applicationframework.document import Document
 from applicationframework.mainwindow import MainWindow as MainWindowBase
 from editor import commands
-from editor.constants import EDGE_DEFAULT, FACE_DEFAULT
 from editor.constants import MapFormat, ModalTool, SelectionMode
 from editor.editorpropertygrid import PropertyGrid
 from editor.graph import Graph
 from editor.graphicsscene import GraphicsScene
 from editor.graphicsview import GraphicsView
-from editor.mapdocument import MapDocument
-from editor.mapio import build
-from editor.mapio import doom
-from editor.mapio import gexf
+from editor.document import Document
+from editor.mapio import build, doom, gexf, fallenaces
 from editor.preferencesdialog import PreferencesDialog
 from editor.settings import ColourSettings, GeneralSettings, GridSettings, HotkeySettings, PlaySettings
 from editor.updateflag import UpdateFlag
@@ -41,12 +38,14 @@ DEFAULT_COMPANY_NAME = 'Enron'
 DEFAULT_APP_NAME = 'Build Engine Map Editor'
 IMPORTERS = {
     MapFormat.BLOOD: build.import_build,
-    MapFormat.DUKE_3D: build.import_build,
     MapFormat.DOOM: doom.import_doom,
+    MapFormat.DUKE_3D: build.import_build,
 }
 EXPORTERS = {
     MapFormat.BLOOD: build.export_build,
+    MapFormat.DOOM: doom.export_doom,
     MapFormat.DUKE_3D: build.export_build,
+    MapFormat.FALLEN_ACES: fallenaces.export_fallen_aces,
     MapFormat.GEXF: gexf.export_gexf,
 }
 
@@ -126,11 +125,20 @@ class MainWindow(MainWindowBase):
 
         #self.import_event()
 
-        #mapio.doom.import_doom(self.app().doc.content, r'C:\Program Files (x86)\GOG Galaxy\Games\DOOM\DOOM.WAD', MapFormat.DOOM)
+        #doom.import_doom(self.app().doc.content, r'C:\Program Files (x86)\GOG Galaxy\Games\DOOM\DOOM.WAD', MapFormat.DOOM)
+        #build.import_build(self.app().doc.content, r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\editor\mapio\tests\data\4_squares.map', MapFormat.DUKE_3D)
+        #self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Fallen Aces\AcesData\Episodes\Test\Chapter1\test.json')
+        #self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\test.json')
+        #fallenaces.export_fallen_aces(self.app().doc.content, r'C:\Program Files (x86)\Steam\steamapps\common\Fallen Aces\AcesData\Episodes\Test\Chapter1\level1.txt', MapFormat.FALLEN_ACES)
+        #build.import_build(self.app().doc.content, r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\DX-MINIDOOM.MAP', MapFormat.DUKE_3D)
+        #build.import_build(self.app().doc.content, r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\DX-CONAM.MAP', MapFormat.DUKE_3D)
+        #build.import_build(self.app().doc.content, r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\DX-6SPIRES.MAP', MapFormat.DUKE_3D)
+        #build.import_build(self.app().doc.content, r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\newboard.map', MapFormat.DUKE_3D)
+        fallenaces.import_fallen_aces(self.app().doc.content,
+                                      r'C:\Program Files (x86)\Steam\steamapps\common\Fallen Aces\AcesData\Episodes\Heart of Glass\Chapter1\level1.txt',
+                                      MapFormat.FALLEN_ACES)
 
         self.app().doc.updated(dirty=False)
-
-
 
         #self.app().doc.file_path = r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\out.map'
         #self.app().doc.save()
@@ -209,6 +217,7 @@ class MainWindow(MainWindowBase):
         self.remove_action = QAction(self.get_icon('cross', icons_path=self.local_icons_path), '&Remove', self)
         self.play_in_eduke32_action = QAction(self.get_icon('eduke32', icons_path=self.local_icons_path), '&Play In EDuke32', self)
         self.play_in_nblood_action = QAction(self.get_icon('nblood', icons_path=self.local_icons_path), '&Play In Nblood', self)
+        self.play_in_gzdoom_action = QAction(self.get_icon('gzdoom', icons_path=self.local_icons_path), '&Play In Nblood', self)
 
         # Tool action group.
         self.tool_action_group = QActionGroup(self)
@@ -248,8 +257,11 @@ class MainWindow(MainWindowBase):
         self.split_edges_action.triggered.connect(self.split_edges)
         self.frame_selection_action.triggered.connect(self.frame_selection)
         self.remove_action.triggered.connect(self.remove)
-        self.play_in_eduke32_action.triggered.connect(lambda: self.play(self.app().play_settings.eduke32_path, MapFormat.DUKE_3D))
-        self.play_in_nblood_action.triggered.connect(lambda: self.play(self.app().play_settings.nblood_path, MapFormat.BLOOD))
+        self.play_in_eduke32_action.triggered.connect(lambda: self.play(self.app().play_settings.eduke32_path, ['-map', 'out.map'], MapFormat.DUKE_3D))
+        self.play_in_nblood_action.triggered.connect(lambda: self.play(self.app().play_settings.nblood_path, ['-map', 'out.map'], MapFormat.BLOOD))
+
+        # TODo: Export play params.
+        self.play_in_gzdoom_action.triggered.connect(lambda: self.play(self.app().play_settings.gzdoom_path, ['-iwad', "DOOM.WAD", '-file', 'out.wad', '+map', 'MAP01'], MapFormat.DOOM))
 
     def connect_hotkeys(self):
         super().connect_hotkeys()
@@ -309,6 +321,7 @@ class MainWindow(MainWindowBase):
         tool_bar.add_separator()
         tool_bar.add_action(self.play_in_eduke32_action)
         tool_bar.add_action(self.play_in_nblood_action)
+        tool_bar.add_action(self.play_in_gzdoom_action)
 
     def create_document(self, file_path: str = None) -> Document:
         content = Graph(foo=True)
@@ -329,15 +342,19 @@ class MainWindow(MainWindowBase):
             content.add_face_attribute_definition(field.name, field.default)
 
         # Sensible default values.
-        content.data.graph[EDGE_DEFAULT]['xrepeat'] = 32
-        content.data.graph[EDGE_DEFAULT]['yrepeat'] = 32
-        content.data.graph[FACE_DEFAULT]['floorz'] = 0
-        content.data.graph[FACE_DEFAULT]['ceilingz'] = -1024 * 16
+        content.add_edge_attribute_definition('shade', 1)
+        content.add_edge_attribute_definition('xrepeat', 32)
+        content.add_edge_attribute_definition('yrepeat', 32)
+        content.add_face_attribute_definition('floorz', 0)
+        content.add_face_attribute_definition('ceilingz', 1024)#-1024 * 16)
+        content.add_face_attribute_definition('ceilingshade', 0.9)
+        content.add_face_attribute_definition('floorshade', 0.9)
+
 
         # For rooms
         #content.add_edge_attribute_definition('door', False)
 
-        return MapDocument(file_path, content, UpdateFlag)
+        return Document(file_path, content, UpdateFlag)
 
     def on_tool_action_group(self):
         action = self.tool_action_group.checked_action().data()
@@ -393,6 +410,7 @@ class MainWindow(MainWindowBase):
         # Gross. We obviously need to keep better track of the mapping between
         # items and elements, but then items can change when we do a full scene
         # rebuild.
+        # TODO: Allow framing independently on either viewport.
         items = [
             item
             for item in self.scene.items()
@@ -400,8 +418,9 @@ class MainWindow(MainWindowBase):
         ]
         items = items or self.scene.items()
         self.view_2d.frame(items)
+        self.view_3d.frame(items)
 
-    def play(self, exe_path: str, map_format: MapFormat):
+    def play(self, exe_path: str, args: list[str], map_format: MapFormat):
 
         exe_path = Path(exe_path)
         if not exe_path.exists():
@@ -409,13 +428,17 @@ class MainWindow(MainWindowBase):
 
         # TODO: Since we're loading an external non-blocking process not sure
         # how to clean up properly here.
-        temp_map_path = exe_path.parent.joinpath('out.map')
-        build.export_build(self.app().doc.content, temp_map_path, map_format)
+        ext = map_format.value.split('*.')[1].rstrip(')')
+        temp_map_path = exe_path.parent.joinpath(f'out.{ext}')
+        EXPORTERS[map_format](self.app().doc.content, temp_map_path, map_format)
+        logger.debug(f'Exported temp map: {temp_map_path}')
+
+        logger.debug(f'Running: {exe_path} {args}')
 
         # Launch game executable.
         # TODO: Different build exes might require different args / flags here.
         process = subprocess.Popen(
-            [exe_path] + ['-map', 'out.map'],
+            [exe_path] + args,
             stderr=subprocess.PIPE,
             stdout=subprocess.PIPE,
             text=True,  # ensures output is in string format instead of bytes

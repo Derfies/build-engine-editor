@@ -1,9 +1,9 @@
-from applicationframework.document import Document
+from applicationframework.document import Document as DocumentBase
 
 from editor.graph import Element
 
 
-class MapDocument(Document):
+class Document(DocumentBase):
 
     @property
     def selected_nodes(self) -> set[Element]:

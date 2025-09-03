@@ -14,7 +14,7 @@ class BuildTestCase(TestCaseBase):
 
         cls.test_data_dir_path = Path(__file__).parent.joinpath('data')
 
-    def test_load_1_squares(self):
+    def test_import_build_1_squares(self):
         """
         +---+
         |   |
@@ -32,7 +32,7 @@ class BuildTestCase(TestCaseBase):
         self.assertEqual(len(g.edges), 4)
         self.assertEqual(len(g.faces), 1)
 
-    def test_load_2_squares(self):
+    def test_import_build_2_squares(self):
         """
         +---+---+
         |   |   |
@@ -50,7 +50,7 @@ class BuildTestCase(TestCaseBase):
         self.assertEqual(len(g.edges), 8)
         self.assertEqual(len(g.faces), 2)
 
-    def test_load_3_squares(self):
+    def test_import_build_3_squares(self):
         """
         +---+---+
         |   |   |
@@ -70,7 +70,7 @@ class BuildTestCase(TestCaseBase):
         self.assertEqual(len(g.edges), 12)
         self.assertEqual(len(g.faces), 3)
 
-    def test_load_4_squares(self):
+    def test_import_build_4_squares(self):
         """
         +---+---+
         |   |   |

@@ -11,8 +11,6 @@ class GraphicsView(QGraphicsView):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        #self.xform = None
-
         self.set_mouse_tracking(True)
 
         # TODO: Auto scale to fit content.
@@ -62,10 +60,7 @@ class GraphicsView(QGraphicsView):
             super().mouse_release_event(event)
 
     def wheel_event(self, event):
-        if event.angle_delta().y() > 0:
-            factor = 1.25
-        else:
-            factor = 0.8
+        factor = 0.8 if event.angle_delta().y() < 0 else 1.25
         self.scale(factor, factor)
 
     def frame(self, items: list[QGraphicsItem]):

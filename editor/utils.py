@@ -1,6 +1,9 @@
+import math
 import uuid
-from typing import Any, Callable, Iterable, Optional
+from typing import Any, Iterable
 
+import mapbox_earcut as earcut
+import numpy as np
 from shapely import Polygon
 
 from editor.graph import Face
@@ -10,6 +13,8 @@ from __feature__ import snake_case
 
 
 def edges(nodes: tuple[Any, ...]):
+
+    # TODO: Remove.
     return [(nodes[i], nodes[(i + 1) % len(nodes)]) for i in range(len(nodes))]
 
 
@@ -47,3 +52,62 @@ def map(face: Face, polys: Iterable[Polygon]):
 
         poly_mappings.append(poly_mapping)
     return poly_mappings
+
+
+def triangulate_polygon(polygon: Polygon):
+    if not polygon.is_valid:
+        from shapely.validation import explain_validity
+        print(polygon)
+        print(explain_validity(polygon))
+        raise ValueError("Invalid polygon")
+
+    rings = []
+
+    # Exterior ring (drop closing point)
+    ext_coords = list(polygon.exterior.coords)[:-1]
+    if len(ext_coords) >= 3:
+        rings.append(ext_coords)
+    else:
+        raise ValueError("Exterior ring has fewer than 3 points")
+
+    # Holes
+    for h in polygon.interiors:
+        hole_coords = list(h.coords)[:-1]
+        if len(hole_coords) >= 3:
+            rings.append(hole_coords)
+        else:
+            # skip degenerate hole
+            print("Skipping degenerate hole:", hole_coords)
+
+    # Flatten vertices
+    vertices = np.array([pt for ring in rings for pt in ring], dtype=np.float32)
+
+    # Compute cumulative end indices
+    counts = [len(r) for r in rings]
+    ring_end_indices = np.cumsum(counts).astype(np.uint32)
+
+    # Check monotonicity
+    if not np.all(np.diff(ring_end_indices) > 0):
+        raise ValueError("ring_end_indices is not strictly increasing!")
+
+    # Triangulate
+    triangles = earcut.triangulate_float32(vertices, ring_end_indices)
+
+    # Build Shapely polygons
+    shapely_tris = []
+    for i in range(0, len(triangles), 3):
+        pts = [tuple(vertices[j]) for j in triangles[i:i+3]]
+        shapely_tris.append(Polygon(pts))
+
+    return shapely_tris
+
+
+def compute_bounding_sphere(vertices):
+    center = np.mean(vertices, axis=0)
+    radius = np.max(np.linalg.norm(vertices - center, axis=1))
+    return center, radius
+
+
+def camera_distance(radius, fov_deg):
+    fov_rad = math.radians(fov_deg)
+    return radius / math.sin(fov_rad / 2)

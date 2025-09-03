@@ -30,7 +30,7 @@ class GexfTestCase(TestCaseBase):
         g.add_node_attribute_definition('bar', 2)
         g.add_edge_attribute_definition('baz', 3.0)
         g.add_face_attribute_definition('qux', 'four')
-        self.create_polygon(g, (0, 0), (100, 0), (100, 100), (0, 100))
+        self.create_polygon(g, ((0, 0), (100, 0), (100, 100), (0, 100)))
 
         handle, file_path = tempfile.mkstemp()
         os.close(handle)

@@ -1,6 +1,6 @@
 from PySide6.QtCore import QCoreApplication, QLineF, QPointF
 from PySide6.QtGui import QBrush, QPainterPath, QPainterPathStroker, QPen, Qt
-from PySide6.QtWidgets import QApplication, QGraphicsItem, QGraphicsLineItem, QGraphicsRectItem, QGraphicsPolygonItem
+from PySide6.QtWidgets import QApplication, QGraphicsItem, QGraphicsLineItem, QGraphicsRectItem, QGraphicsPolygonItem, QGraphicsPathItem
 
 from editor.graph import Edge, Node, Face
 
@@ -48,7 +48,7 @@ class GraphicsItemBaseMixin:
             self._rubberband_shape = self.shape().bounding_rect().translated(self.pos())
         return self._rubberband_shape
 
-    def move_node(self, node: Node, pos: QPointF):
+    def move_node(self, node: Node, x: float, y: float):
         ...
 
 
@@ -90,9 +90,9 @@ class NodeGraphicsItem(GraphicsItemBaseMixin, QGraphicsRectItem):
         )
         return path
 
-    def move_node(self, node: Node, pos: QPointF):
+    def move_node(self, node: Node, x: float, y: float):
         if node == self.element():
-            self.set_pos(pos)
+            self.set_pos(QPointF(x, y))
 
 
 class EdgeGraphicsItem(GraphicsItemBaseMixin, QGraphicsLineItem):
@@ -130,7 +130,8 @@ class EdgeGraphicsItem(GraphicsItemBaseMixin, QGraphicsLineItem):
 
         return stroker.create_stroke(path)
 
-    def move_node(self, node: Node, pos: QPointF):
+    def move_node(self, node: Node, x: float, y: float):
+        pos = QPointF(x, y)
         line = self.line()
         if node == self.element().head:
             line.set_p1(pos)
@@ -139,12 +140,17 @@ class EdgeGraphicsItem(GraphicsItemBaseMixin, QGraphicsLineItem):
         self.set_line(line)
 
 
-class FaceGraphicsItem(GraphicsItemBaseMixin, QGraphicsPolygonItem):
+class FaceGraphicsItem(GraphicsItemBaseMixin, QGraphicsPathItem):
 
     def __init__(self, face: Face, *args, **kwargs):
         super().__init__(face, *args, **kwargs)
 
-        self.set_polygon([node.pos for node in face.nodes])
+        num_nodes = 0
+        path = QPainterPath()
+        for ring in face.rings:
+            path.add_polygon([node.pos for node in ring.nodes])
+            num_nodes += len(ring.nodes)
+        self.set_path(path)
         self.setZValue(0)
 
     def update_pen(self):
@@ -159,10 +165,23 @@ class FaceGraphicsItem(GraphicsItemBaseMixin, QGraphicsPolygonItem):
     def get_shape(self):
 
         # TODO: This could be default as we're having to override override behaviour
-        return QGraphicsPolygonItem.shape(self)
+        return QGraphicsPathItem.shape(self)
 
-    def move_node(self, node: Node, pos: QPointF):
+    def move_node(self, node: Node, x: float, y: float):
+
+        # This interface is kinda trash now. The pain we have to go through to
+        # find the nth point in several polygons. Yuk.
         idx = self.element().nodes.index(node)
-        polygon = self.polygon()
-        polygon[idx] = pos
-        self.set_polygon(polygon)
+
+        num_nodes = 0
+        new_path = QPainterPath()
+        for polygon in self.path().to_subpath_polygons():
+            new_polygon = []
+            for i, p in enumerate(polygon):
+                if idx == num_nodes + i:
+                    p = QPointF(x, y)
+                new_polygon.append(p)
+            new_path.add_polygon(new_polygon)
+            num_nodes += len(polygon)
+
+        self.set_path(new_path)

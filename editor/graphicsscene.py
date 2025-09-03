@@ -196,22 +196,18 @@ class GraphicsScene(QGraphicsScene):
         if flags != UpdateFlag.SELECTION and flags != UpdateFlag.SETTINGS:
 
             self.clear()
-
             self._item_to_nodes.clear()
             self._node_to_items.clear()
             self._node_to_node_item.clear()
-            #self.face_to_item = {}
-            self.element_to_item = {}
+            self._element_to_item = {}
 
             # Quick look-up for all points when vertex-snapping.
             # NOTE: Can't use set because QPointf doesn't hash, but this shouldn't
             # contain too many dupes, right..?
             self.points = []
 
-            #if doc.content.g is not None:
             logger.debug(f'full reDRAW: {flags}')
             for node in doc.content.nodes:
-                #logger.debug(f'Adding node: {node}')
                 node_item = NodeGraphicsItem(node)
                 self.add_item(node_item)
                 self._node_to_node_item[node] = node_item
@@ -219,22 +215,16 @@ class GraphicsScene(QGraphicsScene):
 
             # TODO: Dont draw double edges.
             for edge in doc.content.edges:
-                #logger.debug(f'Adding edge: {edge}')
                 edge_item = EdgeGraphicsItem(edge)
                 self.add_item(edge_item)
 
             for face in doc.content.faces:
-                #logger.debug(f'Adding face: {face}')
                 face_item = FaceGraphicsItem(face)
                 self.add_item(face_item)
-                #self.face_to_item[face] = face_item
-
-                self.element_to_item[face] = face_item
+                self._element_to_item[face] = face_item
 
             # Build node -> item map.
             # TODO: Put in scene object and update only on doc update.
-            # self._node_to_items.clear()
-            # self._node_to_node_item.clear()
             for item in self.items():
                 item_nodes = item.element().nodes
                 self._item_to_nodes[item] = set(item_nodes)

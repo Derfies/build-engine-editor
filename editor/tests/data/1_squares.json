@@ -17,7 +17,7 @@
       "qux": "four"
     },
     "faces": {
-      "0, 1, 2, 3": {
+      "0, 1, 2, 3, 0": {
         "attributes": {
           "qux": "five"
         }

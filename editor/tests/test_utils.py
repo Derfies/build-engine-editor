@@ -1,29 +1,15 @@
-import unittest
-
-from PySide6.QtCore import QPointF
 from parameterized import parameterized
 from shapely import Polygon
 
 from editor import utils
-from editor.graph import Face, Graph
+from editor.graph import Graph
+from editor.tests.testcasebase import TestCaseBase
 
 # noinspection PyUnresolvedReferences
 from __feature__ import snake_case
 
 
-class UtilsTestCase(unittest.TestCase):
-
-    def _create_quad(self) -> Face:
-        face_ = (1, 2, 3, 4)
-        positions = ((0, 0), (0, 1), (1, 1), (1, 0))
-        graph = Graph()
-        for i, node in enumerate(face_):
-            graph.add_node(node, x=positions[i][0], y=positions[i][1])
-        for edge in utils.edges(face_):
-            graph.add_edge(edge)
-        graph.add_face(face_)
-        graph.update()
-        return graph.get_face(face_)
+class UtilsTestCase(TestCaseBase):
 
     @parameterized.expand((0, 1, 2, 3))
     def test_matching(self, offset: int):
@@ -33,7 +19,8 @@ class UtilsTestCase(unittest.TestCase):
 
         """
         # Set up test data.
-        face = self._create_quad()
+        g = Graph()
+        face = self.create_polygon(g, ((0, 0), (0, 1), (1, 1), (1, 0)))
         positions = [node.pos.to_tuple() for node in face.nodes]
         poly = Polygon(positions[offset:] + positions[:offset])
 
@@ -55,7 +42,8 @@ class UtilsTestCase(unittest.TestCase):
 
         """
         # Set up test data.
-        face = self._create_quad()
+        g = Graph()
+        face = self.create_polygon(g, ((0, 0), (0, 1), (1, 1), (1, 0)))
         positions = [node.pos.to_tuple() for node in face.nodes] + [(0.5, 0)]
         poly = Polygon(positions[offset:] + positions[:offset])
 
