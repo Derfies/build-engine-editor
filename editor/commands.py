@@ -1,5 +1,5 @@
 import uuid
-from itertools import combinations
+from itertools import combinations, pairwise
 from typing import Iterable
 
 import numpy as np
@@ -72,6 +72,25 @@ def add_node(point: tuple) -> tuple[Tweak | None, Tweak | None]:
     add_tweak.nodes.add(node)
     add_tweak.node_attrs[node]['x'] = point[0]
     add_tweak.node_attrs[node]['y'] = point[1]
+    action = Add(add_tweak, QApplication.instance().doc.content)
+    QApplication.instance().action_manager.push(action)
+    QApplication.instance().doc.updated(action(), dirty=True)
+    return add_tweak, None
+
+
+def add_edges(points: Iterable[tuple[float, float]]) -> tuple[Tweak | None, Tweak | None]:
+
+    # TODO: Allow joining to existing node.
+    add_tweak = Tweak()
+    nodes = []
+    for point in points:
+        node = str(uuid.uuid4())
+        add_tweak.nodes.add(node)
+        add_tweak.node_attrs[node]['x'] = point[0]
+        add_tweak.node_attrs[node]['y'] = point[1]
+        nodes.append(node)
+    for cur, nxt in pairwise(nodes):
+        add_tweak.edges.add((cur, nxt))
     action = Add(add_tweak, QApplication.instance().doc.content)
     QApplication.instance().action_manager.push(action)
     QApplication.instance().doc.updated(action(), dirty=True)

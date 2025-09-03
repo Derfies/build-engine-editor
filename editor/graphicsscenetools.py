@@ -2,11 +2,12 @@ import math
 from itertools import product
 
 from PySide6.QtCore import QCoreApplication, QLineF, QPointF, QRectF, Qt
-from PySide6.QtGui import QColorConstants, QPainter, QPen, QPolygonF, QTransform
+from PySide6.QtGui import QColorConstants, QPainter, QPainterPath, QPen, QPolygonF, QTransform
 from PySide6.QtWidgets import (
     QApplication,
     QGraphicsItem,
     QGraphicsLineItem,
+    QGraphicsPathItem,
     QGraphicsPolygonItem,
     QGraphicsRectItem,
     QGraphicsScene,
@@ -286,6 +287,42 @@ class CreateNodeTool(GraphicsSceneToolBase):
     def mouse_release_event(self, event):
         if event.button() == Qt.LeftButton:
             commands.add_node(self.scene.apply_snapping(event.scene_pos()).to_tuple())
+
+
+class CreateEdgesTool(GraphicsSceneToolBase):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._points = []
+
+    def _update_preview(self, temp_point: QPointF | None = None):
+        self.remove_preview()
+        path = QPainterPath(self._points[0])
+        for point in self._points[1:]:
+            path.line_to(point)
+        if temp_point is not None:
+            path.line_to(self.scene.apply_snapping(temp_point))
+        self.add_preview(QGraphicsPathItem(path))
+
+    def mouse_press_event(self, event):
+        if event.button() == Qt.LeftButton:
+            self._points.append(self.scene.apply_snapping(event.scene_pos()))
+            self._update_preview()
+        elif event.button() == Qt.RightButton and self.preview is not None:
+            if len(self._points) < 2:
+                self.cancel()
+                return
+            points = [p.to_tuple() for p in self._points]
+            self.cancel()
+            commands.add_edges(points)
+
+    def mouse_move_event(self, event):
+        if self._points:
+            self._update_preview(event.scene_pos())
+
+    def cancel(self):
+        super().cancel()
+        self._points = []
 
 
 class CreatePolygonTool(GraphicsSceneToolBase):
