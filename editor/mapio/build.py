@@ -21,6 +21,17 @@ def get_ring_bounds(m, ring: list[Any]) -> tuple:
     return tuple(max_pos - min_pos)
 
 
+def build_shade_to_brightness(shade: int, mode="dark_only") -> float:
+    shade = max(0, min(32, shade))  # clamp
+    return 1.0 - (shade / 32.0)
+
+
+def shade_from_brightness(brightness: float) -> int:
+    # Clamp brightness
+    brightness = max(0.0, min(1.0, brightness))
+    return int(round((1.0 - brightness) * 32))
+
+
 def import_build(graph: Graph, file_path: str | Path, format: MapFormat):
     map_reader_cls = {
         MapFormat.BLOOD: BloodMapReader,
@@ -122,6 +133,16 @@ def import_build(graph: Graph, file_path: str | Path, format: MapFormat):
     for face in graph.faces:
         print('    ->', face)
 
+    # HAXXOR
+    # Map attributes to some sensible internal values.
+    for edge in graph.edges:
+        edge.set_attribute('shade', build_shade_to_brightness(edge.get_attribute('shade')))
+    for face in graph.faces:
+        face.set_attribute('floorshade', build_shade_to_brightness(face.get_attribute('floorshade')))
+        face.set_attribute('ceilingshade', build_shade_to_brightness(face.get_attribute('ceilingshade')))
+        face.set_attribute('floorz', face.get_attribute('floorz') / -16)
+        face.set_attribute('ceilingz', face.get_attribute('ceilingz') / -16)
+
 
 def export_build(graph: Graph, file_path: str, format: MapFormat):
 
@@ -178,6 +199,16 @@ def export_build(graph: Graph, file_path: str, format: MapFormat):
             wall_data = m.walls[wall]
             wall_data.nextsector = next_sector
             wall_data.nextwall = edges.index(redge)
+
+    # HAXXOR
+    # Map *from* internal values.
+    for wall in m.walls:
+        wall.shade = int(shade_from_brightness(wall.shade))
+    for sector in m.sectors:
+        sector.floorshade = int(shade_from_brightness(sector.floorshade))
+        sector.ceilingshade = int(shade_from_brightness(sector.ceilingshade))
+        sector.floorz = int(sector.floorz * -16)
+        sector.ceilingz = int(sector.ceilingz * -16)
 
     print('\nheader')
     print(m.header)

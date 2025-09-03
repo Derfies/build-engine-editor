@@ -33,12 +33,19 @@ from __feature__ import snake_case
 @dataclass
 class Entity:
 
+    # TODO: Deprecate
+
     position: QVector3D = field(default_factory=QVector3D)
 
 
-def build_shade_to_brightness(shade: int, mode="dark_only") -> float:
-    shade = max(0, min(64, shade))  # clamp
-    return 1.0 - (shade / 64.0)
+# def build_shade_to_brightness(shade: int, mode="dark_only") -> float:
+#
+#     # Doom
+#     return shade / 256
+#
+#     # Build
+#     shade = max(0, min(64, shade))  # clamp
+#     return 1.0 - (shade / 64.0)
 
 
 class Mesh:
@@ -163,7 +170,8 @@ class Viewport(QOpenGLWidget):
     def build_ring(self, ring: Ring, coords: tuple[tuple[float, float]], y1: float, y2: float):
         for i in range(len(coords) - 1):
             edge = ring.edges[i]
-            wall_shade = build_shade_to_brightness(edge.get_attribute('shade'))
+            # wall_shade = build_shade_to_brightness(edge.get_attribute('shade'))
+            wall_shade = edge.get_attribute('shade')
 
             # If there is no connected face, draw the wall from floor to ceiling.
             # If there is a connected face and the floor is lower than ours, dont draw it.
@@ -178,8 +186,8 @@ class Viewport(QOpenGLWidget):
             if connected_face is None:
                 self.mesh_pool.meshes.append(self.create_wall_mesh(xz0, y1, xz1, y2, wall_shade))
             else:
-                y3 = connected_face.get_attribute('floorz') / -16
-                y4 = connected_face.get_attribute('ceilingz') / -16
+                y3 = connected_face.get_attribute('floorz')# / -16
+                y4 = connected_face.get_attribute('ceilingz')# / -16
                 if y1 < y3:
                     self.mesh_pool.meshes.append(self.create_wall_mesh(xz0, y1, xz1, y3, wall_shade))
                 if y2 > y4:
@@ -213,10 +221,12 @@ class Viewport(QOpenGLWidget):
                     # flipped. Might need to normalise for sanity since we're
                     # dealing with many map formats.
 
-                    y1 = face.get_attribute('floorz') / -16
-                    y2 = face.get_attribute('ceilingz') / -16
-                    floor_shade = build_shade_to_brightness(face.get_attribute('floorshade'))
-                    ceiling_shade = build_shade_to_brightness(face.get_attribute('ceilingshade'))
+                    y1 = face.get_attribute('floorz')# / -16
+                    y2 = face.get_attribute('ceilingz')# / -16
+                    #floor_shade = build_shade_to_brightness(face.get_attribute('floorshade'))
+                    #ceiling_shade = build_shade_to_brightness(face.get_attribute('ceilingshade'))
+                    floor_shade = face.get_attribute('floorshade')
+                    ceiling_shade = face.get_attribute('ceilingshade')
 
                     ring_positions = [
                         [node.pos.to_tuple() for node in ring.nodes]
@@ -396,7 +406,7 @@ class Viewport(QOpenGLWidget):
             if not isinstance(item.element(), Face):
                 continue
             face = item.element()
-            y1 = face.get_attribute('floorz') / -16
+            y1 = face.get_attribute('floorz')# / -16
 
             rings = []
             for ring in face.rings:

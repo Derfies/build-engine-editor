@@ -125,7 +125,7 @@ class MainWindow(MainWindowBase):
 
         #self.import_event()
 
-        #doom.import_doom(self.app().doc.content, r'C:\Program Files (x86)\GOG Galaxy\Games\DOOM\DOOM.WAD', MapFormat.DOOM)
+        doom.import_doom(self.app().doc.content, r'C:\Program Files (x86)\GOG Galaxy\Games\DOOM\DOOM.WAD', MapFormat.DOOM)
         #build.import_build(self.app().doc.content, r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\editor\mapio\tests\data\4_squares.map', MapFormat.DUKE_3D)
         #self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Fallen Aces\AcesData\Episodes\Test\Chapter1\test.json')
         #self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\test.json')
@@ -339,10 +339,14 @@ class MainWindow(MainWindowBase):
             content.add_face_attribute_definition(field.name, field.default)
 
         # Sensible default values.
+        content.add_edge_attribute_definition('shade', 1)
         content.add_edge_attribute_definition('xrepeat', 32)
         content.add_edge_attribute_definition('yrepeat', 32)
         content.add_face_attribute_definition('floorz', 0)
-        content.add_face_attribute_definition('ceilingz', -1024 * 16)
+        content.add_face_attribute_definition('ceilingz', 1024)#-1024 * 16)
+        content.add_face_attribute_definition('ceilingshade', 0.9)
+        content.add_face_attribute_definition('floorshade', 0.9)
+
 
         # For rooms
         #content.add_edge_attribute_definition('door', False)

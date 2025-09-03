@@ -1,3 +1,5 @@
+import logging
+from collections import defaultdict
 from pathlib import Path
 
 import omg
@@ -53,83 +55,125 @@ def import_doom(graph: Graph, file_path: str | Path, format: MapFormat):
     # TODO: Support wadded level selection.
     wad = omg.WAD()
     wad.from_file(file_path)
-    edit = omg.UMapEditor(wad.maps['E1M1'])
+    m = omg.UMapEditor(wad.maps['E1M1'])
 
-    node_map = {}
-    for i, vertex in enumerate(edit.vertexes):
+    # Nodes.
+    nodes = []
+    for i, vertex in enumerate(m.vertexes):
         node = graph.add_node(i, x=vertex.x * global_scale, y=vertex.y * global_scale)
-        node_map[i] = node
+        nodes.append(node)
 
-    for i, linedef in enumerate(edit.linedefs):
-        if linedef.sidefront >= 0:
-            graph.add_edge((node_map[linedef.v2], node_map[linedef.v1]))
-        if linedef.sideback >= 0:
-            graph.add_edge((node_map[linedef.v1], node_map[linedef.v2]))
+    # Edges.
+    # We change the lighting just a bit to make things visible, otherwise apparently
+    # there is no per-wall lighting.
+    for i, linedef in enumerate(m.linedefs):
+        if linedef.sidefront > -1:
+            shade = m.sectors[m.sidedefs[linedef.sidefront].sector].lightlevel / 255 + 0.1
+            graph.add_edge((nodes[linedef.v2], nodes[linedef.v1]), shade=shade)
+        if linedef.sideback > -1:
+            shade = m.sectors[m.sidedefs[linedef.sideback].sector].lightlevel / 255 + 0.1
+            graph.add_edge((nodes[linedef.v1], nodes[linedef.v2]), shade=shade)
 
+    # Faces.
+    # I need to build a face.
+    # which means i need the vertices for that face.
+    # linedef -> sidedef -> sector
 
-    faces = {}
-    for i, linedef in enumerate(edit.linedefs):
+    # Linedefs. One per edge only
+    sector_to_linedefs = defaultdict(list)
+    for i, linedef in enumerate(m.linedefs):
+        front_sector = m.sidedefs[linedef.sidefront].sector
+        sector_to_linedefs[front_sector].append((linedef.v2, linedef.v1))
+        back_sector = m.sidedefs[linedef.sideback].sector
+        sector_to_linedefs[back_sector].append((linedef.v1, linedef.v2))
 
-        front_sector = edit.sidedefs[linedef.sidefront].sector
-        faces.setdefault(front_sector, []).append((linedef.v1, linedef.v2))
-
-        back_sector = edit.sidedefs[linedef.sideback].sector
-        faces.setdefault(back_sector, []).append((linedef.v2, linedef.v1))
-
-    for k, v in faces.items():
+    #i = 0
+    for sector_idx, linedefs in sector_to_linedefs.items():
+        #print(sector, '->', linedefs)
         try:
-            ordered = order_tuples(v)
+            ordered = order_tuples(linedefs)
         except:
             continue
         #print(k, '->', v, order_tuples(v))
         else:
             print(ordered)
-            graph.add_face(tuple(reversed([o[0] for o in ordered])))
+            sector_attrs = {
+                'ceilingshade': m.sectors[sector_idx].lightlevel / 255,
+                'floorshade': m.sectors[sector_idx].lightlevel / 255,
+                'ceilingz': m.sectors[sector_idx].heightceiling * global_scale,
+                'floorz': m.sectors[sector_idx].heightfloor * global_scale,
+            }
+            face = [o[0] for o in ordered] + [ordered[0][0]]
+            graph.add_face(tuple(face), **sector_attrs)
+
+
+
     graph.update()
 
 
 def export_doom(graph: Graph, file_path: str | Path, format: MapFormat):
+
     global_scale = 0.1
 
-    MAP_NAME = 'MAP01'
-
-    # Create a new WAD
-    w = WAD()
+    # Assign indices.
+    node_to_index = {node: i for i, node in enumerate(graph.nodes)}
+    edge_to_index = {edge: i for i, edge in enumerate(graph.edges)}
+    face_to_index = {face: i for i, face in enumerate(graph.faces)}
 
     # Create a new map editor instance
     m = MapEditor()
 
-    # Assign indices.
-    node_to_index = {node: i for i, node in enumerate(graph.nodes)}
+    # Vertices.
+    for node in node_to_index:
+        vertex = Vertex(int(node.get_attribute('x') * global_scale), int(node.get_attribute('y') * global_scale))
+        m.vertexes.append(vertex)
+        logging.debug(f'Adding vertex: {vertex}')
 
-    # Vertices for a square room
-    m.vertexes = [
-        Vertex(int(node.get_attribute('x') * global_scale), int(node.get_attribute('y') * global_scale))
-        for node in node_to_index
-    ]
+    # Sidedefs. One per hedge.
+    for edge in edge_to_index:
 
-    for v in m.vertexes:
-        print(v.x, v.y)
+        if edge.face is None:
+            continue
+        tx_attrs = {
+            'off_x': 0,
+            'off_y': 0,
+            'sector': face_to_index[edge.face],
+        }
+        if edge.reversed is None:
+            tx_attrs['tx_mid'] = 'STARTAN3'
+        else:
+            tx_attrs['tx_up'] = 'STARTAN3'
+            tx_attrs['tx_low'] = 'STARTAN3'
+        sidedef = Sidedef(**tx_attrs)
+        m.sidedefs.append(sidedef)
+        logging.debug(f'Adding sidedef: {sidedef}')
 
-    # One sector (floor = 0, ceil = 128, flats are FLOOR0_1 and CEIL1_1)
-    m.sectors = [
-        Sector(z_floor=0, z_ceil=128, tx_floor="FLAT1", tx_ceil="FLAT1")
-    ]
+    # Linedefs. One per edge only - ie hedges are shared.
+    # Watch the winding order...
+    linedefs = {}
+    for edge in edge_to_index:
+        linedef = linedefs.get(edge.reversed)
+        if linedef is None:
+            linedef = Linedef(vx_a=node_to_index[edge.tail], vx_b=node_to_index[edge.head], front=edge_to_index[edge])
+            linedefs[edge] = linedef
+        else:
+            linedef.back = edge_to_index[edge.reversed]
+        logging.debug(f'Adding linedef: {linedef}') # TODO: Fix logging
+    m.linedefs.extend(linedefs.values())
 
-    # Linedefs around the square
-    m.sidedefs = []
-    m.linedefs = []
-    for face in graph.faces:
-        for i, edge in enumerate(face.edges):
-            m.sidedefs.append(Sidedef(off_x=0, off_y=0, tx_mid="STARTAN3", sector=0))
-            m.linedefs.append(Linedef(vx_a=node_to_index[edge.tail], vx_b=node_to_index[edge.head], front=i))
+    # Sectors.
+    for face in face_to_index:
+        sector = Sector(z_floor=0, z_ceil=128, tx_floor='FLAT1', tx_ceil='FLAT1')
+        m.sectors.append(sector)
+        logging.debug(f'Adding sector: {sector}')
 
+    # Things.
     # Player 1 start thing (type 1)
     m.things = [
-        Thing(x=0, y=0, angle=0, type=1)
+        Thing(x=0, y=0, angle=0, type=1),
     ]
 
-    # Insert into WAD
-    w.maps[MAP_NAME] = m.to_lumps()
-
+    # Insert into WAD and save.
+    w = WAD()
+    w.maps['MAP01'] = m.to_lumps()
     w.to_file(str(file_path))
