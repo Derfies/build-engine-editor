@@ -1,8 +1,10 @@
 import logging
+from typing import Any
 from collections import defaultdict
 from pathlib import Path
 
 import omg
+import numpy as np
 from omg import WAD, MapEditor
 from omg.mapedit import Vertex, Linedef, Sidedef, Sector, Thing
 
@@ -10,42 +12,87 @@ from editor.constants import MapFormat
 from editor.graph import Graph
 
 
-def order_tuples(tuples):
+def get_ring_bounds(m, ring: list[Any]) -> tuple:
+    print('ring:', ring)
+    positions = [(edge.head.get_attribute('x'), edge.tail.get_attribute('y')) for edge in ring]
+    min_pos = np.amin(positions, axis=0)
+    max_pos = np.amax(positions, axis=0)
+    return tuple(max_pos - min_pos)
+
+#
+# def order_tuples(tuples):
+#     if not tuples:
+#         return []
+#
+#     # Build a mapping from start -> tuple
+#     start_map = {t[0]: t for t in tuples}
+#
+#     # Find a starting tuple (whose start is never an end)
+#     all_starts = set(t[0] for t in tuples)
+#     all_ends = set(t[1] for t in tuples)
+#     start_candidates = all_starts - all_ends
+#     if start_candidates:
+#         start_val = start_candidates.pop()
+#         current = start_map[start_val]
+#     else:
+#         # No unique start, just pick the first tuple
+#         current = tuples[0]
+#
+#     ordered = [current]
+#     used = set([current])
+#
+#     while len(ordered) < len(tuples):
+#         last = ordered[-1]
+#         next_tuple = None
+#         for t in tuples:
+#             if t in used:
+#                 continue
+#             if t[0] == last[1]:
+#                 next_tuple = t
+#                 break
+#         if not next_tuple:
+#             #print("Cannot chain all tuples", tuples, '->', ordered)
+#             #print('remaining:', set(tuples) - set(ordered))
+#             raise ValueError("Cannot chain all tuples", tuples)
+#         ordered.append(next_tuple)
+#         used.add(next_tuple)
+#
+#     return ordered
+
+
+def order_tuples_into_chains(tuples):
     if not tuples:
         return []
 
-    # Build a mapping from start -> tuple
-    start_map = {t[0]: t for t in tuples}
+    unused = set(tuples)
+    chains = []
 
-    # Find a starting tuple (whose start is never an end)
-    all_starts = set(t[0] for t in tuples)
-    all_ends = set(t[1] for t in tuples)
-    start_candidates = all_starts - all_ends
-    if start_candidates:
-        start_val = start_candidates.pop()
-        current = start_map[start_val]
-    else:
-        # No unique start, just pick the first tuple
-        current = tuples[0]
+    while unused:
+        # Pick a starting tuple
+        current = unused.pop()
+        chain = [current]
 
-    ordered = [current]
-    used = set([current])
-
-    while len(ordered) < len(tuples):
-        last = ordered[-1]
-        next_tuple = None
-        for t in tuples:
-            if t in used:
-                continue
-            if t[0] == last[1]:
-                next_tuple = t
+        # Extend forward
+        while True:
+            last = chain[-1]
+            next_tuple = None
+            for t in list(unused):
+                if t.head == last.tail:
+                    next_tuple = t
+                    break
+            if not next_tuple:
                 break
-        if not next_tuple:
-            raise ValueError("Cannot chain all tuples", tuples)
-        ordered.append(next_tuple)
-        used.add(next_tuple)
+            chain.append(next_tuple)
+            unused.remove(next_tuple)
 
-    return ordered
+            # Loop closed?
+            if chain[-1].tail == chain[0].head:
+                chain.append(chain[0])
+                break
+
+        chains.append(chain)
+
+    return chains
 
 
 def import_doom(graph: Graph, file_path: str | Path, format: MapFormat):
@@ -55,7 +102,7 @@ def import_doom(graph: Graph, file_path: str | Path, format: MapFormat):
     # TODO: Support wadded level selection.
     wad = omg.WAD()
     wad.from_file(file_path)
-    m = omg.UMapEditor(wad.maps['E1M1'])
+    m = omg.UMapEditor(wad.maps['E1M5'])
 
     # Nodes.
     nodes = []
@@ -66,47 +113,34 @@ def import_doom(graph: Graph, file_path: str | Path, format: MapFormat):
     # Edges.
     # We change the lighting just a bit to make things visible, otherwise apparently
     # there is no per-wall lighting.
-    for i, linedef in enumerate(m.linedefs):
-        if linedef.sidefront > -1:
-            shade = m.sectors[m.sidedefs[linedef.sidefront].sector].lightlevel / 255 + 0.1
-            graph.add_edge((nodes[linedef.v2], nodes[linedef.v1]), shade=shade)
-        if linedef.sideback > -1:
-            shade = m.sectors[m.sidedefs[linedef.sideback].sector].lightlevel / 255 + 0.1
-            graph.add_edge((nodes[linedef.v1], nodes[linedef.v2]), shade=shade)
-
-    # Faces.
-    # I need to build a face.
-    # which means i need the vertices for that face.
-    # linedef -> sidedef -> sector
-
-    # Linedefs. One per edge only
-    sector_to_linedefs = defaultdict(list)
-    for i, linedef in enumerate(m.linedefs):
-        front_sector = m.sidedefs[linedef.sidefront].sector
-        sector_to_linedefs[front_sector].append((linedef.v2, linedef.v1))
-        back_sector = m.sidedefs[linedef.sideback].sector
-        sector_to_linedefs[back_sector].append((linedef.v1, linedef.v2))
-
-    #i = 0
-    for sector_idx, linedefs in sector_to_linedefs.items():
-        #print(sector, '->', linedefs)
-        try:
-            ordered = order_tuples(linedefs)
-        except:
-            continue
-        #print(k, '->', v, order_tuples(v))
-        else:
-            print(ordered)
-            sector_attrs = {
-                'ceilingshade': m.sectors[sector_idx].lightlevel / 255,
-                'floorshade': m.sectors[sector_idx].lightlevel / 255,
-                'ceilingz': m.sectors[sector_idx].heightceiling * global_scale,
-                'floorz': m.sectors[sector_idx].heightfloor * global_scale,
+    sector_idx_to_edges = defaultdict(list)
+    for i, line in enumerate(m.linedefs):
+        for reverse, side_idx in enumerate((line.sidefront, line.sideback)):
+            if side_idx < 0:
+                continue
+            sector_idx = m.sidedefs[side_idx].sector
+            sector = m.sectors[sector_idx]
+            edge_attrs = {
+                'shade': sector.lightlevel / 255 + 0.1
             }
-            face = [o[0] for o in ordered] + [ordered[0][0]]
-            graph.add_face(tuple(face), **sector_attrs)
+            head, tail = line.v2, line.v1
+            if reverse:
+                head, tail = tail, head
+            edge = graph.add_edge((head, tail), **edge_attrs)
+            sector_idx_to_edges[sector_idx].append(edge)
 
-
+    i = 0
+    for sector_idx, edges in sector_idx_to_edges.items():
+        sector = m.sectors[sector_idx]
+        rings = order_tuples_into_chains(edges)
+        sector_attrs = {
+            'ceilingshade': sector.lightlevel / 255,
+            'floorshade': sector.lightlevel / 255,
+            'ceilingz': sector.heightceiling * global_scale,
+            'floorz': sector.heightfloor * global_scale,
+        }
+        sorted_rings = sorted(rings, key=lambda r: get_ring_bounds(m, r), reverse=True)
+        graph.add_face(tuple([node.head.data for ring in sorted_rings for node in ring]), **sector_attrs)
 
     graph.update()
 

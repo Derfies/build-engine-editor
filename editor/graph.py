@@ -129,10 +129,14 @@ class Edge(Element):
 
     @property
     def head(self):
+
+        # Techincally should use a dict like everything else?
         return self.graph.get_node(self.data[0])
 
     @property
     def tail(self):
+
+        # Techincally should use a dict like everything else?
         return self.graph.get_node(self.data[1])
 
     @property
