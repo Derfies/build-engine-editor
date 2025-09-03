@@ -38,16 +38,6 @@ class Entity:
     position: QVector3D = field(default_factory=QVector3D)
 
 
-# def build_shade_to_brightness(shade: int, mode="dark_only") -> float:
-#
-#     # Doom
-#     return shade / 256
-#
-#     # Build
-#     shade = max(0, min(64, shade))  # clamp
-#     return 1.0 - (shade / 64.0)
-
-
 class Mesh:
 
     def __init__(self, vertices: np.ndarray, shade: float = 1.0):
@@ -217,14 +207,8 @@ class Viewport(QOpenGLWidget):
 
                 for face in doc.content.faces:
 
-                    # TODO: Remember these are build-engine z coords, which are
-                    # flipped. Might need to normalise for sanity since we're
-                    # dealing with many map formats.
-
-                    y1 = face.get_attribute('floorz')# / -16
-                    y2 = face.get_attribute('ceilingz')# / -16
-                    #floor_shade = build_shade_to_brightness(face.get_attribute('floorshade'))
-                    #ceiling_shade = build_shade_to_brightness(face.get_attribute('ceilingshade'))
+                    y1 = face.get_attribute('floorz')
+                    y2 = face.get_attribute('ceilingz')
                     floor_shade = face.get_attribute('floorshade')
                     ceiling_shade = face.get_attribute('ceilingshade')
 
@@ -406,7 +390,7 @@ class Viewport(QOpenGLWidget):
             if not isinstance(item.element(), Face):
                 continue
             face = item.element()
-            y1 = face.get_attribute('floorz')# / -16
+            y1 = face.get_attribute('floorz')
 
             rings = []
             for ring in face.rings:

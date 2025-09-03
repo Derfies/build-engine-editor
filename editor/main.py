@@ -117,7 +117,31 @@ class MainWindow(MainWindowBase):
         self.on_tool_action_group()
         self.on_select_action_group()
 
+        #self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\test.map')
+        #self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\LL-SEWER.MAP')
+        #self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\1.MAP')
+        #self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\editor\tests\data\2_squares.map')
+        #self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\test5.map')
+
+        #self.import_event()
+
+        #doom.import_doom(self.app().doc.content, r'C:\Program Files (x86)\GOG Galaxy\Games\DOOM\DOOM.WAD', MapFormat.DOOM)
+        #build.import_build(self.app().doc.content, r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\editor\mapio\tests\data\4_squares.map', MapFormat.DUKE_3D)
+        #self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Fallen Aces\AcesData\Episodes\Test\Chapter1\test.json')
+        #self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\test.json')
+        #fallenaces.export_fallen_aces(self.app().doc.content, r'C:\Program Files (x86)\Steam\steamapps\common\Fallen Aces\AcesData\Episodes\Test\Chapter1\level1.txt', MapFormat.FALLEN_ACES)
+        #build.import_build(self.app().doc.content, r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\DX-MINIDOOM.MAP', MapFormat.DUKE_3D)
+        #build.import_build(self.app().doc.content, r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\DX-CONAM.MAP', MapFormat.DUKE_3D)
+        #build.import_build(self.app().doc.content, r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\DX-6SPIRES.MAP', MapFormat.DUKE_3D)
+        #build.import_build(self.app().doc.content, r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\newboard.map', MapFormat.DUKE_3D)
+        fallenaces.import_fallen_aces(self.app().doc.content,
+                                      r'C:\Program Files (x86)\Steam\steamapps\common\Fallen Aces\AcesData\Episodes\Heart of Glass\Chapter1\level1.txt',
+                                      MapFormat.FALLEN_ACES)
+
         self.app().doc.updated(dirty=False)
+
+        #self.app().doc.file_path = r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\out.map'
+        #self.app().doc.save()
 
     def key_press_event(self, event):
 
@@ -406,7 +430,6 @@ class MainWindow(MainWindowBase):
         # how to clean up properly here.
         ext = map_format.value.split('*.')[1].rstrip(')')
         temp_map_path = exe_path.parent.joinpath(f'out.{ext}')
-        #build.export_build(self.app().doc.content, temp_map_path, map_format)
         EXPORTERS[map_format](self.app().doc.content, temp_map_path, map_format)
         logger.debug(f'Exported temp map: {temp_map_path}')
 

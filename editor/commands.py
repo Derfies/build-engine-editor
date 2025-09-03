@@ -25,9 +25,6 @@ MAX_DISTANCE = 10000.0
 
 
 def select_elements(elements: Iterable[Node] | Iterable[Edge] | Iterable[Face]):
-    for element in elements:
-        if isinstance(element, Face):
-            print(element.data)
     actions = []
     for element in QApplication.instance().doc.selected_elements:
         actions.append(SetAttribute(IS_SELECTED, False, element))
