@@ -140,7 +140,7 @@ def export_build(graph: Graph, file_path: str, format: MapFormat):
     for face in faces:
         sector_data = Sector(**face.get_attributes())
         sector_data.wallptr = wallptr
-        sector_data.wallnum = len(face.data)
+        sector_data.wallnum = len(face.edges)
         for i, edge in enumerate(face.edges):
             wall_data = Wall(**edge.get_attributes())
             wall_data.x = int(edge.head.pos.x())

@@ -1,6 +1,8 @@
 from pathlib import Path
 
 import omg
+from omg import WAD, MapEditor
+from omg.mapedit import Vertex, Linedef, Sidedef, Sector, Thing
 
 from editor.constants import MapFormat
 from editor.graph import Graph
@@ -84,3 +86,50 @@ def import_doom(graph: Graph, file_path: str | Path, format: MapFormat):
             print(ordered)
             graph.add_face(tuple(reversed([o[0] for o in ordered])))
     graph.update()
+
+
+def export_doom(graph: Graph, file_path: str | Path, format: MapFormat):
+    global_scale = 0.1
+
+    MAP_NAME = 'MAP01'
+
+    # Create a new WAD
+    w = WAD()
+
+    # Create a new map editor instance
+    m = MapEditor()
+
+    # Assign indices.
+    node_to_index = {node: i for i, node in enumerate(graph.nodes)}
+
+    # Vertices for a square room
+    m.vertexes = [
+        Vertex(int(node.get_attribute('x') * global_scale), int(node.get_attribute('y') * global_scale))
+        for node in node_to_index
+    ]
+
+    for v in m.vertexes:
+        print(v.x, v.y)
+
+    # One sector (floor = 0, ceil = 128, flats are FLOOR0_1 and CEIL1_1)
+    m.sectors = [
+        Sector(z_floor=0, z_ceil=128, tx_floor="FLAT1", tx_ceil="FLAT1")
+    ]
+
+    # Linedefs around the square
+    m.sidedefs = []
+    m.linedefs = []
+    for face in graph.faces:
+        for i, edge in enumerate(face.edges):
+            m.sidedefs.append(Sidedef(off_x=0, off_y=0, tx_mid="STARTAN3", sector=0))
+            m.linedefs.append(Linedef(vx_a=node_to_index[edge.tail], vx_b=node_to_index[edge.head], front=i))
+
+    # Player 1 start thing (type 1)
+    m.things = [
+        Thing(x=0, y=0, angle=0, type=1)
+    ]
+
+    # Insert into WAD
+    w.maps[MAP_NAME] = m.to_lumps()
+
+    w.to_file(str(file_path))
