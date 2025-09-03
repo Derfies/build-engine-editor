@@ -14,16 +14,13 @@ from applicationframework.application import Application
 from applicationframework.document import Document
 from applicationframework.mainwindow import MainWindow as MainWindowBase
 from editor import commands
-from editor.constants import EDGE_DEFAULT, FACE_DEFAULT
 from editor.constants import MapFormat, ModalTool, SelectionMode
 from editor.editorpropertygrid import PropertyGrid
 from editor.graph import Graph
 from editor.graphicsscene import GraphicsScene
 from editor.graphicsview import GraphicsView
-from editor.mapdocument import MapDocument
-from editor.mapio import build
-from editor.mapio import doom
-from editor.mapio import gexf
+from editor.document import Document
+from editor.mapio import build, doom, gexf, fallenaces
 from editor.preferencesdialog import PreferencesDialog
 from editor.settings import ColourSettings, GeneralSettings, GridSettings, HotkeySettings, PlaySettings
 from editor.updateflag import UpdateFlag
@@ -48,6 +45,7 @@ EXPORTERS = {
     MapFormat.BLOOD: build.export_build,
     MapFormat.DUKE_3D: build.export_build,
     MapFormat.GEXF: gexf.export_gexf,
+    MapFormat.FALLEN_ACES: fallenaces.export_fallen_aces,
 }
 
 
@@ -127,15 +125,16 @@ class MainWindow(MainWindowBase):
         #self.import_event()
 
         #doom.import_doom(self.app().doc.content, r'C:\Program Files (x86)\GOG Galaxy\Games\DOOM\DOOM.WAD', MapFormat.DOOM)
-        #build.import_build(self.app().doc.content, r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\editor\mapio\tests\data\2_squares.map', MapFormat.DUKE_3D)
+        #build.import_build(self.app().doc.content, r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\editor\mapio\tests\data\4_squares.map', MapFormat.DUKE_3D)
         #self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Fallen Aces\AcesData\Episodes\Test\Chapter1\test.json')
         #self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\test.json')
         #fallenaces.export_fallen_aces(self.app().doc.content, r'C:\Program Files (x86)\Steam\steamapps\common\Fallen Aces\AcesData\Episodes\Test\Chapter1\level1.txt', MapFormat.FALLEN_ACES)
-        build.import_build(self.app().doc.content, r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\DX-MINIDOOM.MAP', MapFormat.DUKE_3D)
+        #build.import_build(self.app().doc.content, r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\DX-MINIDOOM.MAP', MapFormat.DUKE_3D)
+        build.import_build(self.app().doc.content, r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\DX-CONAM.MAP', MapFormat.DUKE_3D)
+        #build.import_build(self.app().doc.content, r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\DX-6SPIRES.MAP', MapFormat.DUKE_3D)
+        #build.import_build(self.app().doc.content, r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\newboard.map', MapFormat.DUKE_3D)
 
         self.app().doc.updated(dirty=False)
-
-
 
         #self.app().doc.file_path = r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\out.map'
         #self.app().doc.save()

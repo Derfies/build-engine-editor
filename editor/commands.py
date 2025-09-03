@@ -80,6 +80,10 @@ def add_node(point: tuple) -> tuple[Tweak | None, Tweak | None]:
 
 def add_polygon(points: Iterable[tuple]):
 
+    # TODO: Change func sig to support holes.
+    # Should probably be a tuple of tuples with non-repeating nodes, ie no
+    # closures (the tuples indicate rings).
+
     # Ensure winding order is consistent.
     poly = orient(Polygon(points), sign=1.0)
     coords = poly.exterior.coords[:-1]
@@ -87,7 +91,7 @@ def add_polygon(points: Iterable[tuple]):
     add_tweak = Tweak()
     nodes = [str(uuid.uuid4()) for _ in range(len(coords))]
     edges = []
-    face = tuple(nodes)
+    face = tuple(nodes + [nodes[0]])
     for i in range(len(nodes)):
         head = nodes[i]
         tail = nodes[(i + 1) % len(nodes)]
@@ -364,8 +368,9 @@ def join_edges(*edges: Iterable[Edge]) -> tuple[Tweak, Tweak]:
         # Faces.
         rem_tweak.faces.update({face.data for face in node.faces})
         for face in node.faces:
-            face_nodes = tuple([node_to_new_node.get(node, node.data) for node in face.nodes])
-            add_tweak.faces.add(face_nodes)
+            face_nodes = [node_to_new_node.get(node, node.data) for node in face.nodes]
+            #add_tweak.faces.add(tuple(face_nodes))
+            add_tweak.faces.add(tuple(face_nodes + [face_nodes[0]]))
 
     print('\nrem tweak:')
     print(rem_tweak)

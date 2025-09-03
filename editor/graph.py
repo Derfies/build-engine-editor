@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import networkx as nx
+import numpy as np
 from PySide6.QtCore import QPointF
 from networkx.readwrite import json_graph
 
@@ -29,7 +30,7 @@ TYPES = {
 }
 
 
-class Element(metaclass=abc.ABCMeta):
+class ElementBase(metaclass=abc.ABCMeta):
 
     def __init__(self, graph: 'Graph', data):
         self.graph = graph
@@ -44,6 +45,14 @@ class Element(metaclass=abc.ABCMeta):
     def __eq__(self, other):
         return hash(self) == hash(other)
 
+    @property
+    @abc.abstractmethod
+    def nodes(self) -> tuple:
+        ...
+
+
+class Element(ElementBase):
+
     @abc.abstractmethod
     def get_private_attributes(self):
         ...
@@ -56,11 +65,6 @@ class Element(metaclass=abc.ABCMeta):
 
     def set_attribute(self, key, value):
         self.get_attributes()[key] = value
-
-    @property
-    @abc.abstractmethod
-    def nodes(self) -> tuple:
-        ...
 
     @property
     def is_selected(self):
@@ -147,6 +151,13 @@ class Edge(Element):
         return self.graph.get_edge(self.data[1], self.data[0])
 
 
+class Ring(ElementBase):
+
+    @property
+    def nodes(self) -> tuple:
+        return self.graph.ring_to_nodes[self]
+
+
 class Face(Element):
 
     @singledispatchmethod
@@ -166,11 +177,15 @@ class Face(Element):
 
     @property
     def edges(self) -> tuple[Edge]:
-        return tuple(self.graph.face_to_edges[self])
+        return self.graph.face_to_edges[self]
 
     @property
     def faces(self) -> tuple[Face]:
         return (self, )
+
+    @property
+    def rings(self):
+        return self.graph.face_to_rings[self]
 
 
 class Graph(ContentBase):
@@ -194,16 +209,16 @@ class Graph(ContentBase):
         self.node_to_out_edges = defaultdict(set)
         self.node_to_faces = defaultdict(set)
 
-        self.edge_to_nodes = defaultdict(set)
-        self.edge_to_edges = {}
-        self.edge_to_faces = defaultdict(set)
 
         self.edge_to_nodes = defaultdict(set)
-        self.edge_to_edge = {}
+        self.edge_to_nodes = defaultdict(set)
         self.edge_to_face = {}
 
+        self.ring_to_nodes = {}
+
         self.face_to_nodes = defaultdict(list)
-        self.face_to_edges = defaultdict(list)
+        self.face_to_edges = {}
+        self.face_to_rings = {}
 
         self.update()
 
@@ -233,41 +248,55 @@ class Graph(ContentBase):
 
     def update(self):
 
-        #self.node_to_edges.clear()
         self.node_to_edges.clear()
         self.node_to_in_edges.clear()
         self.node_to_out_edges.clear()
         self.node_to_faces.clear()
 
         self.edge_to_nodes.clear()
-        self.edge_to_edges.clear()
-        self.edge_to_faces.clear()
-
-        self.edge_to_nodes.clear()
-        self.edge_to_edge.clear()
         self.edge_to_face.clear()
 
         self.face_to_nodes.clear()
-        self.face_to_edges.clear()
+        #self.face_to_edges.clear()
 
-        self.undirected_data = self.data.to_undirected()
+        ring_to_nodes = defaultdict(list)
+        face_to_edges = defaultdict(list)
+        face_to_rings = defaultdict(list)
+
 
         for face in self.data.graph[FACES]:
             face_ = self.get_face(face)
-            self.face_to_nodes[face].extend([self.get_node(node) for node in face])
 
-            for i in range(len(face)):
-                head, tail = face[i], face[(i + 1) % len(face)]
+            rings = [[]]
 
-                node_ = self.get_node(head)
-                edge = self.get_edge(head, tail)
-                self.face_to_edges[face].append(edge)
+            start_node = face[0]
+            i = 0
+            while i < len(face) - 1:
+                curr, nxt = face[i], face[i + 1]
+                rings[-1].append(curr)
+                i += 1
+                if nxt == start_node and i < len(face) - 1:
+                    rings.append([])
+                    i += 1
+                    start_node = face[i]
+            rings = tuple([tuple(ring) for ring in rings])
 
-                #self.edge_to_faces[edge_].add(face_)
+            for ring in rings:
+                ring_nodes_ = []
+                for i in range(len(ring)):
+                    head, tail = ring[i], ring[(i + 1) % len(ring)]
+                    node_ = self.get_node(head)
+                    edge = self.get_edge(head, tail)
+                    face_to_edges[face].append(edge)
+                    self.edge_to_face[edge] = face_
+                    self.node_to_faces[node_].add(face_)
+                    self.face_to_nodes[face].append(node_)
 
-                self.edge_to_face[edge] = face_
+                    ring_nodes_.append(node_)
 
-                self.node_to_faces[node_].add(face_)
+                ring_ = Ring(self, tuple(ring_nodes_))
+                face_to_rings[face].append(ring_)
+                ring_to_nodes[ring_].extend(ring_nodes_)
 
         for node in self.data.nodes:
             node_ = self.get_node(node)
@@ -282,6 +311,10 @@ class Graph(ContentBase):
             edge_ = self.get_edge(*edge)
             self.edge_to_nodes[edge].add(edge_.head)
             self.edge_to_nodes[edge].add(edge_.tail)
+
+        self.face_to_edges = {k: tuple(v) for k, v in face_to_edges.items()}
+        self.face_to_rings = {k: tuple(v) for k, v in face_to_rings.items()}
+        self.ring_to_nodes = {k: tuple(v) for k, v in ring_to_nodes.items()}
 
     @property
     def nodes(self) -> set[Node]:

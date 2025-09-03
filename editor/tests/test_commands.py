@@ -63,12 +63,7 @@ class CommandsTestCase(UsesQApplication, TestCaseBase):
 
         """
         # Set up test data.
-        points = (
-            (0, 0),
-            (0, 1),
-            (1, 1),
-            (1, 0),
-        )
+        points = (((0, 0), (0, 1), (1, 1), (1, 0)))
 
         # Start test.
         with patch.object(uuid, 'uuid4', side_effect=('A', 'B', 'C', 'D')):
@@ -78,7 +73,7 @@ class CommandsTestCase(UsesQApplication, TestCaseBase):
         # NOTE: Winding order was different to input since we wind CC be default.
         self.assertSetEqual(add_tweak.nodes, {'A', 'B', 'C', 'D'})
         self.assertSetEqual(add_tweak.edges, {('A', 'B'), ('B', 'C'), ('C', 'D'), ('D', 'A')})
-        self.assertSetEqual(add_tweak.faces, {('A', 'B', 'C', 'D')})
+        self.assertSetEqual(add_tweak.faces, {('A', 'B', 'C', 'D', 'A')})
         self.assertEqual((add_tweak.node_attrs['A']['x'], add_tweak.node_attrs['A']['y']), (0, 0))
         self.assertEqual((add_tweak.node_attrs['B']['x'], add_tweak.node_attrs['B']['y']), (1, 0))
         self.assertEqual((add_tweak.node_attrs['C']['x'], add_tweak.node_attrs['C']['y']), (1, 1))
@@ -166,20 +161,8 @@ class CommandsTestCase(UsesQApplication, TestCaseBase):
 
         """
         # Set up test data.
-        self.create_polygon(
-            self.c,
-            (0, 0),
-            (0, 1),
-            (1, 1),
-            (1, 0),
-        )
-        self.create_polygon(
-            self.c,
-            (2, 0),
-            (2, 1),
-            (3, 1),
-            (3, 0),
-        )
+        self.create_polygon(self.c, ((0, 0), (0, 1), (1, 1), (1, 0)))
+        self.create_polygon(self.c, ((2, 0), (2, 1), (3, 1), (3, 0)))
 
         # Start test.
         e1 = self.c.get_edge(2, 3)
@@ -192,8 +175,8 @@ class CommandsTestCase(UsesQApplication, TestCaseBase):
         self.assertSetEqual(add_tweak.nodes, {'A', 'B'})
         self.assertSetEqual(rem_tweak.edges, {(1, 2), (2, 3), (3, 0), (7, 4), (4, 5), (5, 6)})
         self.assertSetEqual(add_tweak.edges, {(1, 'A'), ('A', 'B'), ('B', 0), (7, 'B'), ('B', 'A'), ('A', 6)})
-        self.assertSetEqual(rem_tweak.faces, {(0, 1, 2, 3), (4, 5, 6, 7)})
-        self.assertSetEqual(add_tweak.faces, {(0, 1, 'A', 'B'), ('B', 'A', 6, 7)})
+        self.assertSetEqual(rem_tweak.faces, {(0, 1, 2, 3, 0), (4, 5, 6, 7, 4)})
+        self.assertSetEqual(add_tweak.faces, {(0, 1, 'A', 'B', 0), ('B', 'A', 6, 7, 'B')})
         self.assertEqual((rem_tweak.node_attrs[2]['x'], rem_tweak.node_attrs[2]['y']), (1, 1))
         self.assertEqual((rem_tweak.node_attrs[3]['x'], rem_tweak.node_attrs[3]['y']), (1, 0))
         self.assertEqual((rem_tweak.node_attrs[4]['x'], rem_tweak.node_attrs[4]['y']), (2, 0))
@@ -228,24 +211,8 @@ class CommandsTestCase(UsesQApplication, TestCaseBase):
 
         """
         # Set up test data.
-        self.create_polygon(
-            self.c,
-            (0, 0),
-            (0, 0.5),
-            (0, 1),
-            (1, 1),
-            (1, 0.5),
-            (1, 0),
-        )
-        self.create_polygon(
-            self.c,
-            (2, 0),
-            (2, 0.5),
-            (2, 1),
-            (3, 1),
-            (3, 0.5),
-            (3, 0),
-        )
+        self.create_polygon(self.c, ((0, 0), (0, 0.5), (0, 1), (1, 1), (1, 0.5), (1, 0)))
+        self.create_polygon(self.c, ((2, 0), (2, 0.5), (2, 1), (3, 1), (3, 0.5), (3, 0)))
 
         # Start test.
         e1 = self.c.get_edge(3, 4)
@@ -260,8 +227,8 @@ class CommandsTestCase(UsesQApplication, TestCaseBase):
         self.assertSetEqual(add_tweak.nodes, {'A', 'B', 'C'})
         self.assertSetEqual(rem_tweak.edges, {(2, 3), (3, 4), (4, 5), (5, 0), (11, 6), (6, 7), (7, 8), (8, 9)})
         self.assertSetEqual(add_tweak.edges, {(2, 'A'), ('A', 'B'), ('B', 'C'), ('C', 0), (11, 'C'), ('C', 'B'), ('B', 'A'), ('A', 9)})
-        self.assertSetEqual(rem_tweak.faces, {(0, 1, 2, 3, 4, 5), (6, 7, 8, 9, 10, 11)})
-        self.assertSetEqual(add_tweak.faces, {(0, 1, 2, 'A', 'B', 'C'), ('C', 'B', 'A', 9, 10, 11)})
+        self.assertSetEqual(rem_tweak.faces, {(0, 1, 2, 3, 4, 5, 0), (6, 7, 8, 9, 10, 11, 6)})
+        self.assertSetEqual(add_tweak.faces, {(0, 1, 2, 'A', 'B', 'C', 0), ('C', 'B', 'A', 9, 10, 11, 'C')})
         self.assertEqual((rem_tweak.node_attrs[3]['x'], rem_tweak.node_attrs[3]['y']), (1, 1))
         self.assertEqual((rem_tweak.node_attrs[4]['x'], rem_tweak.node_attrs[4]['y']), (1, 0.5))
         self.assertEqual((rem_tweak.node_attrs[5]['x'], rem_tweak.node_attrs[5]['y']), (1, 0))

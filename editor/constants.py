@@ -32,6 +32,7 @@ class MapFormat(Enum):
     BLOOD = 'Blood (*.map)'
     GEXF = 'Graph Exchange XML (*.gexf)'
     DOOM = 'Doom WAD (*.map)'
+    FALLEN_ACES = 'Fallen Aces (*.txt)'
 
 
 ATTRIBUTES = 'attributes'

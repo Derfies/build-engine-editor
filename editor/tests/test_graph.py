@@ -1,12 +1,70 @@
 import json
 import os
 import tempfile
-import unittest
 from pathlib import Path
 
 from editor.constants import ATTRIBUTES, EDGE_DEFAULT, FACE_DEFAULT, NODE_DEFAULT
 from editor.graph import Graph
 from editor.tests.testcasebase import TestCaseBase
+
+
+class FaceTestCase(TestCaseBase):
+
+    def test_face_rings_one(self):
+
+        # Set up test data.
+        g = Graph()
+        self.create_polygon(g, ((0, 0), (10, 0), (10, 10), (0, 10)))
+
+        # Start test.
+        face = list(g.faces)[0]
+
+        # Assert results.
+        self.assertEqual(len(face.nodes), 4)
+        self.assertEqual(len(face.edges), 4)
+        self.assertEqual(len(face.rings), 1)
+        self.assertEqual(len(face.rings[0].nodes), 4)
+        self.assertTupleEqual(face.rings[0].nodes, tuple([g.get_node(i) for i in range(4)]))
+
+    def test_face_rings_two(self):
+
+        # Set up test data.
+        g = Graph()
+        self.create_polygon(g, ((0, 0), (1, 0), (1, 1), (0, 1)), ((1, 1), (1, 9), (9, 9), (9, 1)))
+
+        # Start test.
+        face = list(g.faces)[0]
+
+        # Assert results.
+        self.assertEqual(len(face.nodes), 8)
+        self.assertEqual(len(face.edges), 8)
+        self.assertEqual(len(face.rings), 2)
+        self.assertEqual(len(face.rings[0].nodes), 4)
+        self.assertEqual(len(face.rings[1].nodes), 4)
+        self.assertTupleEqual(face.rings[0].nodes, tuple([g.get_node(i) for i in range(4)]))
+        self.assertTupleEqual(face.rings[1].nodes, tuple([g.get_node(i) for i in range(4, 8)]))
+
+    def test_face_rings_three(self):
+
+        # FAILING BECAUSE WE'RE SORTING
+
+        # Set up test data.
+        g = Graph()
+        self.create_polygon(g, ((0, 0), (1, 0), (1, 1), (0, 1)), ((1, 1), (1, 9), (9, 9), (9, 1)), ((2, 2), (2, 8), (8, 8), (8, 1)))
+
+        # Start test.
+        face = list(g.faces)[0]
+
+        # Assert results.
+        self.assertEqual(len(face.nodes), 12)
+        self.assertEqual(len(face.edges), 12)
+        self.assertEqual(len(face.rings), 3)
+        self.assertEqual(len(face.rings[0].nodes), 4)
+        self.assertEqual(len(face.rings[1].nodes), 4)
+        self.assertEqual(len(face.rings[2].nodes), 4)
+        self.assertTupleEqual(face.rings[0].nodes, tuple([g.get_node(i) for i in range(4)]))
+        self.assertTupleEqual(face.rings[1].nodes, tuple([g.get_node(i) for i in range(4, 8)]))
+        self.assertTupleEqual(face.rings[2].nodes, tuple([g.get_node(i) for i in range(8, 12)]))
 
 
 class GraphTestCase(TestCaseBase):
@@ -109,7 +167,7 @@ class GraphTestCase(TestCaseBase):
         g.data.graph[NODE_DEFAULT]['bar'] = 2
         g.data.graph[EDGE_DEFAULT]['baz'] = 3.0
         g.data.graph[FACE_DEFAULT]['qux'] = 'four'
-        self.create_polygon(g, (0, 0), (1, 0), (1, 1), (0, 1))
+        self.create_polygon(g, ((0, 0), (1, 0), (1, 1), (0, 1)))
 
         handle, file_path = tempfile.mkstemp()
         os.close(handle)

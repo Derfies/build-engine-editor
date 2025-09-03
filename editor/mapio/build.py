@@ -1,14 +1,35 @@
 import io
+from typing import Any
 from collections import defaultdict
 from dataclasses import fields
 from pathlib import Path
 
-from editor.constants import ATTRIBUTES, FACES
+import numpy as np
+from shapely import Polygon
+
+from editor.constants import ATTRIBUTES
 from editor.constants import MapFormat
 from editor.graph import Graph
 from gameengines.build.blood import Map as BloodMap, MapReader as BloodMapReader, MapWriter as BloodMapWriter
 from gameengines.build.duke3d import Map as Duke3dMap, MapReader as Duke3dMapReader, MapWriter as Duke3dMapWriter
 from gameengines.build.map import Sector, Wall
+
+
+def get_ring_bounds(m, ring: list[Any]) -> tuple:
+    positions = [(m.walls[wall_idx].x, m.walls[wall_idx].y) for wall_idx in ring]
+
+    #p = Polygon(positions)
+
+    #print('positions:', positions)
+    min_pos = np.amin(positions, axis=0)
+    max_pos = np.amax(positions, axis=0)
+    #print('bb:', tuple(max_pos - min_pos))
+    #print('->', p.bounds)
+    #print(p.boundary)
+    #minx, miny, maxx, maxy = p.bounds
+    #print('->', maxx - minx, maxy - miny)
+    #print('')
+    return tuple(max_pos - min_pos)
 
 
 def import_build(graph: Graph, file_path: str | Path, format: MapFormat):
@@ -38,22 +59,22 @@ def import_build(graph: Graph, file_path: str | Path, format: MapFormat):
     print(m.header)
 
     print('\nwalls')
-    for wall in m.walls:
-        print(wall)
+    for i, wall in enumerate(m.walls):
+        print(i, wall)
 
     print('\nsectors')
-    for sector in m.sectors:
-        print(sector)
+    for i, sector in enumerate(m.sectors):
+        print(i, sector)
 
     # Still not sure how this actually works :lol.
     wall_to_walls = defaultdict(set)
-    for wall, wall_data in enumerate(m.walls):
-        wall_to_walls[wall].add(wall)
+    for wall_idx, wall_data in enumerate(m.walls):
+        wall_to_walls[wall_idx].add(wall_idx)
         if wall_data.nextwall > -1:
             nextwall_data = m.walls[wall_data.nextwall]
-            wall_set = wall_to_walls.get(nextwall_data.point2, wall_to_walls[wall])
-            wall_set.add(wall)
-            wall_to_walls[wall] = wall_to_walls[nextwall_data.point2] = wall_set
+            wall_set = wall_to_walls.get(nextwall_data.point2, wall_to_walls[wall_idx])
+            wall_set.add(wall_idx)
+            wall_to_walls[wall_idx] = wall_to_walls[nextwall_data.point2] = wall_set
 
     print('\nwall_to_walls')
     for wall in sorted(wall_to_walls):
@@ -61,8 +82,8 @@ def import_build(graph: Graph, file_path: str | Path, format: MapFormat):
 
     wall_to_node = {}
     nodes = set()
-    for wall, other_walls in wall_to_walls.items():
-        node = wall_to_node[wall] = frozenset(other_walls)
+    for wall_dx, other_walls in wall_to_walls.items():
+        node = wall_to_node[wall_dx] = frozenset(other_walls)
         nodes.add(node)
 
     for node in nodes:
@@ -96,36 +117,48 @@ def import_build(graph: Graph, file_path: str | Path, format: MapFormat):
         print(edge)
 
     # Add sectors.
+    # TODO: Sort based on size.
+    for j, sector in enumerate(m.sectors):
+        sector_wall_idxs = [[]]
+        ring_start_idx = wall_idx = sector.wallptr
+        for i in range(sector.wallnum):
+            #sector_wall_idxs[-1].append(wall_to_node[wall_idx])
+            sector_wall_idxs[-1].append(wall_idx)
+            wall_idx = m.walls[wall_idx].point2
+            if wall_idx == ring_start_idx:
+                #sector_wall_idxs[-1].append(wall_to_node[ring_start_idx])
+                sector_wall_idxs[-1].append(ring_start_idx)
 
-    # TODO: Change to edges to define polygon.
-    for i, sector_data in enumerate(m.sectors):
-        poly_nodes = []
+                ring_start_idx = wall_idx = sector.wallptr + i + 1
 
-        # This might not be right. I think this works on the assumption that
-        # all sectors walls are written in order, which they're not guaranteed
-        # to be.
-        start_wall = wall = sector_data.wallptr
-        for _ in range(sector_data.wallnum):
-            wall_data = m.walls[wall]
-            poly_nodes.append(wall_to_node[wall])
-            wall = wall_data.point2
+                if i < sector.wallnum - 2:
+                    sector_wall_idxs.append([])
 
-            if wall == start_wall:
-                # print('break')
-                break
+        #print('sector_wall_idxs:', sector_wall_idxs)
+        #before = [node for face_ring in sector_wall_idxs for node in face_ring]
+        #print('before:', sector_wall_idxs)
+        sorted_sector_wall_idxs = sorted(sector_wall_idxs, key=lambda x: get_ring_bounds(m, x), reverse=True)
+        #print('after:', sector_wall_idxs)
+        #print(before == sector_wall_idxs)
+        if sector_wall_idxs != sorted_sector_wall_idxs:
+            print('CORRECTED')
+            print('1:', sector_wall_idxs)
+            print('2:', sorted_sector_wall_idxs)
+        else:
+            print('NOT TOUCHED')
 
-        graph.data.graph[FACES].setdefault(tuple(poly_nodes), {}).setdefault(ATTRIBUTES, {})
-        for field in fields(sector_data):
-           graph.data.graph[FACES][tuple(poly_nodes)][ATTRIBUTES][field.name] = getattr(sector_data, field.name)
+        # TODO: Map to internal data format.
+        face_attrs = {
+            field.name: getattr(sector, field.name)
+            for field in fields(sector)
+        }
+        graph.add_face(tuple([wall_to_node[node] for face_ring in sorted_sector_wall_idxs for node in face_ring]), **face_attrs)
 
     graph.update()
 
     print('\nnodes:')
     for node in graph.nodes:
         print('    ->', node, node.pos)
-    print('\nedges:')
-    for edge in graph.edges:
-        print('    ->', edge)
     print('\nedges:')
     for edge in graph.edges:
         print('    ->', edge, '->', edge.face)

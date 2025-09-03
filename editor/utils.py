@@ -55,31 +55,48 @@ def map(face: Face, polys: Iterable[Polygon]):
 
 
 def triangulate_polygon(polygon: Polygon):
-    """
-    Triangulate a shapely Polygon (concave, with holes) using mapbox_earcut.
-    Returns a list of shapely Polygons (triangles).
-
-    """
     if not polygon.is_valid:
-        raise ValueError('Input polygon is not valid')
+        from shapely.validation import explain_validity
+        print(polygon)
+        print(explain_validity(polygon))
+        raise ValueError("Invalid polygon")
 
-    rings = [list(polygon.exterior.coords)] + [list(h.coords) for h in polygon.interiors]
+    rings = []
 
-    # Concatenate all vertices
+    # Exterior ring (drop closing point)
+    ext_coords = list(polygon.exterior.coords)[:-1]
+    if len(ext_coords) >= 3:
+        rings.append(ext_coords)
+    else:
+        raise ValueError("Exterior ring has fewer than 3 points")
+
+    # Holes
+    for h in polygon.interiors:
+        hole_coords = list(h.coords)[:-1]
+        if len(hole_coords) >= 3:
+            rings.append(hole_coords)
+        else:
+            # skip degenerate hole
+            print("Skipping degenerate hole:", hole_coords)
+
+    # Flatten vertices
     vertices = np.array([pt for ring in rings for pt in ring], dtype=np.float32)
 
-    # ring_end_indices = cumulative vertex counts
+    # Compute cumulative end indices
     counts = [len(r) for r in rings]
     ring_end_indices = np.cumsum(counts).astype(np.uint32)
 
-    # Run earcut
+    # Check monotonicity
+    if not np.all(np.diff(ring_end_indices) > 0):
+        raise ValueError("ring_end_indices is not strictly increasing!")
+
+    # Triangulate
     triangles = earcut.triangulate_float32(vertices, ring_end_indices)
 
-    # Convert to shapely Polygons
+    # Build Shapely polygons
     shapely_tris = []
     for i in range(0, len(triangles), 3):
-        idxs = triangles[i:i+3]
-        pts = [tuple(vertices[j]) for j in idxs]
+        pts = [tuple(vertices[j]) for j in triangles[i:i+3]]
         shapely_tris.append(Polygon(pts))
 
     return shapely_tris

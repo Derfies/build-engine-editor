@@ -160,6 +160,36 @@ class Viewport(QOpenGLWidget):
         ]
         return Mesh(np.array(wall_vertices, dtype=np.float32), shade=shade)
 
+    def foo(self, face, ring):
+
+        y1 = face.get_attribute('floorz') / -16
+        y2 = face.get_attribute('ceilingz') / -16
+
+        for i in range(len(ring.coords) - 1):
+
+            wall_shade = build_shade_to_brightness(face.edges[i].get_attribute('shade'))
+
+            # If there is no connected face, draw the wall from floor to ceiling.
+            # If there is a connected face and the floor is lower than ours, dont draw it.
+            # If there is a connected face and the ceiling is higher than ours, don't draw it.
+            # TODO: Maybe don't override dunder method?
+            try:
+                connected_face = reversed(face.edges[i]).face
+            except:
+                connected_face = None
+
+            xz0 = ring.coords[i]
+            xz1 = ring.coords[i + 1]
+            if connected_face is None:
+                self.mesh_pool.meshes.append(self.create_wall_mesh(xz0, y1, xz1, y2, wall_shade))
+            else:
+                y3 = connected_face.get_attribute('floorz') / -16
+                y4 = connected_face.get_attribute('ceilingz') / -16
+                if face.get_attribute('floorz') < connected_face.get_attribute('floorz'):
+                    self.mesh_pool.meshes.append(self.create_wall_mesh(xz0, y1, xz1, y3, wall_shade))
+                if face.get_attribute('ceilingz') > connected_face.get_attribute('ceilingz'):
+                    self.mesh_pool.meshes.append(self.create_wall_mesh(xz0, y4, xz1, y2, wall_shade))
+
     def update_event(self, doc: Document, flags: UpdateFlag):
 
         if self.program is None:
@@ -189,9 +219,23 @@ class Viewport(QOpenGLWidget):
                     y1 = face.get_attribute('floorz') / -16
                     y2 = face.get_attribute('ceilingz') / -16
 
-                    sector = Polygon([node.pos.to_tuple() for node in face.nodes])
+                    rings = []
+                    for ring in face.rings:
+                        rings.append([node.pos.to_tuple() for node in ring.nodes])
+
+                    sector = Polygon(rings[0], [list(reversed(ring)) for ring in rings[1:]])
                     sector = orient(sector, sign=1.0)
-                    triangles = utils.triangulate_polygon(sector)
+
+                    # TODO: Still some invalid polys.
+                    try:
+                        triangles = utils.triangulate_polygon(sector)
+                    except Exception as e:
+                        traceback.print_exc()
+                        #if rings[1:]:
+                        #print(rings[0])
+                        #print(rings[1:])
+                        #print('HAD HOLES:', bool(rings[1:]))
+                        continue
 
                     floor_vertices = []
                     ceiling_vertices = []
@@ -208,31 +252,59 @@ class Viewport(QOpenGLWidget):
                     self.mesh_pool.meshes.append(Mesh(np.array((list(reversed(ceiling_vertices))), dtype=np.float32), shade=ceiling_shade))
 
                     # Do walls.
-                    for i in range(len(sector.exterior.coords) - 1):
+                    self.foo(face, sector.exterior)
+                    # for i in range(len(sector.exterior.coords) - 1):
+                    #
+                    #     wall_shade = build_shade_to_brightness(face.edges[i].get_attribute('shade'))
+                    #
+                    #     # If there is no connected face, draw the wall from floor to ceiling.
+                    #     # If there is a connected face and the floor is lower than ours, dont draw it.
+                    #     # If there is a connected face and the ceiling is higher than ours, don't draw it.
+                    #     # TODO: Maybe don't override dunder method?
+                    #     try:
+                    #         connected_face = reversed(face.edges[i]).face
+                    #     except:
+                    #         connected_face = None
+                    #
+                    #     xz0 = sector.exterior.coords[i]
+                    #     xz1 = sector.exterior.coords[i + 1]
+                    #     if connected_face is None:
+                    #         self.mesh_pool.meshes.append(self.create_wall_mesh(xz0, y1, xz1, y2, wall_shade))
+                    #     else:
+                    #         y3 = connected_face.get_attribute('floorz') / -16
+                    #         y4 = connected_face.get_attribute('ceilingz') / -16
+                    #         if face.get_attribute('floorz') < connected_face.get_attribute('floorz'):
+                    #             self.mesh_pool.meshes.append(self.create_wall_mesh(xz0, y1, xz1, y3, wall_shade))
+                    #         if face.get_attribute('ceilingz') > connected_face.get_attribute('ceilingz'):
+                    #             self.mesh_pool.meshes.append(self.create_wall_mesh(xz0, y4, xz1, y2, wall_shade))
 
-                        wall_shade = build_shade_to_brightness(
-                            face.edges[i].get_attribute('shade'))
-
-                        # If there is no connected face, draw the wall from floor to ceiling.
-                        # If there is a connected face and the floor is lower than ours, dont draw it.
-                        # If there is a connected face and the ceiling is higher than ours, don't draw it.
-                        # TODO: Maybe don't override dunder method?
-                        try:
-                            connected_face = reversed(face.edges[i]).face
-                        except:
-                            connected_face = None
-
-                        xz0 = sector.exterior.coords[i]
-                        xz1 = sector.exterior.coords[i + 1]
-                        if connected_face is None:
-                            self.mesh_pool.meshes.append(self.create_wall_mesh(xz0, y1, xz1, y2, wall_shade))
-                        else:
-                            y3 = connected_face.get_attribute('floorz') / -16
-                            y4 = connected_face.get_attribute('ceilingz') / -16
-                            if face.get_attribute('floorz') < connected_face.get_attribute('floorz'):
-                                self.mesh_pool.meshes.append(self.create_wall_mesh(xz0, y1, xz1, y3, wall_shade))
-                            if face.get_attribute('ceilingz') > connected_face.get_attribute('ceilingz'):
-                                self.mesh_pool.meshes.append(self.create_wall_mesh(xz0, y4, xz1, y2, wall_shade))
+                    for interior in sector.interiors:
+                        self.foo(face, interior)
+                        # print('interior:', interior)
+                        # for i in range(len(interior.coords) - 1):
+                        #
+                        #     wall_shade = build_shade_to_brightness(face.edges[i].get_attribute('shade'))
+                        #
+                        #     # If there is no connected face, draw the wall from floor to ceiling.
+                        #     # If there is a connected face and the floor is lower than ours, dont draw it.
+                        #     # If there is a connected face and the ceiling is higher than ours, don't draw it.
+                        #     # TODO: Maybe don't override dunder method?
+                        #     try:
+                        #         connected_face = reversed(face.edges[i]).face
+                        #     except:
+                        #         connected_face = None
+                        #
+                        #     xz0 = interior.coords[i]
+                        #     xz1 = interior.coords[i + 1]
+                        #     if connected_face is None:
+                        #         self.mesh_pool.meshes.append(self.create_wall_mesh(xz0, y1, xz1, y2, wall_shade))
+                        #     else:
+                        #         y3 = connected_face.get_attribute('floorz') / -16
+                        #         y4 = connected_face.get_attribute('ceilingz') / -16
+                        #         if face.get_attribute('floorz') < connected_face.get_attribute('floorz'):
+                        #             self.mesh_pool.meshes.append(self.create_wall_mesh(xz0, y1, xz1, y3, wall_shade))
+                        #         if face.get_attribute('ceilingz') > connected_face.get_attribute('ceilingz'):
+                        #             self.mesh_pool.meshes.append(self.create_wall_mesh(xz0, y4, xz1, y2, wall_shade))
 
                 self.mesh_pool.allocate()
 
@@ -381,7 +453,11 @@ class Viewport(QOpenGLWidget):
             face = item.element()
             y1 = face.get_attribute('floorz') / -16
 
-            sector = Polygon([node.pos.to_tuple() for node in face.nodes])
+            rings = []
+            for ring in face.rings:
+                rings.append([node.pos.to_tuple() for node in ring.nodes])
+
+            sector = Polygon(rings[0], [list(reversed(ring)) for ring in rings[1:]])
             sector = orient(sector, sign=1.0)
             triangles = utils.triangulate_polygon(sector)
 

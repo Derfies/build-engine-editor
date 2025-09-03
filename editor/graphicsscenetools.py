@@ -239,9 +239,8 @@ class SelectXformToolBase(SelectTool):
         delta = end_point - self._snapped_start_point
         xformed_points = self.xform_points(points, delta)
         for i, xformed_point in enumerate(xformed_points.geoms):
-            new_point = QPointF(xformed_point.x, xformed_point.y)
             for item in self.scene._node_to_items[nodes[i]]:
-                item.move_node(nodes[i], new_point)
+                item.move_node(nodes[i], xformed_point.x, xformed_point.y)
 
     def mouse_release_event(self, event):
         if not self._affected_nodes:
@@ -293,7 +292,7 @@ class CreatePolygonTool(GraphicsSceneToolBase):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._num_sides = 4
+        self._num_sides = 3
         self._start_point = None
 
     @staticmethod
