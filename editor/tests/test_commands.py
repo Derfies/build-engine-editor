@@ -51,6 +51,18 @@ class CommandsTestCase(UsesQApplication, TestCaseBase):
         self.assertSetEqual(add_tweak.nodes, {'A'})
         self.assertEqual((add_tweak.node_attrs['A']['x'], add_tweak.node_attrs['A']['y']), (1, 2))
 
+    def test_add_edges(self):
+
+        # Start test.
+        with patch.object(uuid, 'uuid4', side_effect=('A', 'B')):
+            add_tweak, _ = commands.add_edges(((1, 2), (3, 4)))
+
+        # Assert results.
+        self.assertSetEqual(add_tweak.nodes, {'A', 'B'})
+        self.assertEqual((add_tweak.node_attrs['A']['x'], add_tweak.node_attrs['A']['y']), (1, 2))
+        self.assertEqual((add_tweak.node_attrs['B']['x'], add_tweak.node_attrs['B']['y']), (3, 4))
+        self.assertIn(('A', 'B'), add_tweak.edges)
+
     def test_add_polygon(self):
         """
         1           2
