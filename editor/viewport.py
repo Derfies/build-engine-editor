@@ -1,7 +1,7 @@
 import math
-import time
 import traceback
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 from OpenGL.GL import (
@@ -11,16 +11,18 @@ from OpenGL.GL import (
     GL_CW,
     GL_DEPTH_TEST,
     GL_FLOAT,
+    GL_TEXTURE0,
     GL_TRIANGLES,
 )
 from PySide6.QtCore import QCoreApplication, Qt, QPoint
-from PySide6.QtGui import QOpenGLFunctions, QMatrix4x4, QVector3D, QVector4D
-from PySide6.QtOpenGL import QOpenGLShaderProgram, QOpenGLBuffer, QOpenGLVertexArrayObject, QOpenGLShader
+from PySide6.QtGui import QImage, QOpenGLFunctions, QMatrix4x4, QVector3D, QVector4D
+from PySide6.QtOpenGL import QOpenGLTexture, QOpenGLShaderProgram, QOpenGLBuffer, QOpenGLVertexArrayObject, QOpenGLShader
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import QApplication, QGraphicsItem
 from shapely import Polygon
 from shapely.ops import orient
 
+import editor
 from applicationframework.document import Document
 from editor import utils
 from editor.graph import Face, Ring
@@ -31,67 +33,74 @@ from __feature__ import snake_case
 
 
 @dataclass
-class Entity:
-
-    # TODO: Deprecate
-
-    position: QVector3D = field(default_factory=QVector3D)
-
-
 class Mesh:
 
-    def __init__(self, vertices: np.ndarray, shade: float = 1.0):
-        self.vertices = vertices
-        self.shade = shade
+    positions: np.ndarray
+    texcoords: np.ndarray
+    texture: QOpenGLTexture
+    shade: float = 1.0
 
 
 class MeshPool:
 
     def __init__(self):
         self.meshes = []
-
-        self.vbo = QOpenGLBuffer(QOpenGLBuffer.VertexBuffer)
-        self.vbo.create()
-
-        self.vao = QOpenGLVertexArrayObject()
-        self.vao.create()
+        self._vbo = QOpenGLBuffer(QOpenGLBuffer.VertexBuffer)
+        self._vbo.create()
+        self._vao = QOpenGLVertexArrayObject()
+        self._vao.create()
 
     def allocate(self):
 
         # TODO: Need to be able to derive len of vertices without writing to .vertices
-        self.vertices = np.vstack([m.vertices for m in self.meshes])
+        vertices = []
+        for m in self.meshes:
+            texcoords = m.texcoords
+            if texcoords is None:
+                texcoords = np.zeros((m.positions.shape[0], 2), dtype=np.float32)
+                texcoords[:1] = 1
+            vertices.append(np.hstack((m.positions, texcoords)))
+        self.vertices = np.vstack(vertices)
 
-        self.vbo.bind()
-        self.vbo.allocate(self.vertices.tobytes(), self.vertices.nbytes)
-        self.vbo.release()
+        self._vbo.bind()
+        self._vbo.allocate(self.vertices.tobytes(), self.vertices.nbytes)
+        self._vbo.release()
 
     def draw(self, gl, program):
 
         # TODO: Not sure who needs to know about program...
         if not hasattr(self, 'vertices'):
+            print('NO VERTS')
             return
 
-        self.vao.bind()
-        self.vbo.bind()
+        self._vao.bind()
+        self._vbo.bind()
+
+        stride = 5 * self.vertices.itemsize  # 5 floats per vertex
 
         program.enable_attribute_array(0)
-        program.set_attribute_buffer(0, GL_FLOAT, 0, 3)
+        program.set_attribute_buffer(0, GL_FLOAT, 0, 3, stride)
 
-        self.vbo.release()
+        program.enable_attribute_array(1)  # location 1
+        program.set_attribute_buffer(1, GL_FLOAT, 3 * self.vertices.itemsize, 2, stride)
+
+        self._vbo.release()
 
         offset = 0
         for mesh in self.meshes:
-            loc = program.uniform_location('shade')
-            program.set_uniform_value1f(loc, mesh.shade)
-            gl.glDrawArrays(GL_TRIANGLES, offset, len(mesh.vertices))
-            offset += len(mesh.vertices)
-        self.vao.release()
+            program.set_uniform_value1f(program.uniform_location('shade'), mesh.shade)
+            mesh.texture.bind()
+            program.set_uniform_value(program.uniform_location('tex'), 0)
+            gl.glDrawArrays(GL_TRIANGLES, offset, len(mesh.positions))
+            offset += len(mesh.positions)
+            mesh.texture.release()
+        self._vao.release()
 
     def delete(self):
-        if self.vbo.is_created():
-            self.vbo.destroy()
-        if self.vao.is_created():
-            self.vao.delete_later()  # or `.destroy()` depending on Qt version
+        if self._vbo.is_created():
+            self._vbo.destroy()
+        if self._vao.is_created():
+            self._vao.delete_later()  # or `.destroy()` depending on Qt version
 
 
 class OrbitCamera:
@@ -101,7 +110,7 @@ class OrbitCamera:
         self.azimuth = 0
         self.elevation = 45.0
         self.distance = 10000.0
-        self.target = Entity()
+        self.target = QVector3D()#position: QVector3D = field(default_factory=QVector3D)#Entity()
 
     def orbit(self, delta: QPoint):
         self.azimuth -= delta.x()
@@ -119,10 +128,10 @@ class OrbitCamera:
             self.distance * math.cos(el) * math.sin(az),
             self.distance * math.sin(el),
             self.distance * math.cos(el) * math.cos(az),
-        ) + self.target.position
+        ) + self.target
         up = QVector3D(0, 1, 0)
         view = QMatrix4x4()
-        view.look_at(eye, self.target.position, up)
+        view.look_at(eye, self.target, up)
         return view
 
 
@@ -132,6 +141,7 @@ class Viewport(QOpenGLWidget):
         super().__init__(*args, **kwargs)
 
         self.program = None
+        self.texture = None
 
         self.mesh_pool = None
         self.app().updated.connect(self.update_event)
@@ -140,10 +150,10 @@ class Viewport(QOpenGLWidget):
         return QApplication.instance()
 
     @staticmethod
-    def create_wall_mesh(xz1: tuple[float, float], y1: float, xz2: tuple[float, float], y2: float, shade: float) -> Mesh:
+    def create_wall_mesh(xz1: tuple[float, float], y1: float, xz2: tuple[float, float], y2: float, texture: QOpenGLTexture, shade: float) -> Mesh:
         x1, z1 = xz1
         x2, z2 = xz2
-        wall_vertices = [
+        positions = np.array([
 
             # Bottom left.
             [x1, y1, z1],
@@ -154,13 +164,24 @@ class Viewport(QOpenGLWidget):
             [x1, y2, z1],
             [x2, y2, z2],
             [x2, y1, z2],
-        ]
-        return Mesh(np.array(wall_vertices, dtype=np.float32), shade=shade)
+        ], dtype=np.float32)
+        texcoords = np.array([
+
+            # Bottom left.
+            [0, 0],
+            [0, 1],
+            [1, 0],
+
+            # Top right.
+            [0, 1],
+            [1, 1],
+            [1, 0],
+        ], dtype=np.float32)
+        return Mesh(positions, texcoords, texture, shade=shade)
 
     def build_ring(self, ring: Ring, coords: tuple[tuple[float, float]], y1: float, y2: float):
         for i in range(len(coords) - 1):
             edge = ring.edges[i]
-            # wall_shade = build_shade_to_brightness(edge.get_attribute('shade'))
             wall_shade = edge.get_attribute('shade')
 
             # If there is no connected face, draw the wall from floor to ceiling.
@@ -174,14 +195,14 @@ class Viewport(QOpenGLWidget):
 
             xz0, xz1 = coords[i], coords[i + 1]
             if connected_face is None:
-                self.mesh_pool.meshes.append(self.create_wall_mesh(xz0, y1, xz1, y2, wall_shade))
+                self.mesh_pool.meshes.append(self.create_wall_mesh(xz0, y1, xz1, y2, self.texture, wall_shade))
             else:
                 y3 = connected_face.get_attribute('floorz')# / -16
                 y4 = connected_face.get_attribute('ceilingz')# / -16
                 if y1 < y3:
-                    self.mesh_pool.meshes.append(self.create_wall_mesh(xz0, y1, xz1, y3, wall_shade))
+                    self.mesh_pool.meshes.append(self.create_wall_mesh(xz0, y1, xz1, y3, self.texture, wall_shade))
                 if y2 > y4:
-                    self.mesh_pool.meshes.append(self.create_wall_mesh(xz0, y4, xz1, y2, wall_shade))
+                    self.mesh_pool.meshes.append(self.create_wall_mesh(xz0, y4, xz1, y2, self.texture, wall_shade))
 
             i += 1
 
@@ -207,11 +228,6 @@ class Viewport(QOpenGLWidget):
 
                 for face in doc.content.faces:
 
-                    y1 = face.get_attribute('floorz')
-                    y2 = face.get_attribute('ceilingz')
-                    floor_shade = face.get_attribute('floorshade')
-                    ceiling_shade = face.get_attribute('ceilingshade')
-
                     ring_positions = [
                         [node.pos.to_tuple() for node in ring.nodes]
                         for ring in face.rings
@@ -223,22 +239,21 @@ class Viewport(QOpenGLWidget):
 
                     # TODO: Still some invalid polys.
                     try:
-                        triangles = utils.triangulate_polygon(sector)
+                        tris = utils.triangulate_polygon(sector)
                     except Exception as e:
                         traceback.print_exc()
                         continue
 
-                    floor_vertices = []
-                    ceiling_vertices = []
-                    for tri in triangles:
-                        for coord in tri.exterior.coords[:-1]:
+                    positions = np.array([coord for tri in tris for coord in tri.exterior.coords[:-1]], dtype=np.float32)
+                    y1 = face.get_attribute('floorz')
+                    y2 = face.get_attribute('ceilingz')
+                    floor_shade = face.get_attribute('floorshade')
+                    ceiling_shade = face.get_attribute('ceilingshade')
+                    floor_positions = np.insert(positions, 1, y1, axis=1)
+                    ceiling_positions = np.insert(positions, 1, y2, axis=1)[::-1]
 
-                            # NOTE: Ratio of z axis to other axes is 16:1.
-                            floor_vertices.append((coord[0], y1, coord[1]))
-                            ceiling_vertices.append((coord[0], y2, coord[1]))
-
-                    self.mesh_pool.meshes.append(Mesh(np.array(floor_vertices, dtype=np.float32), shade=floor_shade))
-                    self.mesh_pool.meshes.append(Mesh(np.array(ceiling_vertices[::-1], dtype=np.float32), shade=ceiling_shade))
+                    self.mesh_pool.meshes.append(Mesh(floor_positions, positions / 1000, self.texture, shade=floor_shade))
+                    self.mesh_pool.meshes.append(Mesh(ceiling_positions, positions / 1000, self.texture, shade=ceiling_shade))
 
                     # Do walls.
                     self.build_ring(face.rings[0], tuple(sector.exterior.coords), y1, y2)
@@ -268,21 +283,40 @@ class Viewport(QOpenGLWidget):
         self.gl.glCullFace(GL_BACK)
         self.gl.glFrontFace(GL_CW)
 
+        # Load texture.
+        img = QImage(Path(editor.__file__).parent.joinpath('data/textures/grid_blue_512x512.png')).mirrored()
+        self.texture = QOpenGLTexture(img)
+
         self.program = QOpenGLShaderProgram()
         self.program.add_shader_from_source_code(QOpenGLShader.Vertex, """
-            #version 330
-            layout(location = 0) in vec3 position;
-            uniform mat4 mvp;
-            void main() {
+            #version 330 core
+
+            layout(location = 0) in vec3 position;   // vertex position
+            layout(location = 1) in vec2 texcoord;   // texture coordinates
+            
+            uniform mat4 mvp;                        // model-view-projection matrix
+            
+            out vec2 texcoord_out;                   // pass to fragment shader
+            
+            void main()
+            {
                 gl_Position = mvp * vec4(position, 1.0);
+                texcoord_out = texcoord;
             }
         """)
         self.program.add_shader_from_source_code(QOpenGLShader.Fragment, """
-            #version 330
-            out vec4 fragColor;
-            uniform float shade;
-            void main() {
-                fragColor =  vec4(vec3(1.0, 0.5, 0.2) * shade, 1.0);
+            #version 330 core
+
+            in vec2 texcoord_out;         // interpolated texcoords from vertex shader
+            out vec4 frag_color;           // final fragment output
+            
+            uniform sampler2D tex;        // bound texture
+            uniform float shade;      // tint / multiplier
+            
+            void main()
+            {
+                vec4 sampled = texture(tex, texcoord_out);
+                frag_color = sampled * shade;
             }
         """)
         self.program.link()
@@ -305,6 +339,7 @@ class Viewport(QOpenGLWidget):
         #print('PAINT')
         self.gl.glClearColor(0.1, 0.1, 0.1, 1.0)
         self.gl.glClear(GL_COLOR_BUFFER_BIT)
+        self.gl.glActiveTexture(GL_TEXTURE0)
 
         # Create projection matrix.
         proj = QMatrix4x4()
@@ -356,7 +391,7 @@ class Viewport(QOpenGLWidget):
             v4_transformed = transform.map(v4)
 
             # Convert back to QVector3D.
-            self.camera.target.position += v4_transformed.to_vector3_d()
+            self.camera.target += v4_transformed.to_vector3_d()
             #self.update()
 
         elif event.buttons() & Qt.RightButton:
@@ -406,6 +441,6 @@ class Viewport(QOpenGLWidget):
 
         center, radius = utils.compute_bounding_sphere(vertices)
         dist = utils.camera_distance(radius, self.fov)
-        self.camera.target.position = QVector3D(*center)
+        self.camera.target = QVector3D(*center)
         self.camera.distance = dist
         self.update()
