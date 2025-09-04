@@ -253,7 +253,7 @@ class Viewport(QOpenGLWidget):
                     ceiling_positions = np.insert(positions, 1, y2, axis=1)[::-1]
 
                     self.mesh_pool.meshes.append(Mesh(floor_positions, positions / 1000, self.texture, shade=floor_shade))
-                    self.mesh_pool.meshes.append(Mesh(ceiling_positions, positions / 1000, self.texture, shade=ceiling_shade))
+                    self.mesh_pool.meshes.append(Mesh(ceiling_positions, positions[::-1] / 1000, self.texture, shade=ceiling_shade))
 
                     # Do walls.
                     self.build_ring(face.rings[0], tuple(sector.exterior.coords), y1, y2)

@@ -102,7 +102,7 @@ def import_doom(graph: Graph, file_path: str | Path, format: MapFormat):
     # TODO: Support wadded level selection.
     wad = omg.WAD()
     wad.from_file(file_path)
-    m = omg.UMapEditor(wad.maps['E1M5'])
+    m = omg.UMapEditor(wad.maps['E3M4'])
 
     # Nodes.
     nodes = []
@@ -165,8 +165,8 @@ def export_doom(graph: Graph, file_path: str | Path, format: MapFormat):
 
     # Sidedefs. One per hedge.
     for edge in edge_to_index:
-
         if edge.face is None:
+            print('No face')
             continue
         tx_attrs = {
             'off_x': 0,
@@ -197,7 +197,12 @@ def export_doom(graph: Graph, file_path: str | Path, format: MapFormat):
 
     # Sectors.
     for face in face_to_index:
-        sector = Sector(z_floor=0, z_ceil=128, tx_floor='FLAT1', tx_ceil='FLAT1')
+        sector = Sector(
+            z_floor=int(face.get_attribute('floorz') * global_scale),
+            z_ceil=int(face.get_attribute('ceilingz') * global_scale),
+            tx_floor='FLAT1',
+            tx_ceil='FLAT1',
+        )
         m.sectors.append(sector)
         logging.debug(f'Adding sector: {sector}')
 
