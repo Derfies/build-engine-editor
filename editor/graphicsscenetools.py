@@ -361,7 +361,15 @@ class CreatePolygonTool(GraphicsSceneToolBase):
         if event.button() == Qt.LeftButton:
             points = [p.to_tuple() for p in self.preview.polygon()]
             self.cancel()
-            commands.add_polygon(points)
+            modifiers = event.modifiers()
+            hole = modifiers & Qt.AltModifier
+            if not hole:
+                commands.add_polygon(points)
+            else:
+
+                # TODO: Might fail if we hit an edge, not a face.
+                hit_item = self.scene.item_at(self._start_point, QTransform())
+                commands.add_hole(hit_item.element(), points)
 
 
 class CreateFreeformPolygonTool(GraphicsSceneToolBase):
@@ -387,7 +395,15 @@ class CreateFreeformPolygonTool(GraphicsSceneToolBase):
                 return
             points = [p.to_tuple() for p in self._points]
             self.cancel()
-            commands.add_polygon(points)
+            modifiers = event.modifiers()
+            hole = modifiers & Qt.AltModifier
+            if not hole:
+                commands.add_polygon(points)
+            else:
+
+                # TODO: Might fail if we hit an edge, not a face.
+                hit_item = self.scene.item_at(QPointF(*points[0]), QTransform())
+                commands.add_hole(hit_item.element(), points)
 
     def mouse_move_event(self, event):
         if self._points:
