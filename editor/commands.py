@@ -147,6 +147,7 @@ def add_hole(face: Face, points: Iterable[tuple]):
         add_tweak.node_attrs[nodes[i]]['x'] = coords[i][0]
         add_tweak.node_attrs[nodes[i]]['y'] = coords[i][1]
 
+    # TODO: Use face / edge data derived from the face we removed.
     rem_tweak.faces.add(face.data)
     add_tweak.nodes.update(nodes)
     add_tweak.edges.update(edges)
