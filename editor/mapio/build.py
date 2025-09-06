@@ -1,8 +1,9 @@
 import io
-from typing import Any
+import logging
 from collections import defaultdict
 from dataclasses import fields
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -12,6 +13,9 @@ from editor.graph import Graph
 from gameengines.build.blood import Map as BloodMap, MapReader as BloodMapReader, MapWriter as BloodMapWriter
 from gameengines.build.duke3d import Map as Duke3dMap, MapReader as Duke3dMapReader, MapWriter as Duke3dMapWriter
 from gameengines.build.map import Sector, Wall
+
+
+logger = logging.getLogger(__name__)
 
 
 def get_ring_bounds(m, ring: list[Any]) -> tuple:
@@ -162,13 +166,15 @@ def export_build(graph: Graph, file_path: str, format: MapFormat):
         sector_data = Sector(**face.get_attributes())
         sector_data.wallptr = wallptr
         sector_data.wallnum = len(face.edges)
-        for i, edge in enumerate(face.edges):
-            wall_data = Wall(**edge.get_attributes())
-            wall_data.x = int(edge.head.pos.x())
-            wall_data.y = int(edge.head.pos.y())
-            edges.append(edge)
-            m.walls.append(wall_data)
-            edge_to_next_edge[edge] = face.edges[(i + 1) % len(face.edges)]
+        for ring in face.rings:
+            for i, edge in enumerate(ring.edges):
+                wall_data = Wall(**edge.get_attributes())
+                wall_data.x = int(edge.head.pos.x())
+                wall_data.y = int(edge.head.pos.y())
+                logger.debug(f'Added wall: {wall_data}')
+                edges.append(edge)
+                m.walls.append(wall_data)
+                edge_to_next_edge[edge] = ring.edges[(i + 1) % len(ring.edges)]
         m.sectors.append(sector_data)
         sector += 1
         wallptr += len(face.nodes)

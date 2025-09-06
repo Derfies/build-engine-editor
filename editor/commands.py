@@ -129,6 +129,38 @@ def add_polygon(points: Iterable[tuple]):
     return add_tweak, None
 
 
+def add_hole(face: Face, points: Iterable[tuple]):
+
+    # Ensure winding order is consistent - note backwards for a hole.
+    poly = orient(Polygon(points), sign=-1.0)
+    coords = poly.exterior.coords[:-1]
+
+    add_tweak = Tweak()
+    rem_tweak = Tweak()
+    nodes = [str(uuid.uuid4()) for _ in range(len(coords))]
+    edges = []
+    hole = tuple(nodes + [nodes[0]])
+    for i in range(len(nodes)):
+        head = nodes[i]
+        tail = nodes[(i + 1) % len(nodes)]
+        edges.append((head, tail))
+        add_tweak.node_attrs[nodes[i]]['x'] = coords[i][0]
+        add_tweak.node_attrs[nodes[i]]['y'] = coords[i][1]
+
+    # TODO: Use face / edge data derived from the face we removed.
+    rem_tweak.faces.add(face.data)
+    add_tweak.nodes.update(nodes)
+    add_tweak.edges.update(edges)
+    add_tweak.faces.add(face.data + hole)
+
+    action = Composite([
+        Remove(rem_tweak, QApplication.instance().doc.content),
+        Add(add_tweak, QApplication.instance().doc.content),
+    ], flags=UpdateFlag.CONTENT)
+    QApplication.instance().action_manager.push(action)
+    QApplication.instance().doc.updated(action(), dirty=True)
+
+
 def split_face(*splits: tuple[Edge, float]):
 
     print('\nsplits:')

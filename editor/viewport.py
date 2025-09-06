@@ -53,14 +53,10 @@ class MeshPool:
     def allocate(self):
 
         # TODO: Need to be able to derive len of vertices without writing to .vertices
-        vertices = []
-        for m in self.meshes:
-            texcoords = m.texcoords
-            if texcoords is None:
-                texcoords = np.zeros((m.positions.shape[0], 2), dtype=np.float32)
-                texcoords[:1] = 1
-            vertices.append(np.hstack((m.positions, texcoords)))
-        self.vertices = np.vstack(vertices)
+        self.vertices = np.vstack([
+            np.hstack((m.positions, m.texcoords))
+            for m in self.meshes
+        ])
 
         self._vbo.bind()
         self._vbo.allocate(self.vertices.tobytes(), self.vertices.nbytes)
