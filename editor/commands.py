@@ -39,6 +39,7 @@ def remove_elements(elements: set[Node] | set[Edge] | set[Face]):
 
     # TODO: Set selection back.
     # TODO: Need some traversal to add all connected elements.
+    # TODO: new command for delete elements
     tweak = Tweak()
     for element in elements:
         if isinstance(element, Node):
@@ -417,10 +418,15 @@ def join_edges(*edges: Iterable[Edge]) -> tuple[Tweak, Tweak]:
             add_tweak.edges.add(new_out_edge)
 
         # Faces.
+        # TODO: Seem to be adding some duplicates here? Doesn't matter much since
+        # faces will hash as equivalent if so.
         rem_tweak.faces.update({face.data for face in node.faces})
         for face in node.faces:
-            face_nodes = [node_to_new_node.get(node, node.data) for node in face.nodes]
-            add_tweak.faces.add(tuple(face_nodes + [face_nodes[0]]))
+            face_nodes = []
+            for ring in face.rings:
+                ring_nodes = [node_to_new_node.get(node, node.data) for node in ring.nodes]
+                face_nodes.extend(tuple(ring_nodes + [ring_nodes[0]]))
+            add_tweak.faces.add(tuple(face_nodes))
 
     print('\nrem tweak:')
     print(rem_tweak)

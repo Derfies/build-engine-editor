@@ -163,13 +163,13 @@ class CommandsTestCase(UsesQApplication, TestCaseBase):
 
                       ↓
 
-        1             A            6
-          ┌───────────┬──────────┐
-          │           │          │
-          │           │          │
-          │           │          │
-          └───────────┴──────────┘
-        0             B            7
+        1             A             6
+          ┌───────────┬───────────┐
+          │           │           │
+          │           │           │
+          │           │           │
+          └───────────┴───────────┘
+        0             B             7
 
         """
         # Set up test data.
@@ -195,6 +195,52 @@ class CommandsTestCase(UsesQApplication, TestCaseBase):
         self.assertEqual((rem_tweak.node_attrs[5]['x'], rem_tweak.node_attrs[5]['y']), (2, 1))
         self.assertEqual((add_tweak.node_attrs['A']['x'], add_tweak.node_attrs['A']['y']), (1.5, 1))
         self.assertEqual((add_tweak.node_attrs['B']['x'], add_tweak.node_attrs['B']['y']), (1.5, 0))
+
+    def test_join_edges_with_hole(self):
+        # TODO: Test face / edge data is retained.
+        """
+        1           2   9           10
+          ┌───────┐       ┌───────┐
+          │5┌───┐6│       │       │
+          │ │   │ │       │       │
+          │4└───┘7│       │       │
+          └───────┘       └───────┘
+        0           3   8           11
+
+                      ↓
+
+        1             A             10
+          ┌───────────┬───────────┐
+          │5┌───┐6    │           │
+          │ │   │     │           │
+          │4└───┘7    │           │
+          └───────────┴───────────┘
+        0             B             11
+
+        """
+        # Set up test data.
+        self.create_polygon(self.c, ((0, 0), (0, 3), (3, 3), (3, 0)), ((1, 1), (1, 2), (2, 2), (2, 1)))
+        self.create_polygon(self.c, ((4, 0), (4, 3), (7, 3), (7, 0)))
+
+        # Start test.
+        e1 = self.c.get_edge(2, 3)
+        e2 = self.c.get_edge(8, 9)
+        with patch.object(uuid, 'uuid4', side_effect=('A', 'B')):
+            add_tweak, rem_tweak = commands.join_edges(e1, e2)
+
+        # Assert results.
+        self.assertSetEqual(rem_tweak.nodes, {2, 3, 9, 8})
+        self.assertSetEqual(add_tweak.nodes, {'A', 'B'})
+        self.assertSetEqual(rem_tweak.edges, {(1, 2), (2, 3), (3, 0), (11, 8), (8, 9), (9, 10)})
+        self.assertSetEqual(add_tweak.edges, {(1, 'A'), ('A', 'B'), ('B', 0), (11, 'B'), ('B', 'A'), ('A', 10)})
+        self.assertSetEqual(rem_tweak.faces, {(0, 1, 2, 3, 0, 4, 5, 6, 7, 4), (8, 9, 10, 11, 8)})
+        self.assertSetEqual(add_tweak.faces, {(0, 1, 'A', 'B', 0, 4, 5, 6, 7, 4), ('B', 'A', 10, 11, 'B')})
+        self.assertEqual((rem_tweak.node_attrs[2]['x'], rem_tweak.node_attrs[2]['y']), (3, 3))
+        self.assertEqual((rem_tweak.node_attrs[3]['x'], rem_tweak.node_attrs[3]['y']), (3, 0))
+        self.assertEqual((rem_tweak.node_attrs[8]['x'], rem_tweak.node_attrs[8]['y']), (4, 0))
+        self.assertEqual((rem_tweak.node_attrs[9]['x'], rem_tweak.node_attrs[9]['y']), (4, 3))
+        self.assertEqual((add_tweak.node_attrs['A']['x'], add_tweak.node_attrs['A']['y']), (3.5, 3))
+        self.assertEqual((add_tweak.node_attrs['B']['x'], add_tweak.node_attrs['B']['y']), (3.5, 0))
 
     def test_join_edges_double(self):
         # TODO: Test face / edge data is retained.
