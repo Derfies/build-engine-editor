@@ -33,6 +33,7 @@ class AddRemoveBase(Edit):
         for node in self.tweak.nodes:
             self.obj.remove_node(node)
         self.obj.update()
+        return self.flags
 
     def add(self):
         for node in self.tweak.nodes:
@@ -42,24 +43,25 @@ class AddRemoveBase(Edit):
         for face in self.tweak.faces:
             self.obj.add_face(face, **self.tweak.face_attrs.get(face, {}))
         self.obj.update()
+        return self.flags
 
 
 class Add(AddRemoveBase):
 
     def undo(self):
-        self.remove()
+        return self.remove()
 
     def redo(self):
-        self.add()
+        return self.add()
 
 
 class Remove(AddRemoveBase):
 
     def undo(self):
-        self.add()
+        return self.add()
 
     def redo(self):
-        self.remove()
+        return self.remove()
 
 
 class SetElementAttribute(Edit):
@@ -72,6 +74,8 @@ class SetElementAttribute(Edit):
 
     def undo(self):
         self.obj.set_attribute(self.name, self.old_value)
+        return self.flags
 
     def redo(self):
         self.obj.set_attribute(self.name, self.value)
+        return self.flags

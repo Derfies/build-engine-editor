@@ -91,6 +91,50 @@ class CommandsTestCase(UsesQApplication, TestCaseBase):
         self.assertEqual((add_tweak.node_attrs['C']['x'], add_tweak.node_attrs['C']['y']), (1, 1))
         self.assertEqual((add_tweak.node_attrs['D']['x'], add_tweak.node_attrs['D']['y']), (0, 1))
 
+    def test_remove_elements_edge(self):
+        """
+        Remove edge (0, 1). Effectively a no-op because this element cannot be
+        removed without removing additional elements.
+
+        1           2
+          ┌───────┐
+          │       │
+          │       │
+          │       │
+          └───────┘
+        0           3
+
+              ↓
+
+        1           2
+          ┌───────┐
+          │       │
+          │       │
+          │       │
+          └───────┘
+        0           3
+
+        """
+
+    def test_delete_elements_edge(self):
+        """
+        Remove edge (0, 1). Effectively destroys the entire face since, which
+        then removes all nodes.
+
+        1           2
+          ┌───────┐
+          │       │
+          │       │
+          │       │
+          └───────┘
+        0           3
+
+              ↓
+
+           NOTHING
+
+        """
+
     # def test_split_face(self):
     #     """
     #     +----+----+
