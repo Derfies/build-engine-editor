@@ -80,7 +80,6 @@ def delete_elements(elements: set[Node] | set[Edge] | set[Face]):
         if isinstance(element, Edge)
     ]
 
-
     edge_faces = [edge.face for edge in edges]
     edge_face_nodes = []
     face_edges = []

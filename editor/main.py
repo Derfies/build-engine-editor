@@ -262,6 +262,7 @@ class MainWindow(MainWindowBase):
         self.split_edges_action.triggered.connect(self.split_edges)
         self.frame_selection_action.triggered.connect(self.frame_selection)
         self.remove_action.triggered.connect(self.remove)
+        self.delete_action.triggered.connect(self.delete)
         self.play_in_eduke32_action.triggered.connect(lambda: self.play(self.app().play_settings.eduke32_path, ['-map', 'out.map'], MapFormat.DUKE_3D))
         self.play_in_nblood_action.triggered.connect(lambda: self.play(self.app().play_settings.nblood_path, ['-map', 'out.map'], MapFormat.BLOOD))
 
@@ -320,6 +321,7 @@ class MainWindow(MainWindowBase):
         tool_bar.add_action(self.split_edges_action)
         tool_bar.add_action(self.frame_selection_action)
         tool_bar.add_action(self.remove_action)
+        tool_bar.add_action(self.delete_action)
         tool_bar.add_separator()
         tool_bar.add_action(self.no_filter_action)
         tool_bar.add_action(self.select_node_action)
@@ -402,6 +404,9 @@ class MainWindow(MainWindowBase):
 
     def remove(self):
         commands.remove_elements(self.app().doc.selected_elements)
+
+    def delete(self):
+        commands.delete_elements(self.app().doc.selected_elements)
 
     def join_edges(self):
         commands.join_edges(*self.app().doc.selected_edges)
