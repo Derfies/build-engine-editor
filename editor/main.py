@@ -1,7 +1,7 @@
+import argparse
 import logging
-import subprocess
 import sys
-from dataclasses import fields
+from dataclasses import asdict, fields
 from pathlib import Path
 
 import marshmallow_dataclass
@@ -10,19 +10,25 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QActionGroup, QKeySequence
 from PySide6.QtWidgets import QDockWidget, QFileDialog, QVBoxLayout, QWidget
 
+from adaptors.manager import AdaptorManager
 from applicationframework.application import Application
 from applicationframework.document import Document
 from applicationframework.mainwindow import MainWindow as MainWindowBase
 from editor import commands
 from editor.constants import MapFormat, ModalTool, SelectionMode
+from editor.document import Document
 from editor.editorpropertygrid import PropertyGrid
 from editor.graph import Graph
 from editor.graphicsscene import GraphicsScene
 from editor.graphicsview import GraphicsView
-from editor.document import Document
-from editor.mapio import build, doom, gexf, fallenaces
+from editor.mapio import build, doom, gexf, fallenaces, marathon
 from editor.preferencesdialog import PreferencesDialog
-from editor.settings import ColourSettings, GeneralSettings, GridSettings, HotkeySettings, PlaySettings
+from editor.settings import (
+    ColourSettings,
+    GeneralSettings,
+    GridSettings,
+    HotkeySettings,
+)
 from editor.updateflag import UpdateFlag
 from editor.viewport import Viewport
 from propertygrid.model import ModelEvent
@@ -36,10 +42,13 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_COMPANY_NAME = 'Enron'
 DEFAULT_APP_NAME = 'Build Engine Map Editor'
+
+# TODO: Replace with adaptors.
 IMPORTERS = {
     MapFormat.BLOOD: build.import_build,
     MapFormat.DOOM: doom.import_doom,
     MapFormat.DUKE_3D: build.import_build,
+    MapFormat.MARATHON: marathon.import_marathon,
 }
 EXPORTERS = {
     MapFormat.BLOOD: build.export_build,
@@ -64,7 +73,7 @@ class MainWindow(MainWindowBase):
         self.app().colour_settings = ColourSettings()
         self.app().grid_settings = GridSettings()
         self.app().hotkey_settings = HotkeySettings()
-        self.app().play_settings = PlaySettings()
+        self.app().adaptor_manager = AdaptorManager()
         self.app().held_keys = set()
 
         super().__init__(*args, **kwargs)
@@ -103,13 +112,17 @@ class MainWindow(MainWindowBase):
         dock1.raise_()
         self.resize_docks([dock1, dock3], [4, 1], Qt.Horizontal)
 
-        for name, dataclass in {
+        dataclasses = {
             'general_settings': self.app().general_settings,
             'colour_settings': self.app().colour_settings,
             'grid_settings': self.app().grid_settings,
             'hotkey_settings': self.app().hotkey_settings,
-            'play_settings': self.app().play_settings,
-        }.items():
+            'adaptors': self.app().adaptor_manager.settings,
+        } | {
+            f'{adaptor.name}_adaptor_settings': adaptor.settings
+            for adaptor in self.app().adaptor_manager.adaptors.values()
+        }
+        for name, dataclass in dataclasses.items():
             self.app().preferences_manager.register_dataclass(name, dataclass)
 
         self.select_action.set_checked(True)
@@ -117,31 +130,19 @@ class MainWindow(MainWindowBase):
         self.on_tool_action_group()
         self.on_select_action_group()
 
-        #self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\test.map')
-        #self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\LL-SEWER.MAP')
-        #self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\1.MAP')
-        #self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\editor\tests\data\2_squares.map')
-        #self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\test5.map')
+        # Load all window / settings preferences.
+        self.app().preferences_manager.load()
 
-        #self.import_event()
+    def show_event(self, event):
+        """
+        Need to call global update *after* the window has been shown as this is
+        what causes initializeGL to be called, and some of the code there cannot
+        be called any earlier.
 
-        #doom.import_doom(self.app().doc.content, r'C:\Program Files (x86)\GOG Galaxy\Games\DOOM\DOOM.WAD', MapFormat.DOOM)
-        #build.import_build(self.app().doc.content, r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\editor\mapio\tests\data\4_squares.map', MapFormat.DUKE_3D)
-        #self.open_event(r'C:\Program Files (x86)\Steam\steamapps\common\Fallen Aces\AcesData\Episodes\Test\Chapter1\test.json')
-        #self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\test.json')
-        #fallenaces.export_fallen_aces(self.app().doc.content, r'C:\Program Files (x86)\Steam\steamapps\common\Fallen Aces\AcesData\Episodes\Test\Chapter1\level1.txt', MapFormat.FALLEN_ACES)
-        #build.import_build(self.app().doc.content, r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\DX-MINIDOOM.MAP', MapFormat.DUKE_3D)
-        #build.import_build(self.app().doc.content, r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\DX-CONAM.MAP', MapFormat.DUKE_3D)
-        #build.import_build(self.app().doc.content, r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\DX-6SPIRES.MAP', MapFormat.DUKE_3D)
-        #build.import_build(self.app().doc.content, r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\newboard.map', MapFormat.DUKE_3D)
-        fallenaces.import_fallen_aces(self.app().doc.content,
-                                      r'C:\Program Files (x86)\Steam\steamapps\common\Fallen Aces\AcesData\Episodes\Heart of Glass\Chapter1\level1.txt',
-                                      MapFormat.FALLEN_ACES)
+        """
+        super().show_event(event)
 
         self.app().doc.updated(dirty=False)
-
-        #self.app().doc.file_path = r'C:\Program Files (x86)\Steam\steamapps\common\Duke Nukem 3D\gameroot\maps\out.map'
-        #self.app().doc.save()
 
     def key_press_event(self, event):
 
@@ -217,10 +218,12 @@ class MainWindow(MainWindowBase):
         self.join_edges_action = QAction( self.get_icon('join-edge', icons_path=self.local_icons_path), '&Join Edges', self)
         self.split_edges_action = QAction(self.get_icon('split-edge', icons_path=self.local_icons_path),'&Split Edges', self)
         self.frame_selection_action = QAction(self.get_icon('image-instagram-frame', icons_path=self.local_icons_path), '&Frame Selection', self)
-        self.remove_action = QAction(self.get_icon('cross', icons_path=self.local_icons_path), '&Remove', self)
-        self.play_in_eduke32_action = QAction(self.get_icon('eduke32', icons_path=self.local_icons_path), '&Play In EDuke32', self)
-        self.play_in_nblood_action = QAction(self.get_icon('nblood', icons_path=self.local_icons_path), '&Play In Nblood', self)
-        self.play_in_gzdoom_action = QAction(self.get_icon('gzdoom', icons_path=self.local_icons_path), '&Play In Nblood', self)
+        self.play_actions = []
+        for adaptor in self.app().adaptor_manager.adaptors.values():
+            exe_name = Path(adaptor.settings.exe_path or '').stem
+            action = QAction(self.get_icon(adaptor.icon_name, icons_path=self.local_icons_path), f'&Play In {exe_name.capitalize()}', self)
+            action.set_data({'adaptor': adaptor})
+            self.play_actions.append(action)
 
         # Tool action group.
         self.tool_action_group = QActionGroup(self)
@@ -260,15 +263,11 @@ class MainWindow(MainWindowBase):
         self.join_edges_action.triggered.connect(self.join_edges)
         self.split_edges_action.triggered.connect(self.split_edges)
         self.frame_selection_action.triggered.connect(self.frame_selection)
-        self.remove_action.triggered.connect(self.remove)
-        self.play_in_eduke32_action.triggered.connect(lambda: self.play(self.app().play_settings.eduke32_path, ['-map', 'out.map'], MapFormat.DUKE_3D))
-        self.play_in_nblood_action.triggered.connect(lambda: self.play(self.app().play_settings.nblood_path, ['-map', 'out.map'], MapFormat.BLOOD))
+        for action in self.play_actions:
+            adaptor = action.data()['adaptor']
+            action.triggered.connect(adaptor.play)
 
-        # TODo: Export play params.
-        self.play_in_gzdoom_action.triggered.connect(lambda: self.play(self.app().play_settings.gzdoom_path, ['-iwad', "DOOM.WAD", '-file', 'out.wad', '+map', 'MAP01'], MapFormat.DOOM))
-
-    def connect_hotkeys(self):
-        super().connect_hotkeys()
+    def connect_settings_hotkeys(self):
 
         # Tool actions.
         hotkeys: HotkeySettings = self.app().hotkey_settings
@@ -281,7 +280,6 @@ class MainWindow(MainWindowBase):
         self.join_edges_action.set_shortcut(hotkeys.join_edges)
         self.split_edges_action.set_shortcut(hotkeys.split_edges)
         self.frame_selection_action.set_shortcut(hotkeys.frame_selection)
-        self.remove_action.set_shortcut(hotkeys.remove)
 
     def create_menu_bar(self):
         super().create_menu_bar()
@@ -296,7 +294,6 @@ class MainWindow(MainWindowBase):
         self.edit_menu.add_action(self.join_edges_action)
         self.edit_menu.add_action(self.split_edges_action)
         self.edit_menu.add_action(self.frame_selection_action)
-        self.edit_menu.add_action(self.remove_action)
         self.edit_menu.add_separator()
         self.edit_menu.add_action(self.show_preferences_action)
 
@@ -317,16 +314,14 @@ class MainWindow(MainWindowBase):
         tool_bar.add_action(self.join_edges_action)
         tool_bar.add_action(self.split_edges_action)
         tool_bar.add_action(self.frame_selection_action)
-        tool_bar.add_action(self.remove_action)
         tool_bar.add_separator()
         tool_bar.add_action(self.no_filter_action)
         tool_bar.add_action(self.select_node_action)
         tool_bar.add_action(self.select_edge_action)
         tool_bar.add_action(self.select_poly_action)
         tool_bar.add_separator()
-        tool_bar.add_action(self.play_in_eduke32_action)
-        tool_bar.add_action(self.play_in_nblood_action)
-        tool_bar.add_action(self.play_in_gzdoom_action)
+        for action in self.play_actions:
+            tool_bar.add_action(action)
 
     def create_document(self, file_path: str = None) -> Document:
         content = Graph(foo=True)
@@ -355,7 +350,6 @@ class MainWindow(MainWindowBase):
         content.add_face_attribute_definition('ceilingshade', 0.9)
         content.add_face_attribute_definition('floorshade', 0.9)
 
-
         # For rooms
         #content.add_edge_attribute_definition('door', False)
 
@@ -378,7 +372,10 @@ class MainWindow(MainWindowBase):
             'colours': self.app().colour_settings,
             'grid': self.app().grid_settings,
             'hotkeys': self.app().hotkey_settings,
-            'play': self.app().play_settings,
+            'adaptors': self.app().adaptor_manager.settings,
+        } | {
+            adaptor.name: adaptor.settings
+            for adaptor in self.app().adaptor_manager.adaptors.values()
         }
         for name, dataclass in dataclasses.items():
             schema = marshmallow_dataclass.class_schema(dataclass.__class__)()
@@ -391,15 +388,26 @@ class MainWindow(MainWindowBase):
             return
 
         # Deserialize back to data objects and set.
+        # NOTE: Don't use rehydrated dataclass instances - keep original instance
+        # and change fields in place.
         for name, dataclass in dataclasses.items():
-            for k, v in dialog.preferences[name].items():
-                setattr(dataclass, k, v)
+            schema = marshmallow_dataclass.class_schema(dataclass.__class__)()
+            new_dataclass = schema.load(dialog.preferences[name])
+            for field in fields(new_dataclass):
+                setattr(dataclass, field.name, getattr(new_dataclass, field.name))
+
+        # If any of the wad file settings have changed, raise that specific flag
+        # in order to reload those assets (which is expensive).
+        # TODO: Replace with adaptors.
+        flags = UpdateFlag.SETTINGS
+        if any([
+            preferences[adaptor.name] != asdict(adaptor.settings)
+            for adaptor in self.app().adaptor_manager.adaptors.values()
+        ]) or preferences['adaptors'] != asdict(self.app().adaptor_manager.settings):
+            flags |= UpdateFlag.ADAPTOR_TEXTURES
 
         # Don't treat modification of prefs as a content change.
-        self.app().doc.updated(UpdateFlag.SETTINGS, dirty=False)
-
-    def remove(self):
-        commands.remove_elements(self.app().doc.selected_elements)
+        self.app().doc.updated(flags, dirty=False)
 
     def join_edges(self):
         commands.join_edges(*self.app().doc.selected_edges)
@@ -425,58 +433,21 @@ class MainWindow(MainWindowBase):
         self.view_2d.frame(items)
         self.view_3d.frame(items)
 
-    def play(self, exe_path: str, args: list[str], map_format: MapFormat):
-
-        exe_path = Path(exe_path)
-        if not exe_path.exists():
-            raise Exception(f'Cannot find executable at: {exe_path}')
-
-        # TODO: Since we're loading an external non-blocking process not sure
-        # how to clean up properly here.
-        ext = map_format.value.split('*.')[1].rstrip(')')
-        temp_map_path = exe_path.parent.joinpath(f'out.{ext}')
-        EXPORTERS[map_format](self.app().doc.content, temp_map_path, map_format)
-        logger.debug(f'Exported temp map: {temp_map_path}')
-
-        logger.debug(f'Running: {exe_path} {args}')
-
-        # Launch game executable.
-        # TODO: Different build exes might require different args / flags here.
-        process = subprocess.Popen(
-            [exe_path] + args,
-            stderr=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            text=True,  # ensures output is in string format instead of bytes
-            cwd=exe_path.parent,
-        )
-
-        # Read and print stderr.
-        stderr_output, stdout_output = process.communicate()
-
-        print('STDERR:')
-        print(stderr_output)
-
-        print('STDOUT:')
-        print(stdout_output)
-
-    def show_event(self, event):
-        super().show_event(event)
-
-        # TODO: Think about if there's a cleaner way to do this.
-        self.connect_hotkeys()
-
-        # This is a bit of a hack. We need to refresh after preferences are
-        # loaded and that gets done during show_event.
-        self.app().doc.updated(dirty=False)
-
     def update_event(self, doc: Document, flags: UpdateFlag):
+        """
+        Run on initial app load (all flags called from init) or on other update
+        events incuding the preferences panel being dismissed.
+
+        """
         super().update_event(doc, flags)
 
-        # TODO: Think about if there's a cleaner way to do this.
+        # Settings may have changed - rebind hotkeys.
         if UpdateFlag.SETTINGS in flags:
-            self.connect_hotkeys()
+            self.connect_settings_hotkeys()
 
     def import_event(self):
+
+        # TODO: Need to build list of exporters from adaptors *and* standalone functions...?
         file_formats = ';;'.join([fmt.value for fmt in MapFormat])
         file_path, file_format = QFileDialog.get_open_file_name(caption='Import', filter=file_formats)
         if not file_path:
@@ -497,7 +468,19 @@ class MainWindow(MainWindowBase):
 
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG)
+
+    # Allow setting of log level from argv.
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '--log-level',
+        default='INFO',
+        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
+        help='Set the logging level (default: INFO)'
+    )
+    args = parser.parse_args()
+    log_level = getattr(logging, args.log_level.upper(), logging.INFO)
+    logging.basicConfig(level=log_level)
+
     app = Application(DEFAULT_COMPANY_NAME, DEFAULT_APP_NAME, sys.argv)
     qdarktheme.setup_theme()
     window = MainWindow()

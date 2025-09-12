@@ -13,7 +13,7 @@ from editor.graph import Graph
 
 
 def get_ring_bounds(m, ring: list[Any]) -> tuple:
-    print('ring:', ring)
+    #print('ring:', ring)
     positions = [(edge.head.get_attribute('x'), edge.tail.get_attribute('y')) for edge in ring]
     min_pos = np.amin(positions, axis=0)
     max_pos = np.amax(positions, axis=0)
@@ -102,7 +102,7 @@ def import_doom(graph: Graph, file_path: str | Path, format: MapFormat):
     # TODO: Support wadded level selection.
     wad = omg.WAD()
     wad.from_file(file_path)
-    m = omg.UMapEditor(wad.maps['E3M4'])
+    m = omg.UMapEditor(wad.maps['E1M1'])
 
     # Nodes.
     nodes = []
@@ -129,7 +129,7 @@ def import_doom(graph: Graph, file_path: str | Path, format: MapFormat):
             edge = graph.add_edge((head, tail), **edge_attrs)
             sector_idx_to_edges[sector_idx].append(edge)
 
-    i = 0
+    #i = 0
     for sector_idx, edges in sector_idx_to_edges.items():
         sector = m.sectors[sector_idx]
         rings = order_tuples_into_chains(edges)
@@ -138,6 +138,8 @@ def import_doom(graph: Graph, file_path: str | Path, format: MapFormat):
             'floorshade': sector.lightlevel / 255,
             'ceilingz': sector.heightceiling * global_scale,
             'floorz': sector.heightfloor * global_scale,
+            'floorpicnum': sector.texturefloor,
+            'ceilingpicnum': sector.textureceiling,
         }
         sorted_rings = sorted(rings, key=lambda r: get_ring_bounds(m, r), reverse=True)
         graph.add_face(tuple([node.head.data for ring in sorted_rings for node in ring]), **sector_attrs)
@@ -186,6 +188,9 @@ def export_doom(graph: Graph, file_path: str | Path, format: MapFormat):
     # Watch the winding order...
     linedefs = {}
     for edge in edge_to_index:
+        if edge.face is None:
+            print('No face')
+            continue
         linedef = linedefs.get(edge.reversed)
         if linedef is None:
             linedef = Linedef(vx_a=node_to_index[edge.tail], vx_b=node_to_index[edge.head], front=edge_to_index[edge])

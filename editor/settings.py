@@ -6,16 +6,7 @@ from marshmallow import fields
 from marshmallow_dataclass import NewType
 
 
-class QColorField(fields.Field):
-
-    def _serialize(self, value: QColor, attr, obj, **kwargs):
-        return value.red(), value.green(), value.blue(), value.alpha()
-
-    def _deserialize(self, value, attr, data, **kwargs):
-        return QColor(*value)
-
-
-QColourType = NewType('QColour', QColor, QColorField)
+QColourType = NewType('QColour', QColor, fields.Field)
 
 
 @dataclass
@@ -63,11 +54,3 @@ class HotkeySettings:
     remove: str = 'Backspace'
     grid_snap: str = 'X'
     vertex_snap: str = 'V'
-
-
-@dataclass
-class PlaySettings:
-
-    eduke32_path: str = 'eduke32.exe'
-    nblood_path: str = 'nblood.exe'
-    gzdoom_path: str = 'gzdoom.exe'

@@ -147,6 +147,10 @@ def import_build(graph: Graph, file_path: str | Path, format: MapFormat):
         face.set_attribute('floorz', face.get_attribute('floorz') / -16)
         face.set_attribute('ceilingz', face.get_attribute('ceilingz') / -16)
 
+        face.set_attribute('ceilingpicnum', str(face.get_attribute('ceilingpicnum')))
+        face.set_attribute('floorpicnum',
+                           str(face.get_attribute('floorpicnum')))
+
 
 def export_build(graph: Graph, file_path: str, format: MapFormat):
 
