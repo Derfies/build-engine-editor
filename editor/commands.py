@@ -65,43 +65,53 @@ def remove_elements(elements: set[Node] | set[Edge] | set[Face]):
     QApplication.instance().doc.updated(action(), dirty=False)
 
 
-def delete_elements(elements: set[Node] | set[Edge] | set[Face]):
+def delete_elements(*elements: Iterable[Node] | Iterable[Edge] | Iterable[Face]):
     """
     Removes elements aggressively.
 
-    Eg removing an edge should delete anything connected.
+    Logic goes like this:
+    - A face cannot survive without its edges
+    - An edge cannot survive without its nodes
+
+    So to resolve which needs to be deleted from any input, convert elements going
+    upwards in complexity, ie node -> edge -> face.
+
+    NOTE: Some elements may survive if they are connected to other elements not
+    in the original input.
+
+    Eg Dont expand face nodes if that node is used in another face
 
     """
-
-    # TODO: Only doing edges for the moment.
-    edges = [
-        element
-        for element in elements
-        if isinstance(element, Edge)
-    ]
-
-    edge_faces = [edge.face for edge in edges]
-    edge_face_nodes = []
-    face_edges = []
-    for face in edge_faces:
-        edge_face_nodes.extend(face.nodes)
-        face_edges.extend(face.edges)
+    nodes = {n for n in elements if isinstance(n, Node)}
+    edges = {e for e in elements if isinstance(e, Edge)}
+    faces = {f for f in elements if isinstance(f, Face)}
+    for node in nodes:
+        edges.update(node.edges)
+    for edge in set(edges):
+        nodes.update(edge.face.nodes)
+        edges.update(edge.face.edges)
+        faces.add(edge.face)
+    for face in faces:
+        nodes.update(face.nodes)
+        edges.update(face.edges)
 
     rem_tweak = Tweak()
-    rem_tweak.nodes.update([n.data for n in edge_face_nodes])
+    rem_tweak.nodes.update([n.data for n in nodes])
     rem_tweak.edges.update([e.data for e in edges])
-    rem_tweak.edges.update([e.data for e in face_edges])
-    rem_tweak.faces.update([f.data for f in edge_faces])
+    rem_tweak.faces.update([f.data for f in faces])
 
-    for node in edge_face_nodes:
+    for node in nodes:
         rem_tweak.node_attrs[node.data] = node.get_attributes()
-
-    print('rem_tweak:', rem_tweak)
-
+    for edge in edges:
+        rem_tweak.edge_attrs[edge.data] = edge.get_attributes()
+    for face in faces:
+        rem_tweak.face_attrs[face.data] = face.get_attributes()
 
     action = Remove(rem_tweak, QApplication.instance().doc.content, flags=UpdateFlag.CONTENT)
     QApplication.instance().action_manager.push(action)
     QApplication.instance().doc.updated(action(), dirty=False)
+
+    return None, rem_tweak
 
 
 def transform_node_items(node_items):

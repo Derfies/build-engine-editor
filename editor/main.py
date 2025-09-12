@@ -406,7 +406,7 @@ class MainWindow(MainWindowBase):
         commands.remove_elements(self.app().doc.selected_elements)
 
     def delete(self):
-        commands.delete_elements(self.app().doc.selected_elements)
+        commands.delete_elements(*self.app().doc.selected_elements)
 
     def join_edges(self):
         commands.join_edges(*self.app().doc.selected_edges)
