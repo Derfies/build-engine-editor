@@ -218,6 +218,7 @@ class MainWindow(MainWindowBase):
         self.join_edges_action = QAction( self.get_icon('join-edge', icons_path=self.local_icons_path), '&Join Edges', self)
         self.split_edges_action = QAction(self.get_icon('split-edge', icons_path=self.local_icons_path),'&Split Edges', self)
         self.frame_selection_action = QAction(self.get_icon('image-instagram-frame', icons_path=self.local_icons_path), '&Frame Selection', self)
+        self.remove_action = QAction(self.get_icon('cross', icons_path=self.local_icons_path), '&Remove', self)
         self.play_actions = []
         for adaptor in self.app().adaptor_manager.adaptors.values():
             exe_name = Path(adaptor.settings.exe_path or '').stem
@@ -263,6 +264,7 @@ class MainWindow(MainWindowBase):
         self.join_edges_action.triggered.connect(self.join_edges)
         self.split_edges_action.triggered.connect(self.split_edges)
         self.frame_selection_action.triggered.connect(self.frame_selection)
+        self.remove_action.triggered.connect(self.remove)
         for action in self.play_actions:
             adaptor = action.data()['adaptor']
             action.triggered.connect(adaptor.play)
@@ -280,6 +282,7 @@ class MainWindow(MainWindowBase):
         self.join_edges_action.set_shortcut(hotkeys.join_edges)
         self.split_edges_action.set_shortcut(hotkeys.split_edges)
         self.frame_selection_action.set_shortcut(hotkeys.frame_selection)
+        self.remove_action.set_shortcut(hotkeys.remove)
 
     def create_menu_bar(self):
         super().create_menu_bar()
@@ -294,6 +297,7 @@ class MainWindow(MainWindowBase):
         self.edit_menu.add_action(self.join_edges_action)
         self.edit_menu.add_action(self.split_edges_action)
         self.edit_menu.add_action(self.frame_selection_action)
+        self.edit_menu.add_action(self.remove_action)
         self.edit_menu.add_separator()
         self.edit_menu.add_action(self.show_preferences_action)
 
@@ -314,6 +318,7 @@ class MainWindow(MainWindowBase):
         tool_bar.add_action(self.join_edges_action)
         tool_bar.add_action(self.split_edges_action)
         tool_bar.add_action(self.frame_selection_action)
+        tool_bar.add_action(self.remove_action)
         tool_bar.add_separator()
         tool_bar.add_action(self.no_filter_action)
         tool_bar.add_action(self.select_node_action)
@@ -408,6 +413,9 @@ class MainWindow(MainWindowBase):
 
         # Don't treat modification of prefs as a content change.
         self.app().doc.updated(flags, dirty=False)
+
+    def remove(self):
+        commands.remove_elements(self.app().doc.selected_elements)
 
     def join_edges(self):
         commands.join_edges(*self.app().doc.selected_edges)
