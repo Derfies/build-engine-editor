@@ -1,7 +1,11 @@
-from PySide6.QtGui import QDoubleValidator, QIntValidator
-from PySide6.QtWidgets import QCheckBox, QLineEdit
+from typing import Any
 
+from PySide6.QtGui import QDoubleValidator, QIntValidator
+from PySide6.QtWidgets import QCheckBox, QComboBox, QLineEdit
+
+from applicationframework.mixins import HasAppMixin
 from applicationframework.preferencesdialog import (
+    DataclassPreferenceWidgetBase,
     ManagedPreferenceWidgetBase,
     PreferencesDialog as PreferenceDialogBase,
 )
@@ -78,36 +82,46 @@ class GridWidget(ManagedPreferenceWidgetBase):
             self.add_managed_widget(title, widget, validator=validator)
 
 
-class PlayWidget(ManagedPreferenceWidgetBase):
+class AdaptorWidget(ManagedPreferenceWidgetBase, HasAppMixin):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        for title, widget, validator in (
-            ('EDuke32 Path', QLineEdit(), None),
-            ('Nblood Path', QLineEdit(), None),
-            ('Gzdoom Path', QLineEdit(), None),
-        ):
-            self.add_managed_widget(title, widget, validator=validator)
+        self.combo_box = QComboBox()
+        self.combo_box.add_item('None')
+        for name in self.app().adaptor_manager.adaptors:
+            self.combo_box.add_item(name.capitalize())
+        self.combo_box.set_current_index(0)
+        self.add_managed_widget('Current Adaptor', self.combo_box)
+
+    def preferences(self) -> dict[str, Any]:
+        index = self.combo_box.current_index()
+        value = self.combo_box.current_text().lower() if index > 0 else None
+        return {'current_adaptor': value}
+
+    def set_preferences(self, data: dict[str, Any]):
+        value = data['current_adaptor']
+        index = 0 if value is None else self.combo_box.find_text(value.capitalize())
+        self.combo_box.set_current_index(index)
 
 
-class PreferencesDialog(PreferenceDialogBase):
+class PreferencesDialog(PreferenceDialogBase, HasAppMixin):
 
     def __init__(self, *args, **kwargs):
         super().__init__( *args, **kwargs)
 
         general = GeneralWidget('General')
-        colours = ColoursWidget('Colours')
-        grid = GridWidget('Grid')
-        hotkeys = HotkeysWidget('Hotkeys')
-        play = PlayWidget('Play')
+        general_item = self.add_widget(general)
+        self.add_widget(ColoursWidget('Colours'))
+        self.add_widget(GridWidget('Grid'))
+        self.add_widget(HotkeysWidget('Hotkeys'))
 
-        item = self.add_widget(general)
-        self.add_widget(colours)
-        self.add_widget(grid)
-        self.add_widget(hotkeys)
-        self.add_widget(play)
+        adaptors = AdaptorWidget('Adaptors')
+        adaptors_item = self.add_widget(adaptors)
+        for name, adaptor in self.app().adaptor_manager.adaptors.items():
+            widget = DataclassPreferenceWidgetBase(adaptor.settings, adaptor.name.capitalize())
+            self.add_widget(widget, adaptors_item)
 
         # Set the initial item until we think of a better way to persist between
         # sessions.
-        self.tree_view.set_current_item(item)
+        self.tree_view.set_current_item(general_item)
