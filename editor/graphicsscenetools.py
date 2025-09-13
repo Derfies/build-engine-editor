@@ -363,6 +363,8 @@ class CreatePolygonTool(GraphicsSceneToolBase):
             self.cancel()
             modifiers = event.modifiers()
             hole = modifiers & Qt.AltModifier
+
+            # TODO: Out if no points.
             if not hole:
                 commands.add_polygon(points)
             else:

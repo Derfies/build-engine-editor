@@ -34,6 +34,7 @@ class ColoursWidget(ManagedPreferenceWidgetBase):
             ('Node', ColourPicker(), None),
             ('Selected Node', ColourPicker(), None),
             ('Edge', ColourPicker(), None),
+            ('Bidirectional Edge', ColourPicker(), None),
             ('Selected Edge', ColourPicker(), None),
             ('Poly', ColourPicker(), None),
             ('Selected Poly', ColourPicker(), None),

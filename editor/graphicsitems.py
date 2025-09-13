@@ -109,7 +109,12 @@ class EdgeGraphicsItem(GraphicsItemBaseMixin, QGraphicsLineItem):
     def update_pen(self):
 
         # TODO: Can possibly abstract this method a bit more.
-        colour = self.app().colour_settings.selected_edge if self.element().is_selected else self.app().colour_settings.edge
+        colour = self.app().colour_settings.edge
+        if self.element().is_selected:
+            colour = self.app().colour_settings.selected_edge
+        elif self.element().reversed is not None:
+            colour = self.app().colour_settings.bidirectional_edge
+
         width = 2 if self.element().is_selected else 1
         self.pen = QPen(colour, width)
         self.pen.set_cosmetic(True)
