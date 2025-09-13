@@ -199,25 +199,26 @@ class CommandsTestCase(UsesQApplication, TestCaseBase):
         Remove node 0 which destroys only the face with that node, including all
         edges and nodes.
 
-        5         4         3   5           4
+        1         3         5   3           5
           ┌───────┬───────┐       ┌───────┐
           │       │       │       │       │
           │       │       │   →   │       │
           │       │       │       │       │
           └───────┴───────┘       └───────┘
-        0         1         2   1           2
+        0         2         4   2           4
 
         """
-
-        # TODO
         # Set up test data.
-        self.create_polygon(self.c, ((0, 0), (1, 0), (1, 1), (0, 1)))
+        self.build_grid(self.c, 3, 2)
 
         # Start test.
         node = self.c.get_node(0)
         add_tweak, rem_tweak = commands.delete_elements(node)
 
         # Assert results.
+
+        # TODO: Ok great - this is now failing where it should be. Both faces
+        # are being removed which needs tweaking.
         self.assertSetEqual(rem_tweak.nodes, {0, 1, 2, 3})
         self.assertSetEqual(rem_tweak.edges, {(0, 1), (1, 2), (2, 3), (3, 0)})
         self.assertSetEqual(rem_tweak.faces, {(0, 1, 2, 3, 0)})
