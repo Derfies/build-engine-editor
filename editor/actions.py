@@ -1,8 +1,9 @@
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Iterable
 
-from applicationframework.actions import Edit
+from applicationframework.actions import Base, Edit
+from editor.graph import Edge, Face, Node
 
 # noinspection PyUnresolvedReferences
 from __feature__ import snake_case
@@ -79,3 +80,19 @@ class SetElementAttribute(Edit):
     def redo(self):
         self.obj.set_attribute(self.name, self.value)
         return self.flags
+
+
+class Deselect(Base):
+
+    def __init__(self, elements: Iterable[Node | Edge | Face], **kwargs):
+        super().__init__(**kwargs)
+        self.elements = elements
+        self.prev_selected = [e.is_selected for e in self.elements]
+
+    def undo(self):
+        for i, element in enumerate(self.elements):
+            element.is_selected = self.prev_selected[i]
+
+    def redo(self):
+        for element in self.elements:
+            element.is_selected = False

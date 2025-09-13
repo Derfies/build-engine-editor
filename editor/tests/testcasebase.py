@@ -1,8 +1,6 @@
 import unittest
 from itertools import pairwise
 
-import networkx as nx
-
 from editor.graph import Graph
 
 
@@ -28,16 +26,10 @@ class TestCaseBase(unittest.TestCase):
 
     @staticmethod
     def build_grid(graph: Graph, w: int, h: int):
-
-        g = nx.grid_2d_graph(w, h)
-
         nodes = {}
-        for i, (x, y) in enumerate(g.nodes):
-            nodes[(x, y)] = graph.add_node(i, x=x, y=y).data
-
-        for head, tail in g.edges:
-            graph.add_edge((nodes[head], nodes[tail]))
-
+        for x in range(w):
+            for y in range(h):
+                nodes[(x, y)] = graph.add_node(len(graph.nodes), x=x, y=y).data
         for x1, x2 in pairwise(range(w)):
             for y1, y2 in pairwise(range(h)):
                 face_nodes = [
@@ -46,4 +38,7 @@ class TestCaseBase(unittest.TestCase):
                     nodes[(x2, y2)],
                     nodes[(x1, y2)],
                 ]
-                graph.add_face(tuple(face_nodes))
+                for i in range(len(face_nodes)):
+                    graph.add_edge((face_nodes[i], face_nodes[(i + 1) % len(face_nodes)]))
+                graph.add_face(tuple(face_nodes + [face_nodes[0]]))
+        graph.update()

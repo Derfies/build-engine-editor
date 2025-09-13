@@ -10,7 +10,7 @@ from shapely.geometry.polygon import orient
 from shapely.ops import split as split_ops
 
 from applicationframework.actions import Composite, SetAttribute
-from editor.actions import Add, Remove, SetElementAttribute, Tweak
+from editor.actions import Add, Deselect, Remove, SetElementAttribute, Tweak
 from editor.constants import IS_SELECTED
 from editor.graph import Face, Edge, Node
 from editor.maths import lerp, long_line_through, midpoint
@@ -65,7 +65,7 @@ def remove_elements(elements: set[Node] | set[Edge] | set[Face]):
     QApplication.instance().doc.updated(action(), dirty=False)
 
 
-def delete_elements(*elements: Iterable[Node] | Iterable[Edge] | Iterable[Face]):
+def delete_elements(*elements: Iterable[Node | Edge | Face]):
     """
     Removes elements aggressively.
 
@@ -79,35 +79,47 @@ def delete_elements(*elements: Iterable[Node] | Iterable[Edge] | Iterable[Face])
     NOTE: Some elements may survive if they are connected to other elements not
     in the original input.
 
-    Eg Dont expand face nodes if that node is used in another face
-
     """
+    # Bucket elements by type.
     nodes = {n for n in elements if isinstance(n, Node)}
     edges = {e for e in elements if isinstance(e, Edge)}
     faces = {f for f in elements if isinstance(f, Face)}
+
+    # Any node or edge being deleted should also delete its faces.
     for node in nodes:
-        edges.update(node.edges)
-    for edge in set(edges):
-        nodes.update(edge.face.nodes)
-        edges.update(edge.face.edges)
+        faces.update(node.faces)
+    for edge in edges:
         faces.add(edge.face)
+
+    # Any face being deleted should also delete its edges.
     for face in faces:
-        nodes.update(face.nodes)
         edges.update(face.edges)
 
+    # Any face being deleted should also delete its nodes, providing that the
+    # node's edges are also going to be deleted.
+    for face in faces:
+        for node in face.nodes:
+            if not set(node.edges) - edges:
+                nodes.add(node)
+
+    # Build the remove tweak.
     rem_tweak = Tweak()
     rem_tweak.nodes.update([n.data for n in nodes])
     rem_tweak.edges.update([e.data for e in edges])
     rem_tweak.faces.update([f.data for f in faces])
+    rem_tweak.node_attrs.update({node.data: node.get_attributes() for node in nodes})
+    rem_tweak.edge_attrs.update({edge.data: edge.get_attributes() for edge in edges})
+    rem_tweak.face_attrs.update({face.data: face.get_attributes() for face in faces})
 
-    for node in nodes:
-        rem_tweak.node_attrs[node.data] = node.get_attributes()
-    for edge in edges:
-        rem_tweak.edge_attrs[edge.data] = edge.get_attributes()
-    for face in faces:
-        rem_tweak.face_attrs[face.data] = face.get_attributes()
-
-    action = Remove(rem_tweak, QApplication.instance().doc.content, flags=UpdateFlag.CONTENT)
+    # Deselect elements before they're deleted so they will be reselected when
+    # undone.
+    # NOTE: This possibly isn't correct, as this fn could be run on an arbitrary
+    # group of unselected elements. If the selected flag was a part of the tweak,
+    # then this issue would be resolved...
+    action = Composite([
+        Deselect(elements),
+        Remove(rem_tweak, QApplication.instance().doc.content),
+    ], flags=UpdateFlag.CONTENT)
     QApplication.instance().action_manager.push(action)
     QApplication.instance().doc.updated(action(), dirty=False)
 
