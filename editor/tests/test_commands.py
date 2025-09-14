@@ -6,8 +6,8 @@ from PySide6.QtWidgets import QApplication
 
 from applicationframework.actions import Manager as ActionManager
 from editor import commands
-from editor.graph import Graph
 from editor.document import Document
+from editor.graph import Graph
 from editor.tests.testcasebase import TestCaseBase
 from editor.updateflag import UpdateFlag
 
@@ -90,6 +90,132 @@ class CommandsTestCase(UsesQApplication, TestCaseBase):
         self.assertEqual((add_tweak.node_attrs['B']['x'], add_tweak.node_attrs['B']['y']), (1, 0))
         self.assertEqual((add_tweak.node_attrs['C']['x'], add_tweak.node_attrs['C']['y']), (1, 1))
         self.assertEqual((add_tweak.node_attrs['D']['x'], add_tweak.node_attrs['D']['y']), (0, 1))
+
+    def test_remove_elements_edge(self):
+        """
+        Remove edge (0, 1). Effectively a no-op because this element cannot be
+        removed without removing additional elements.
+
+        1           2
+          ┌───────┐
+          │       │
+          │       │
+          │       │
+          └───────┘
+        0           3
+
+              ↓
+
+        1           2
+          ┌───────┐
+          │       │
+          │       │
+          │       │
+          └───────┘
+        0           3
+
+        """
+
+    def test_delete_elements_node(self):
+        """
+        Remove node 0 which destroys the entire face including all edges and nodes.
+
+        1           3
+          ┌───────┐
+          │       │
+          │       │   →    NOTHING
+          │       │
+          └───────┘
+        0           2
+
+        """
+        # Set up test data.
+        self.build_grid(self.c, 2, 2)
+
+        # Start test.
+        node = self.c.get_node(0)
+        add_tweak, rem_tweak = commands.delete_elements(node)
+
+        # Assert results.
+        self.assertSetEqual(rem_tweak.nodes, {0, 1, 2, 3})
+        self.assertSetEqual(rem_tweak.edges, {(0, 2), (2, 3), (3, 1), (1, 0)})
+        self.assertSetEqual(rem_tweak.faces, {(0, 2, 3, 1, 0)})
+
+    def test_delete_elements_node_joined_face(self):
+        """
+        Remove node 4 which destroys only the face with that node, including all
+        edges and nodes.
+
+        1         3         5   1           3
+          ┌───────┬───────┐       ┌───────┐
+          │       │       │       │       │
+          │       │       │   →   │       │
+          │       │       │       │       │
+          └───────┴───────┘       └───────┘
+        0         2         4   0           2
+
+        """
+        # Set up test data.
+        self.build_grid(self.c, 3, 2)
+
+        # Start test.
+        node = self.c.get_node(4)
+        add_tweak, rem_tweak = commands.delete_elements(node)
+
+        # Assert results.
+        self.assertSetEqual(rem_tweak.nodes, {4, 5})
+        self.assertSetEqual(rem_tweak.edges, {(2, 4), (4, 5), (5, 3), (3, 2)})
+        self.assertSetEqual(rem_tweak.faces, {(2, 4, 5, 3, 2)})
+
+    def test_delete_elements_edge(self):
+        """
+        Remove edge 0, 2 which destroys the entire face including all edges and nodes.
+
+        1           3
+          ┌───────┐
+          │       │
+          │       │   →    NOTHING
+          │       │
+          └───────┘
+        0           2
+
+        """
+        # Set up test data.
+        self.build_grid(self.c, 2, 2)
+
+        # Start test.
+        edge = self.c.get_edge(0, 2)
+        add_tweak, rem_tweak = commands.delete_elements(edge)
+
+        # Assert results.
+        self.assertSetEqual(rem_tweak.nodes, {0, 1, 2, 3})
+        self.assertSetEqual(rem_tweak.edges, {(0, 2), (2, 3), (3, 1), (1, 0)})
+        self.assertSetEqual(rem_tweak.faces, {(0, 2, 3, 1, 0)})
+
+    def test_delete_elements_face(self):
+        """
+        Remove face 0, 2, 3, 1, 0 which destroys the entire face including all edges and nodes.
+
+        1           3
+          ┌───────┐
+          │       │
+          │       │   →    NOTHING
+          │       │
+          └───────┘
+        0           2
+
+        """
+        # Set up test data.
+        self.build_grid(self.c, 2, 2)
+
+        # Start test.
+        face = self.c.get_face((0, 2, 3, 1, 0))
+        add_tweak, rem_tweak = commands.delete_elements(face)
+
+        # Assert results.
+        self.assertSetEqual(rem_tweak.nodes, {0, 1, 2, 3})
+        self.assertSetEqual(rem_tweak.edges, {(0, 2), (2, 3), (3, 1), (1, 0)})
+        self.assertSetEqual(rem_tweak.faces, {(0, 2, 3, 1, 0)})
 
     # def test_split_face(self):
     #     """

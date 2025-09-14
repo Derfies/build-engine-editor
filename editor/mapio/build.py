@@ -141,15 +141,18 @@ def import_build(graph: Graph, file_path: str | Path, format: MapFormat):
     # Map attributes to some sensible internal values.
     for edge in graph.edges:
         edge.set_attribute('shade', build_shade_to_brightness(edge.get_attribute('shade')))
+        edge.set_attribute('picnum', str(edge.get_attribute('picnum')))
+        edge.set_attribute('overpicnum', str(edge.get_attribute('overpicnum')))
     for face in graph.faces:
         face.set_attribute('floorshade', build_shade_to_brightness(face.get_attribute('floorshade')))
         face.set_attribute('ceilingshade', build_shade_to_brightness(face.get_attribute('ceilingshade')))
         face.set_attribute('floorz', face.get_attribute('floorz') / -16)
         face.set_attribute('ceilingz', face.get_attribute('ceilingz') / -16)
 
+        # HAXX
+        # Need to cast to string until we sort out the universal method of handling textures.
         face.set_attribute('ceilingpicnum', str(face.get_attribute('ceilingpicnum')))
-        face.set_attribute('floorpicnum',
-                           str(face.get_attribute('floorpicnum')))
+        face.set_attribute('floorpicnum', str(face.get_attribute('floorpicnum')))
 
 
 def export_build(graph: Graph, file_path: str, format: MapFormat):

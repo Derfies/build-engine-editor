@@ -24,6 +24,7 @@ class ColourSettings:
     node: QColourType = field(default_factory=lambda: QColor(127, 127, 127, 255))
     selected_node: QColourType = field(default_factory=lambda: QColor(255, 255, 127, 255))
     edge: QColourType = field(default_factory=lambda: QColor(127, 127, 127, 255))
+    bidirectional_edge: QColourType = field(default_factory=lambda: QColor(70, 70, 70, 255))
     selected_edge: QColourType = field(default_factory=lambda: QColor(255, 255, 127, 255))
     poly: QColourType = field(default_factory=lambda: QColor(0, 0, 127, 127))
     selected_poly: QColourType = field(default_factory=lambda: QColor(255, 255, 127, 127))
