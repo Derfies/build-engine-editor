@@ -4,6 +4,7 @@ from typing import Any, Iterable
 
 from applicationframework.actions import Base, Edit
 from editor.graph import Edge, Face, Node
+from editor.updateflag import UpdateFlag
 
 # noinspection PyUnresolvedReferences
 from __feature__ import snake_case
@@ -82,17 +83,33 @@ class SetElementAttribute(Edit):
         return self.flags
 
 
-class Deselect(Base):
+class SelectDeselectBase(Base):
 
-    def __init__(self, elements: Iterable[Node | Edge | Face], **kwargs):
-        super().__init__(**kwargs)
-        self.elements = elements
-        self.prev_selected = [e.is_selected for e in self.elements]
+    """
+    Not totally happy with this. Can't easily create an action which will select
+    things until after they are added to the graph.
+
+    """
+
+    def __init__(self, elements: Iterable[Node | Edge | Face]):
+        super().__init__(flags=UpdateFlag.SELECTION)
+        self._elements = elements
+        self._old_is_selected = [e.is_selected for e in self._elements]
 
     def undo(self):
-        for i, element in enumerate(self.elements):
-            element.is_selected = self.prev_selected[i]
+        for i, element in enumerate(self._elements):
+            element.is_selected = self._old_is_selected[i]
+
+
+class Select(SelectDeselectBase):
 
     def redo(self):
-        for element in self.elements:
+        for element in self._elements:
+            element.is_selected = True
+
+
+class Deselect(SelectDeselectBase):
+
+    def redo(self):
+        for element in self._elements:
             element.is_selected = False

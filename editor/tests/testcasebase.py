@@ -1,10 +1,40 @@
 import unittest
 from itertools import pairwise
+from unittest.mock import Mock
 
+from PySide6.QtWidgets import QApplication
+
+from applicationframework.actions import Manager as ActionManager
+from editor.document import Document
 from editor.graph import Graph
+from editor.updateflag import UpdateFlag
+
+
+_instance = None
 
 
 class TestCaseBase(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        global _instance
+        if _instance is None:
+            _instance = QApplication([])
+            _instance.action_manager = ActionManager()
+            _instance.updated = Mock()
+        cls.mock_app = _instance
+
+    @classmethod
+    def tearDownClass(cls):
+        del cls.mock_app
+
+    def setUp(self):
+        super().setUp()
+        self.mock_app.doc = Document(None, Graph(), UpdateFlag)
+
+    @property
+    def c(self):
+        return self.mock_app.doc.content
 
     @staticmethod
     def create_polygon(graph: Graph, *rings: tuple[tuple[float, float], ...]):
@@ -25,13 +55,13 @@ class TestCaseBase(unittest.TestCase):
         return face
 
     @staticmethod
-    def build_grid(graph: Graph, w: int, h: int):
+    def build_grid(graph: Graph, w: int, h: int, offset_x: int = 0, offset_y: int = 0):
         nodes = {}
-        for x in range(w):
-            for y in range(h):
+        for x in range(offset_x, w + offset_x):
+            for y in range(offset_y, h + offset_y):
                 nodes[(x, y)] = graph.add_node(len(graph.nodes), x=x, y=y).data
-        for x1, x2 in pairwise(range(w)):
-            for y1, y2 in pairwise(range(h)):
+        for x1, x2 in pairwise(range(offset_x, w + offset_x)):
+            for y1, y2 in pairwise(range(offset_y, h + offset_y)):
                 face_nodes = [
                     nodes[(x1, y1)],
                     nodes[(x2, y1)],

@@ -14,12 +14,13 @@ from applicationframework.application import Application
 from applicationframework.document import Document
 from applicationframework.mainwindow import MainWindow as MainWindowBase
 from editor import commands
+from editor.clipboard import Clipboard
 from editor.constants import MapFormat, ModalTool, SelectionMode
+from editor.document import Document
 from editor.editorpropertygrid import PropertyGrid
 from editor.graph import Graph
 from editor.graphicsscene import GraphicsScene
 from editor.graphicsview import GraphicsView
-from editor.document import Document
 from editor.mapio import build, doom, gexf, fallenaces
 from editor.preferencesdialog import PreferencesDialog
 from editor.settings import ColourSettings, GeneralSettings, GridSettings, HotkeySettings, PlaySettings
@@ -68,6 +69,8 @@ class MainWindow(MainWindowBase):
         self.app().held_keys = set()
 
         super().__init__(*args, **kwargs)
+
+        self.clipboard = Clipboard()
 
         self.create_tool_bar()
         self.scene = GraphicsScene()
@@ -284,6 +287,7 @@ class MainWindow(MainWindowBase):
         self.split_edges_action.set_shortcut(hotkeys.split_edges)
         self.frame_selection_action.set_shortcut(hotkeys.frame_selection)
         self.remove_action.set_shortcut(hotkeys.remove)
+        self.delete_action.set_shortcut(hotkeys.delete)
 
     def create_menu_bar(self):
         super().create_menu_bar()
@@ -482,6 +486,15 @@ class MainWindow(MainWindowBase):
         # TODO: Think about if there's a cleaner way to do this.
         if UpdateFlag.SETTINGS in flags:
             self.connect_hotkeys()
+
+    def copy_event(self):
+        self.clipboard.copy(self.app().doc.selected_elements)
+
+    def paste_event(self):
+        if self.clipboard.is_empty():
+            logger.info('Clipboard is empty')
+            return
+        self.clipboard.paste()
 
     def import_event(self):
         file_formats = ';;'.join([fmt.value for fmt in MapFormat])
