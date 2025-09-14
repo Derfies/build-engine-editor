@@ -196,7 +196,7 @@ def export_doom(graph: Graph, file_path: str | Path, format: MapFormat):
             linedef = Linedef(vx_a=node_to_index[edge.tail], vx_b=node_to_index[edge.head], front=edge_to_index[edge])
             linedefs[edge] = linedef
         else:
-            linedef.back = edge_to_index[edge.reversed]
+            linedef.back = edge_to_index[edge]
         logging.debug(f'Adding linedef: {linedef}') # TODO: Fix logging
     m.linedefs.extend(linedefs.values())
 
