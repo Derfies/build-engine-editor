@@ -89,7 +89,8 @@ def delete_elements(*elements: Iterable[Node | Edge | Face]):
     for node in nodes:
         faces.update(node.faces)
     for edge in edges:
-        faces.add(edge.face)
+        if edge.face is not None:
+            faces.add(edge.face)
 
     # Any face being deleted should also delete its edges.
     for face in faces:

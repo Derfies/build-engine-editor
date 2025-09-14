@@ -53,5 +53,6 @@ class HotkeySettings:
     split_edges: str = 'K'
     frame_selection: str = 'F'
     remove: str = 'Backspace'
+    delete: str = 'Delete'
     grid_snap: str = 'X'
     vertex_snap: str = 'V'
