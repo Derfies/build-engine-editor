@@ -1,10 +1,40 @@
 import unittest
 from itertools import pairwise
+from unittest.mock import Mock
 
+from PySide6.QtWidgets import QApplication
+
+from applicationframework.actions import Manager as ActionManager
+from editor.document import Document
 from editor.graph import Graph
+from editor.updateflag import UpdateFlag
+
+
+_instance = None
 
 
 class TestCaseBase(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        global _instance
+        if _instance is None:
+            _instance = QApplication([])
+            _instance.action_manager = ActionManager()
+            _instance.updated = Mock()
+        cls.mock_app = _instance
+
+    @classmethod
+    def tearDownClass(cls):
+        del cls.mock_app
+
+    def setUp(self):
+        super().setUp()
+        self.mock_app.doc = Document(None, Graph(), UpdateFlag)
+
+    @property
+    def c(self):
+        return self.mock_app.doc.content
 
     @staticmethod
     def create_polygon(graph: Graph, *rings: tuple[tuple[float, float], ...]):

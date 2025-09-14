@@ -77,6 +77,7 @@ class Clipboard:
         tweak.face_attrs.update({tuple([lookup[n] for n in f]): copy.deepcopy(attrs) for f, attrs in self._tweak.face_attrs.items()})
 
         # Now offset the node positions so the paste is more apparent.
+        # TODO: Would be nice to offset this by the camera zoom.
         for node_attr in tweak.node_attrs.values():
             node_attr['x'] = node_attr['x'] + 100
             node_attr['y'] = node_attr['y'] + 100
