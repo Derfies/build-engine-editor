@@ -279,44 +279,44 @@ class CommandsTestCase(UsesQApplication, TestCaseBase):
 
         # TODO: Test face / edge data is retained.
         """
-        1           2   5           6
+        1           3   5           7
           ┌───────┐       ┌───────┐
           │       │       │       │
           │       │       │       │
           │       │       │       │
           └───────┘       └───────┘
-        0           3   4           7
+        0           2   4           6
 
                       ↓
 
-        1             A             6
+        1             A             7
           ┌───────────┬───────────┐
           │           │           │
           │           │           │
           │           │           │
           └───────────┴───────────┘
-        0             B             7
+        0             B             6
 
         """
         # Set up test data.
-        self.create_polygon(self.c, ((0, 0), (0, 1), (1, 1), (1, 0)))
-        self.create_polygon(self.c, ((2, 0), (2, 1), (3, 1), (3, 0)))
+        self.build_grid(self.c, 2, 2)
+        self.build_grid(self.c, 2, 2, offset_x=2)
 
         # Start test.
         e1 = self.c.get_edge(2, 3)
-        e2 = self.c.get_edge(4, 5)
-        with patch.object(uuid, 'uuid4', side_effect=('A', 'B')):
+        e2 = self.c.get_edge(5, 4)
+        with patch.object(uuid, 'uuid4', side_effect=('B', 'A')):
             add_tweak, rem_tweak = commands.join_edges(e1, e2)
 
         # Assert results.
         self.assertSetEqual(rem_tweak.nodes, {2, 3, 4, 5})
         self.assertSetEqual(add_tweak.nodes, {'A', 'B'})
-        self.assertSetEqual(rem_tweak.edges, {(1, 2), (2, 3), (3, 0), (7, 4), (4, 5), (5, 6)})
-        self.assertSetEqual(add_tweak.edges, {(1, 'A'), ('A', 'B'), ('B', 0), (7, 'B'), ('B', 'A'), ('A', 6)})
-        self.assertSetEqual(rem_tweak.faces, {(0, 1, 2, 3, 0), (4, 5, 6, 7, 4)})
-        self.assertSetEqual(add_tweak.faces, {(0, 1, 'A', 'B', 0), ('B', 'A', 6, 7, 'B')})
-        self.assertEqual((rem_tweak.node_attrs[2]['x'], rem_tweak.node_attrs[2]['y']), (1, 1))
-        self.assertEqual((rem_tweak.node_attrs[3]['x'], rem_tweak.node_attrs[3]['y']), (1, 0))
+        self.assertSetEqual(rem_tweak.edges, {(0, 2), (2, 3), (3, 1), (7, 5), (5, 4), (4, 6)})
+        self.assertSetEqual(add_tweak.edges, {(0, 'B'), ('B', 'A'), ('A', 1), (7, 'A'), ('A', 'B'), ('B', 6)})
+        self.assertSetEqual(rem_tweak.faces, {(0, 2, 3, 1, 0), (4, 6, 7, 5, 4)})
+        self.assertSetEqual(add_tweak.faces, {(0, 'B', 'A', 1, 0), ('B', 6, 7, 'A', 'B')})
+        self.assertEqual((rem_tweak.node_attrs[2]['x'], rem_tweak.node_attrs[2]['y']), (1, 0))
+        self.assertEqual((rem_tweak.node_attrs[3]['x'], rem_tweak.node_attrs[3]['y']), (1, 1))
         self.assertEqual((rem_tweak.node_attrs[4]['x'], rem_tweak.node_attrs[4]['y']), (2, 0))
         self.assertEqual((rem_tweak.node_attrs[5]['x'], rem_tweak.node_attrs[5]['y']), (2, 1))
         self.assertEqual((add_tweak.node_attrs['A']['x'], add_tweak.node_attrs['A']['y']), (1.5, 1))

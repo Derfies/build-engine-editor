@@ -25,13 +25,13 @@ class TestCaseBase(unittest.TestCase):
         return face
 
     @staticmethod
-    def build_grid(graph: Graph, w: int, h: int):
+    def build_grid(graph: Graph, w: int, h: int, offset_x: int = 0, offset_y: int = 0):
         nodes = {}
-        for x in range(w):
-            for y in range(h):
+        for x in range(offset_x, w + offset_x):
+            for y in range(offset_y, h + offset_y):
                 nodes[(x, y)] = graph.add_node(len(graph.nodes), x=x, y=y).data
-        for x1, x2 in pairwise(range(w)):
-            for y1, y2 in pairwise(range(h)):
+        for x1, x2 in pairwise(range(offset_x, w + offset_x)):
+            for y1, y2 in pairwise(range(offset_y, h + offset_y)):
                 face_nodes = [
                     nodes[(x1, y1)],
                     nodes[(x2, y1)],
