@@ -193,9 +193,10 @@ class GraphicsScene(QGraphicsScene):
         return None
 
     def update_event(self, doc: Document, flags: UpdateFlag):
-        logger.debug(f'update_event: {flags}')
         self.block_signals(True)
         if flags != UpdateFlag.SELECTION and flags != UpdateFlag.SETTINGS:
+
+            logger.info('Rebuilding QGraphicsScene...')
 
             self.clear()
             self._item_to_nodes.clear()
@@ -208,7 +209,6 @@ class GraphicsScene(QGraphicsScene):
             # contain too many dupes, right..?
             self.points = []
 
-            logger.debug(f'full reDRAW: {flags}')
             for node in doc.content.nodes:
                 node_item = NodeGraphicsItem(node)
                 self.add_item(node_item)
@@ -232,6 +232,8 @@ class GraphicsScene(QGraphicsScene):
                 self._item_to_nodes[item] = set(item_nodes)
                 for node in item_nodes:
                     self._node_to_items[node].add(item)
+
+            logger.info('Finished rebuilding QGraphicsScene')
 
         else:
 

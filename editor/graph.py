@@ -158,6 +158,15 @@ class Edge(Element):
             return None
         return self.graph.get_edge(*rev_edge)
 
+    @property
+    def reversed_face(self):
+
+        # TODO: Not the best name for this property...
+        rev_edge = self.reversed
+        if rev_edge is None:
+            return None
+        return rev_edge.face
+
 
 class Ring(ElementBase):
 
