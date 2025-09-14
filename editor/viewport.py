@@ -1,3 +1,5 @@
+import logging
+
 import math
 import traceback
 from dataclasses import dataclass
@@ -32,6 +34,9 @@ from editor.updateflag import UpdateFlag
 from __feature__ import snake_case
 
 
+logger = logging.getLogger(__name__)
+
+
 @dataclass
 class Mesh:
 
@@ -52,6 +57,9 @@ class MeshPool:
 
     def allocate(self):
 
+        if not self.meshes:
+            return
+
         # TODO: Need to be able to derive len of vertices without writing to .vertices
         self.vertices = np.vstack([
             np.hstack((m.positions, m.texcoords))
@@ -63,6 +71,9 @@ class MeshPool:
         self._vbo.release()
 
     def draw(self, gl, program):
+
+        if not self.meshes:
+            return
 
         # TODO: Not sure who needs to know about program...
         if not hasattr(self, 'vertices'):
@@ -137,13 +148,17 @@ class Viewport(QOpenGLWidget):
         super().__init__(*args, **kwargs)
 
         self.program = None
-        self.texture = None
+        self.default_texture = None
+        self.textures = {}
 
         self.mesh_pool = None
         self.app().updated.connect(self.update_event)
 
     def app(self) -> QCoreApplication:
         return QApplication.instance()
+
+    def get_texture(self, name: str):
+        return self.textures.get(name, self.default_texture)
 
     @staticmethod
     def create_wall_mesh(xz1: tuple[float, float], y1: float, xz2: tuple[float, float], y2: float, texture: QOpenGLTexture, shade: float) -> Mesh:
@@ -182,21 +197,43 @@ class Viewport(QOpenGLWidget):
         If there is a connected face and their ceiling is higher than ours, don't draw it.
 
         """
+        # Not sure if this is correct, but whatevs.
+        # TODO: Some engines provide separate 'middle' texture so need to
+        # account for that.
+        lower_picnum = edge.get_attribute('picnum')
+        upper_picnum = edge.get_attribute('overpicnum')
+        lower_tex = self.get_texture(lower_picnum)
+        upper_tex = self.get_texture(upper_picnum)
         shade = edge.get_attribute('shade')
         reversed_face = edge.reversed_face
         xz0 = edge.head.get_attribute('x'), edge.head.get_attribute('y')
         xz1 = edge.tail.get_attribute('x'), edge.tail.get_attribute('y')
         if reversed_face is None:
-            self.mesh_pool.meshes.append(self.create_wall_mesh(xz0, y1, xz1, y2, self.texture, shade))
+            self.mesh_pool.meshes.append(self.create_wall_mesh(xz0, y1, xz1, y2, lower_tex, shade))
         else:
             y3 = reversed_face.get_attribute('floorz')
             y4 = reversed_face.get_attribute('ceilingz')
             if y1 < y3:
-                self.mesh_pool.meshes.append(self.create_wall_mesh(xz0, y1, xz1, y3, self.texture, shade))
+                self.mesh_pool.meshes.append(self.create_wall_mesh(xz0, y1, xz1, y3, lower_tex, shade))
             if y2 > y4:
-                self.mesh_pool.meshes.append(self.create_wall_mesh(xz0, y4, xz1, y2, self.texture, shade))
+                self.mesh_pool.meshes.append(self.create_wall_mesh(xz0, y4, xz1, y2, upper_tex, shade))
+
+    def create_textures(self):
+        logger.info('Rebuilding OpenGL textures...')
+        self.textures.clear()
+        for key, raw in self.app().adaptor_manager.current_adaptor.textures.items():
+            img = QImage(raw, raw.shape[1], raw.shape[0], 3 * raw.shape[1], QImage.Format_RGB888)
+            texture = QOpenGLTexture(img)
+            texture.set_minification_filter(QOpenGLTexture.Nearest)
+            texture.set_magnification_filter(QOpenGLTexture.Nearest)
+            self.textures[key] = texture
+        logger.info('Finished rebuilding OpenGL textures')
 
     def update_event(self, doc: Document, flags: UpdateFlag):
+
+        # TODO: Consider never setting adaptor to None but instead using a default adaptor to house the default texture?
+        if UpdateFlag.ADAPTOR_TEXTURES in flags and self.app().adaptor_manager.current_adaptor != None:
+            self.create_textures()
 
         if self.program is None:
             print('early out')
@@ -206,7 +243,7 @@ class Viewport(QOpenGLWidget):
         #start = time.time()
         if flags != UpdateFlag.SELECTION and flags != UpdateFlag.SETTINGS:
 
-            print('FULL UPDATE')
+            logger.info('Rebuilding OpenGL meshes...')
 
             self.make_current()
 
@@ -242,8 +279,13 @@ class Viewport(QOpenGLWidget):
                     floor_positions = np.insert(positions, 1, y1, axis=1)
                     ceiling_positions = np.insert(positions, 1, y2, axis=1)[::-1]
 
-                    self.mesh_pool.meshes.append(Mesh(floor_positions, positions / 1000, self.texture, shade=floor_shade))
-                    self.mesh_pool.meshes.append(Mesh(ceiling_positions, positions[::-1] / 1000, self.texture, shade=ceiling_shade))
+                    floor_picnum = face.get_attribute('floorpicnum')
+                    ceilingpicnum = face.get_attribute('ceilingpicnum')
+                    floor_tex = self.get_texture(floor_picnum)
+                    ceil_tex = self.get_texture(ceilingpicnum)
+
+                    self.mesh_pool.meshes.append(Mesh(floor_positions, positions / 1000, floor_tex, shade=floor_shade))
+                    self.mesh_pool.meshes.append(Mesh(ceiling_positions, positions[::-1] / 1000, ceil_tex, shade=ceiling_shade))
 
                     # Build walls.
                     for ring in face.rings:
@@ -256,6 +298,8 @@ class Viewport(QOpenGLWidget):
                 traceback.print_exc()
 
             self.done_current()
+
+            logger.info('Finished rebuilding OpenGL meshes...')
 
             self.update()
 
@@ -274,8 +318,9 @@ class Viewport(QOpenGLWidget):
         self.gl.glFrontFace(GL_CW)
 
         # Load texture.
-        img = QImage(Path(editor.__file__).parent.joinpath('data/textures/grid_blue_512x512.png')).mirrored()
-        self.texture = QOpenGLTexture(img)
+        # TODO: Expose via preferences.
+        default_img = QImage(Path(editor.__file__).parent.joinpath('data/textures/grid_blue_512x512.png')).mirrored()
+        self.default_texture = QOpenGLTexture(default_img)
 
         self.program = QOpenGLShaderProgram()
         self.program.add_shader_from_source_code(QOpenGLShader.Vertex, """
