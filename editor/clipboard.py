@@ -89,3 +89,5 @@ class Clipboard:
         ], flags=UpdateFlag.CONTENT)
         QApplication.instance().action_manager.push(action)
         QApplication.instance().doc.updated(action(), dirty=True)
+
+        return tweak, None
