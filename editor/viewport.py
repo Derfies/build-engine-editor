@@ -25,7 +25,7 @@ from shapely.ops import orient
 import editor
 from applicationframework.document import Document
 from editor import utils
-from editor.graph import Face, Ring
+from editor.graph import Edge, Face, Ring
 from editor.updateflag import UpdateFlag
 
 # noinspection PyUnresolvedReferences
@@ -106,7 +106,7 @@ class OrbitCamera:
         self.azimuth = 0
         self.elevation = 45.0
         self.distance = 10000.0
-        self.target = QVector3D()#position: QVector3D = field(default_factory=QVector3D)#Entity()
+        self.target = QVector3D()
 
     def orbit(self, delta: QPoint):
         self.azimuth -= delta.x()
@@ -175,32 +175,26 @@ class Viewport(QOpenGLWidget):
         ], dtype=np.float32)
         return Mesh(positions, texcoords, texture, shade=shade)
 
-    def build_ring(self, ring: Ring, coords: tuple[tuple[float, float]], y1: float, y2: float):
-        for i in range(len(coords) - 1):
-            edge = ring.edges[i]
-            wall_shade = edge.get_attribute('shade')
+    def build_wall(self, edge: Edge, y1: int, y2: int):
+        """
+        If there is no connected face, draw the wall from floor to ceiling.
+        If there is a connected face and their floor is lower than ours, dont draw it.
+        If there is a connected face and their ceiling is higher than ours, don't draw it.
 
-            # If there is no connected face, draw the wall from floor to ceiling.
-            # If there is a connected face and the floor is lower than ours, dont draw it.
-            # If there is a connected face and the ceiling is higher than ours, don't draw it.
-
-            connected_face = None
-            rev_edge = edge.reversed
-            if rev_edge is not None:
-                connected_face = rev_edge.face
-
-            xz0, xz1 = coords[i], coords[i + 1]
-            if connected_face is None:
-                self.mesh_pool.meshes.append(self.create_wall_mesh(xz0, y1, xz1, y2, self.texture, wall_shade))
-            else:
-                y3 = connected_face.get_attribute('floorz')# / -16
-                y4 = connected_face.get_attribute('ceilingz')# / -16
-                if y1 < y3:
-                    self.mesh_pool.meshes.append(self.create_wall_mesh(xz0, y1, xz1, y3, self.texture, wall_shade))
-                if y2 > y4:
-                    self.mesh_pool.meshes.append(self.create_wall_mesh(xz0, y4, xz1, y2, self.texture, wall_shade))
-
-            i += 1
+        """
+        shade = edge.get_attribute('shade')
+        reversed_face = edge.reversed_face
+        xz0 = edge.head.get_attribute('x'), edge.head.get_attribute('y')
+        xz1 = edge.tail.get_attribute('x'), edge.tail.get_attribute('y')
+        if reversed_face is None:
+            self.mesh_pool.meshes.append(self.create_wall_mesh(xz0, y1, xz1, y2, self.texture, shade))
+        else:
+            y3 = reversed_face.get_attribute('floorz')
+            y4 = reversed_face.get_attribute('ceilingz')
+            if y1 < y3:
+                self.mesh_pool.meshes.append(self.create_wall_mesh(xz0, y1, xz1, y3, self.texture, shade))
+            if y2 > y4:
+                self.mesh_pool.meshes.append(self.create_wall_mesh(xz0, y4, xz1, y2, self.texture, shade))
 
     def update_event(self, doc: Document, flags: UpdateFlag):
 
@@ -251,10 +245,10 @@ class Viewport(QOpenGLWidget):
                     self.mesh_pool.meshes.append(Mesh(floor_positions, positions / 1000, self.texture, shade=floor_shade))
                     self.mesh_pool.meshes.append(Mesh(ceiling_positions, positions[::-1] / 1000, self.texture, shade=ceiling_shade))
 
-                    # Do walls.
-                    self.build_ring(face.rings[0], tuple(sector.exterior.coords), y1, y2)
-                    for i, interior in enumerate(sector.interiors):
-                        self.build_ring(face.rings[i + 1], tuple(reversed(interior.coords)), y1, y2)
+                    # Build walls.
+                    for ring in face.rings:
+                        for edge in ring.edges:
+                            self.build_wall(edge, y1, y2)
 
                 self.mesh_pool.allocate()
 
