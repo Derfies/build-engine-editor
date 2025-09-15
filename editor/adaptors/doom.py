@@ -15,6 +15,11 @@ from editor.mapio import doom
 logger = logging.getLogger(__name__)
 
 
+# noinspection PyUnresolvedReferences
+from __feature__ import snake_case
+
+
+
 @dataclass
 class DoomAdaptorSettings(AdaptorSettingsBase):
 
@@ -47,13 +52,14 @@ class DoomAdaptor(AdaptorBase):
     def subprocess_args(self):
         return ['-iwad', "DOOM.WAD", '-file', 'out.wad', '+map', 'MAP01']
 
-    def load_resources(self):
+    def build_textures(self):
         try:
             wad = omg.WAD(self.settings.doom_wad_path)
         except Exception as e:
             logger.error(f'Cannot load wad: {self.settings.doom_wad_path}')
             logger.exception(e)
             return
+
         palette = np.array(wad.palette.colors, dtype=np.uint8)
         all_gfx = dict(wad.patches) | dict(wad.flats)
         for k, patch in all_gfx.items():
@@ -68,3 +74,4 @@ class DoomAdaptor(AdaptorBase):
             array.shape = (h, w, 3)
             self.textures[k] = array
             logger.debug(f'Loaded doom texture: {k}')
+
