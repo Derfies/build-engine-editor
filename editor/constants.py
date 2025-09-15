@@ -6,6 +6,8 @@ from enum import Enum, IntEnum, auto
 class ModalTool(IntEnum):
 
     SELECT = auto()
+    LASSO = auto()
+    POLYGONAL_LASSO = auto()
     MOVE = auto()
     ROTATE = auto()
     SCALE = auto()

@@ -18,7 +18,6 @@ class GraphicsItemBaseMixin:
 
         self.pen = None
         self._shape = None
-        self._rubberband_shape = None
         self.set_data(0, element)
         self.update_pen()
 
@@ -33,7 +32,6 @@ class GraphicsItemBaseMixin:
 
     def invalidate_shapes(self):
         self._shape = None
-        self._rubberband_shape = None
 
     def get_shape(self):
         ...
@@ -42,11 +40,6 @@ class GraphicsItemBaseMixin:
         if self._shape is None:
             self._shape = self.get_shape()
         return self._shape
-
-    def rubberband_shape(self):
-        if self._rubberband_shape is None:
-            self._rubberband_shape = self.shape().bounding_rect().translated(self.pos())
-        return self._rubberband_shape
 
     def move_node(self, node: Node, x: float, y: float):
         ...
@@ -97,13 +90,11 @@ class NodeGraphicsItem(GraphicsItemBaseMixin, QGraphicsRectItem):
 
 class EdgeGraphicsItem(GraphicsItemBaseMixin, QGraphicsLineItem):
 
-    # NOTE: We're doing stuff in local space where whereas doing stuff in scene
-    # space for the node...
-
     def __init__(self, edge: Edge):
         super().__init__(edge)
 
-        self.set_line(QLineF(self.element().head.pos, self.element().tail.pos))
+        self.set_pos(self.element().head.pos)
+        self.set_line(QLineF(QPointF(0, 0), self.element().tail.pos - self.element().head.pos))
         self.setZValue(50)
 
     def update_pen(self):
@@ -139,9 +130,12 @@ class EdgeGraphicsItem(GraphicsItemBaseMixin, QGraphicsLineItem):
         pos = QPointF(x, y)
         line = self.line()
         if node == self.element().head:
-            line.set_p1(pos)
+            old_pos = self.pos()
+            self.set_pos(pos)
+            diff = pos - old_pos
+            line.set_p2(line.p2() - diff)
         elif node == self.element().tail:
-            line.set_p2(pos)
+            line.set_p2(pos - self.pos())
         self.set_line(line)
 
 
@@ -150,6 +144,7 @@ class FaceGraphicsItem(GraphicsItemBaseMixin, QGraphicsPathItem):
     def __init__(self, face: Face, *args, **kwargs):
         super().__init__(face, *args, **kwargs)
 
+        # NOTE: What coord system are we in here?
         num_nodes = 0
         path = QPainterPath()
         for ring in face.rings:
