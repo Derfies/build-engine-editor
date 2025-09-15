@@ -1,3 +1,5 @@
+import abc
+
 import math
 from itertools import product
 
@@ -15,7 +17,7 @@ from PySide6.QtWidgets import (
 from shapely import box, LineString, MultiPoint, Point
 from shapely.affinity import rotate, scale, translate
 
-from editor import commands
+from editor import commands, meshops
 from editor.constants import SelectionMode
 from editor.graph import Face, Edge, Node
 from editor.graphicsitems import EdgeGraphicsItem
@@ -38,22 +40,17 @@ class HitMark(QGraphicsItem):
         self._pen.set_cosmetic(True)
         self.setZValue(1000)
 
-    def foo(self):
+    def screenspace_radius(self):
         return NODE_RADIUS / self.scene().xform
 
     def bounding_rect(self) -> QRectF:
-        foo = self.foo()
-        return QRectF(-foo - 1, -foo - 1, foo * 2 + 2, foo * 2 + 2)
+        r = self.screenspace_radius()
+        return QRectF(-r - 1, -r - 1, r * 2 + 2, r * 2 + 2)
 
     def paint(self, painter: QPainter, option, widget=None):
-        foo = self.foo()
+        r = self.screenspace_radius()
         painter.set_pen(self._pen)
-        painter.draw_rect(
-            -foo,
-            -foo,
-            foo * 2,
-            foo * 2,
-        )
+        painter.draw_rect(-r, -r, r * 2, r * 2)
 
     def contains(self, point):
         return False
@@ -114,7 +111,75 @@ class GraphicsSceneToolBase:
         self.remove_preview()
 
 
-class SelectTool(GraphicsSceneToolBase):
+class FreeformPolygonToolBase(GraphicsSceneToolBase, metaclass=abc.ABCMeta):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._points = []
+
+    def _update_preview(self, temp_point: QPointF | None = None):
+        self.remove_preview()
+        points = self._points[:]
+        if temp_point is not None:
+            points.append(self.scene.apply_snapping(temp_point))
+        self.add_preview(QGraphicsPolygonItem(points))
+
+    @abc.abstractmethod
+    def commit(self, points, event):
+        ...
+
+    def mouse_press_event(self, event):
+        if event.button() == Qt.LeftButton:
+            self._points.append(self.scene.apply_snapping(event.scene_pos()))
+            self._update_preview()
+        elif event.button() == Qt.RightButton and self.preview is not None:
+            if len(self._points) < 3:
+                self.cancel()
+                return
+            points = list(self._points)
+            self.cancel()
+            self.commit(points, event)
+
+    def mouse_move_event(self, event):
+        if self._points:
+            self._update_preview(event.scene_pos())
+
+    def cancel(self):
+        super().cancel()
+        self._points = []
+
+
+class SelectToolBase(GraphicsSceneToolBase):
+
+    def filter_elements_by_selection_mode(self, elements):
+
+        # TODO: Not sure where selection should live but probably not on the scene.
+        for element in set(elements):
+            if self.scene.selection_mode == SelectionMode.NODE and not isinstance(element, Node):
+                elements.remove(element)
+            elif self.scene.selection_mode == SelectionMode.EDGE and not isinstance(element, Edge):
+                elements.remove(element)
+            elif self.scene.selection_mode == SelectionMode.FACE and not isinstance(element, Face):
+                elements.remove(element)
+
+    def get_selected_elements(self, elements, modifiers):
+
+        # Resolve mode based on ctrl / shift modifiers.
+        add = modifiers & Qt.ShiftModifier
+        toggle = modifiers & Qt.ControlModifier
+
+        # Resolve selected elements using modifiers.
+        select_elements = set(self.app().doc.selected_elements) if add or toggle else set()
+        for element in elements:
+            if toggle:
+                select_elements.symmetric_difference_update({element})
+            else:
+                select_elements.add(element)
+
+        return select_elements
+
+
+class SelectTool(SelectToolBase):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -149,41 +214,14 @@ class SelectTool(GraphicsSceneToolBase):
         hit_item = self.scene.item_at(self._start_point, QTransform())
         items = set()
         if self.preview is not None:
-            rubber_band_bb = self.preview.bounding_rect()
-            for item in self.scene.items(rubber_band_bb):
-                if item is self.preview:
-                    continue
-                if rubber_band_bb.contains(item.rubberband_shape()):
-                    items.add(item)
+            items.update(self.scene.items(self.preview.rect(), Qt.ContainsItemShape))
+            items.discard(self.preview)
         elif hit_item is not None:
             items = {hit_item}
 
-        # Filter.
-        for item in set(items):
-            if self.scene.selection_mode == SelectionMode.NODE and not isinstance(item.element(), Node):
-                items.remove(item)
-            elif self.scene.selection_mode == SelectionMode.EDGE and not isinstance(item.element(), Edge):
-                items.remove(item)
-            elif self.scene.selection_mode == SelectionMode.FACE and not isinstance(item.element(), Face):
-                items.remove(item)
-
-        # Resolve mode based on ctrl / shift modifiers.
-        modifiers = event.modifiers()
-        add = modifiers & Qt.ShiftModifier
-        toggle = modifiers & Qt.ControlModifier
-
-        # Resolve selected elements using modifiers.
-        select_elements = self.app().doc.selected_elements
-        select_elements = select_elements.copy() if add or toggle else set()
-        for item in items:
-            #if isinstance(item, EdgeGraphicsItem):
-
-            # TODO: Does converting to edges help us here?
-            element = item.element()
-            if toggle:
-                select_elements.symmetric_difference_update({element})
-            else:
-                select_elements.add(element)
+        elements = {item.element() for item in items}
+        self.filter_elements_by_selection_mode(elements)
+        select_elements = self.get_selected_elements(elements, event.modifiers())
 
         self.cancel()
         commands.select_elements(select_elements)
@@ -192,6 +230,93 @@ class SelectTool(GraphicsSceneToolBase):
         super().cancel()
         self._start_point = None
         self._snapped_start_point = None
+
+
+class LassoTool(SelectToolBase):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._path = None
+
+    def mouse_press_event(self, event):
+        if event.button() != Qt.LeftButton:
+            return
+        self._path = QPainterPath(event.scene_pos())
+
+    def mouse_move_event(self, event):
+        if self._path is None:
+            return
+        self.add_preview(QGraphicsPathItem())
+        self._path.line_to(event.scene_pos())
+        self.preview.set_path(self._path)
+
+    def mouse_release_event(self, event):
+        if event.button() != Qt.LeftButton:
+            return
+
+        elements = [self._path.element_at(i) for i in range(self._path.element_count())]
+
+        # Downsample
+        points = [QPointF(p.x, p.y) for p in elements]
+
+        hit_item = self.scene.item_at(points[0], QTransform())
+        items = set()
+        if self.preview is not None:
+
+            # Downsample
+            #points = [QPointF(p.x, p.y) for p in elements]
+            simplified_points = meshops.downsample_path(points, tolerance=20.0)
+
+            # Build a polygon
+            lasso_polygon = QPolygonF(simplified_points)
+            lasso_path = QPainterPath()
+            lasso_path.add_polygon(lasso_polygon)
+
+            items.update(self.scene.items(lasso_polygon, Qt.IntersectsItemShape))
+            items.discard(self.preview)
+            for item in set(items):
+                path = item.map_to_scene(item.shape())
+                if not lasso_path.contains(path):
+                    items.remove(item)
+        elif hit_item is not None:
+            items = {hit_item}
+
+        elements = {item.element() for item in items}
+        self.filter_elements_by_selection_mode(elements)
+        select_elements = self.get_selected_elements(elements, event.modifiers())
+
+        self.cancel()
+        commands.select_elements(select_elements)
+
+    def cancel(self):
+        super().cancel()
+        self._path = None
+
+
+class PolygonalLassoTool(FreeformPolygonToolBase, SelectToolBase):
+
+    def commit(self, points, event):
+        items = set()
+        if points:
+
+            # Build a polygon
+            lasso_polygon = QPolygonF(points)
+            lasso_path = QPainterPath()
+            lasso_path.add_polygon(lasso_polygon)
+
+            items.update(self.scene.items(lasso_polygon, Qt.IntersectsItemShape))
+            items.discard(self.preview)
+            for item in set(items):
+                path = item.map_to_scene(item.shape())
+                if not lasso_path.contains(path):
+                    items.remove(item)
+
+        elements = {item.element() for item in items}
+        self.filter_elements_by_selection_mode(elements)
+        select_elements = self.get_selected_elements(elements, event.modifiers())
+
+        self.cancel()
+        commands.select_elements(select_elements)
 
 
 class SelectXformToolBase(SelectTool):
@@ -374,46 +499,20 @@ class CreatePolygonTool(GraphicsSceneToolBase):
                 commands.add_hole(hit_item.element(), points)
 
 
-class CreateFreeformPolygonTool(GraphicsSceneToolBase):
+class CreateFreeformPolygonTool(FreeformPolygonToolBase):
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._points = []
+    def commit(self, points, event):
 
-    def _update_preview(self, temp_point: QPointF | None = None):
-        self.remove_preview()
-        points = self._points[:]
-        if temp_point is not None:
-            points.append(self.scene.apply_snapping(temp_point))
-        self.add_preview(QGraphicsPolygonItem(points))
+        points = [p.to_tuple() for p in points]
+        modifiers = event.modifiers()
+        hole = modifiers & Qt.AltModifier
+        if not hole:
+            commands.add_polygon(points)
+        else:
 
-    def mouse_press_event(self, event):
-        if event.button() == Qt.LeftButton:
-            self._points.append(self.scene.apply_snapping(event.scene_pos()))
-            self._update_preview()
-        elif event.button() == Qt.RightButton and self.preview is not None:
-            if len(self._points) < 3:
-                self.cancel()
-                return
-            points = [p.to_tuple() for p in self._points]
-            self.cancel()
-            modifiers = event.modifiers()
-            hole = modifiers & Qt.AltModifier
-            if not hole:
-                commands.add_polygon(points)
-            else:
-
-                # TODO: Might fail if we hit an edge, not a face.
-                hit_item = self.scene.item_at(QPointF(*points[0]), QTransform())
-                commands.add_hole(hit_item.element(), points)
-
-    def mouse_move_event(self, event):
-        if self._points:
-            self._update_preview(event.scene_pos())
-
-    def cancel(self):
-        super().cancel()
-        self._points = []
+            # TODO: Might fail if we hit an edge, not a face.
+            hit_item = self.scene.item_at(QPointF(*points[0]), QTransform())
+            commands.add_hole(hit_item.element(), points)
 
 
 class SplitFacesTool(GraphicsSceneToolBase):

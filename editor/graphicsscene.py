@@ -14,7 +14,9 @@ from editor.graphicsscenetools import (
     CreateFreeformPolygonTool,
     CreateNodeTool,
     CreatePolygonTool,
+    LassoTool,
     MoveTool,
+    PolygonalLassoTool,
     RotateTool,
     ScaleTool,
     SelectTool,
@@ -129,6 +131,8 @@ class GraphicsScene(QGraphicsScene):
     def set_modal_tool(self, modal_tool: ModalTool):
         tool_cls = {
             ModalTool.SELECT: SelectTool,
+            ModalTool.LASSO: LassoTool,
+            ModalTool.POLYGONAL_LASSO: PolygonalLassoTool,
             ModalTool.MOVE: MoveTool,
             ModalTool.ROTATE: RotateTool,
             ModalTool.SCALE: ScaleTool,
@@ -146,6 +150,10 @@ class GraphicsScene(QGraphicsScene):
         self.current_tool = tool_cls(self)
 
     def set_selection_mode(self, select_mode: SelectionMode):
+
+        # TODO: This should possibly go on the document, since:
+        # a) it's shared everywhere and not local to this viewport
+        # b) we're going to have more viewports in the future
         self.selection_mode = select_mode
 
     def mouse_press_event(self, event):
