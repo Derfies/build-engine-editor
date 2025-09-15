@@ -23,9 +23,9 @@ class Tweak:
 
 class AddRemoveBase(Edit):
 
-    def __init__(self, tweak: Tweak, *args, **kwargs):
+    def __init__(self, tweak: Tweak, *args):
         self.tweak = tweak
-        super().__init__(*args, **kwargs)
+        super().__init__(*args, flags=UpdateFlag.CONTENT)
 
     def remove(self):
         for face in self.tweak.faces:

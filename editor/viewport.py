@@ -1,4 +1,5 @@
 import logging
+import time
 
 import math
 import traceback
@@ -240,10 +241,10 @@ class Viewport(QOpenGLWidget):
             return
 
         #self.block_signals(True)
-        #start = time.time()
         if flags != UpdateFlag.SELECTION and flags != UpdateFlag.SETTINGS:
 
             logger.info('Rebuilding OpenGL meshes...')
+            start = time.time()
 
             self.make_current()
 
@@ -299,12 +300,10 @@ class Viewport(QOpenGLWidget):
 
             self.done_current()
 
-            logger.info('Finished rebuilding OpenGL meshes...')
+            end = time.time()
+            logger.info(f'Finished rebuilding OpenGL meshes in {end - start}s')
 
             self.update()
-
-        #end = time.time()
-        #print('viewport:', end - start)
 
         #self.block_signals(False)
 

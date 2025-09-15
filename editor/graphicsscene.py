@@ -1,5 +1,6 @@
 import logging
 import math
+import time
 from collections import defaultdict
 
 from PySide6.QtCore import QCoreApplication, QPointF, QRectF
@@ -197,6 +198,7 @@ class GraphicsScene(QGraphicsScene):
         if flags != UpdateFlag.SELECTION and flags != UpdateFlag.SETTINGS:
 
             logger.info('Rebuilding QGraphicsScene...')
+            start = time.time()
 
             self.clear()
             self._item_to_nodes.clear()
@@ -233,7 +235,8 @@ class GraphicsScene(QGraphicsScene):
                 for node in item_nodes:
                     self._node_to_items[node].add(item)
 
-            logger.info('Finished rebuilding QGraphicsScene')
+            end = time.time()
+            logger.info(f'Finished rebuilding QGraphicsScene in {end - start}s')
 
         else:
 
