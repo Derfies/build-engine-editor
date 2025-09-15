@@ -1,15 +1,14 @@
 import io
 import logging
 from collections import defaultdict
-from dataclasses import fields
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 
-from editor.constants import ATTRIBUTES
-from editor.constants import MapFormat
-from editor.graph import Graph
+from editor.constants import ATTRIBUTES, MapFormat
+from editor.graph import Edge, Face, Graph
+from editor.texture import Texture
 from gameengines.build.blood import Map as BloodMap, MapReader as BloodMapReader, MapWriter as BloodMapWriter
 from gameengines.build.duke3d import Map as Duke3dMap, MapReader as Duke3dMapReader, MapWriter as Duke3dMapWriter
 from gameengines.build.map import Sector, Wall
@@ -34,6 +33,104 @@ def shade_from_brightness(brightness: float) -> int:
     # Clamp brightness
     brightness = max(0.0, min(1.0, brightness))
     return int(round((1.0 - brightness) * 32))
+
+
+def map_texture_to_int(tex: Texture):
+    value = tex.value
+    if not isinstance(value, int):
+        value = 0
+    return value
+
+
+def map_wall_to_edge(wall: Wall):
+    return {
+        'cstat': wall.cstat,
+        'pal': wall.pal,
+        'shade': build_shade_to_brightness(wall.shade),
+        'xrepeat': wall.xrepeat,
+        'yrepeat': wall.yrepeat,
+        'xpanning': wall.xpanning,
+        'ypanning': wall.ypanning,
+        'lotag': wall.lotag,
+        'hitag': wall.hitag,
+        'extra': wall.extra,
+        'low_tex': Texture(wall.picnum),
+        'mid_tex': Texture(wall.picnum),
+        'top_tex': Texture(wall.overpicnum),
+    }
+
+
+def map_sector_to_face(sector: Sector):
+    return {
+        'ceilingz': sector.ceilingz / -16,
+        'floorz': sector.floorz / -16,
+        'ceilingstat': sector.ceilingstat,
+        'floorstat': sector.floorstat,
+        'ceilingheinum': sector.ceilingheinum,
+        'ceilingshade': build_shade_to_brightness(sector.ceilingshade),
+        'ceilingpal': sector.ceilingpal,
+        'ceilingxpanning': sector.ceilingxpanning,
+        'ceilingypanning': sector.ceilingypanning,
+        'floorheinum': sector.floorheinum,
+        'floorshade': build_shade_to_brightness(sector.floorshade),
+        'floorpal': sector.floorpal,
+        'floorxpanning': sector.floorxpanning,
+        'floorypanning': sector.floorypanning,
+        'visibility': sector.visibility,
+        'filler': sector.filler,
+        'lotag': sector.lotag,
+        'hitag': sector.hitag,
+        'extra': sector.extra,
+        'floor_tex': Texture(sector.floorpicnum),
+        'ceiling_tex': Texture(sector.ceilingpicnum),
+    }
+
+
+def map_edge_to_wall(edge: Edge):
+    attrs = edge.get_attributes()
+    return {
+        'x': int(edge.head.pos.x()),
+        'y': int(edge.head.pos.y()),
+        'cstat': attrs['cstat'],
+        'picnum': map_texture_to_int(attrs['mid_tex']),
+        'overpicnum': map_texture_to_int(attrs['top_tex']),
+        'pal': attrs['pal'],
+        'shade': shade_from_brightness(attrs['shade']),
+        'xrepeat': attrs['xrepeat'],
+        'yrepeat': attrs['yrepeat'],
+        'xpanning': attrs['xpanning'],
+        'ypanning': attrs['ypanning'],
+        'lotag': attrs['lotag'],
+        'hitag': attrs['hitag'],
+        'extra': attrs['extra'],
+    }
+
+
+def map_face_to_sector(face: Face):
+    attrs = face.get_attributes()
+    return {
+        'ceilingz': int(attrs['ceilingz'] * -16),
+        'floorz': int(attrs['floorz'] * -16),
+        'ceilingstat': attrs['ceilingstat'],
+        'floorstat': attrs['floorstat'],
+        'ceilingpicnum': map_texture_to_int(attrs['ceiling_tex']),
+        'ceilingheinum': attrs['ceilingheinum'],
+        'ceilingshade': shade_from_brightness(attrs['ceilingshade']),
+        'ceilingpal': attrs['ceilingpal'],
+        'ceilingxpanning': attrs['ceilingxpanning'],
+        'ceilingypanning': attrs['ceilingypanning'],
+        'floorpicnum': map_texture_to_int(attrs['floor_tex']),
+        'floorheinum': attrs['floorheinum'],
+        'floorshade': shade_from_brightness(attrs['floorshade']),
+        'floorpal': attrs['floorpal'],
+        'floorxpanning': attrs['floorxpanning'],
+        'floorypanning': attrs['floorypanning'],
+        'visibility': attrs['visibility'],
+        'filler': attrs['filler'],
+        'lotag': attrs['lotag'],
+        'hitag': attrs['hitag'],
+        'extra': attrs['extra'],
+    }
 
 
 def import_build(graph: Graph, file_path: str | Path, format: MapFormat):
@@ -97,8 +194,9 @@ def import_build(graph: Graph, file_path: str | Path, format: MapFormat):
         graph.data.nodes[head].setdefault(ATTRIBUTES, {})['y'] = wall_data.y
 
         graph.data.edges[(head, tail)].setdefault(ATTRIBUTES, {})
-        for field in fields(wall_data):
-            graph.data.edges[(head, tail)][ATTRIBUTES][field.name] = getattr(wall_data, field.name)
+
+        edge_attrs = map_wall_to_edge(wall_data)
+        graph.data.edges[(head, tail)][ATTRIBUTES].update(edge_attrs)
 
     print('\nedges')
     for edge in graph.data.edges:
@@ -119,10 +217,7 @@ def import_build(graph: Graph, file_path: str | Path, format: MapFormat):
                     sector_wall_idxs.append([])
 
         sorted_sector_wall_idxs = sorted(sector_wall_idxs, key=lambda x: get_ring_bounds(m, x), reverse=True)
-        face_attrs = {
-            field.name: getattr(sector, field.name)
-            for field in fields(sector)
-        }
+        face_attrs = map_sector_to_face(sector)
         graph.add_face(tuple([wall_to_node[node] for face_ring in sorted_sector_wall_idxs for node in face_ring]), **face_attrs)
 
     graph.update()
@@ -136,23 +231,6 @@ def import_build(graph: Graph, file_path: str | Path, format: MapFormat):
     print('\nfaces:')
     for face in graph.faces:
         print('    ->', face)
-
-    # HAXXOR
-    # Map attributes to some sensible internal values.
-    for edge in graph.edges:
-        edge.set_attribute('shade', build_shade_to_brightness(edge.get_attribute('shade')))
-        edge.set_attribute('picnum', str(edge.get_attribute('picnum')))
-        edge.set_attribute('overpicnum', str(edge.get_attribute('overpicnum')))
-    for face in graph.faces:
-        face.set_attribute('floorshade', build_shade_to_brightness(face.get_attribute('floorshade')))
-        face.set_attribute('ceilingshade', build_shade_to_brightness(face.get_attribute('ceilingshade')))
-        face.set_attribute('floorz', face.get_attribute('floorz') / -16)
-        face.set_attribute('ceilingz', face.get_attribute('ceilingz') / -16)
-
-        # HAXX
-        # Need to cast to string until we sort out the universal method of handling textures.
-        face.set_attribute('ceilingpicnum', str(face.get_attribute('ceilingpicnum')))
-        face.set_attribute('floorpicnum', str(face.get_attribute('floorpicnum')))
 
 
 def export_build(graph: Graph, file_path: str, format: MapFormat):
@@ -170,14 +248,14 @@ def export_build(graph: Graph, file_path: str, format: MapFormat):
     sector = 0
     faces = list(graph.faces)
     for face in faces:
-        sector_data = Sector(**face.get_attributes())
+        sector_attrs = map_face_to_sector(face)
+        sector_data = Sector(**sector_attrs)
         sector_data.wallptr = wallptr
         sector_data.wallnum = len(face.edges)
         for ring in face.rings:
             for i, edge in enumerate(ring.edges):
-                wall_data = Wall(**edge.get_attributes())
-                wall_data.x = int(edge.head.pos.x())
-                wall_data.y = int(edge.head.pos.y())
+                wall_attrs = map_edge_to_wall(edge)
+                wall_data = Wall(**wall_attrs)
                 logger.debug(f'Added wall: {wall_data}')
                 edges.append(edge)
                 m.walls.append(wall_data)
@@ -200,7 +278,6 @@ def export_build(graph: Graph, file_path: str, format: MapFormat):
 
     # Do portals.
     for wall, edge in enumerate(edges):
-
         head, tail = edge.head, edge.tail
         if graph.has_edge(tail, head):
             redge = graph.get_edge(tail, head)
@@ -208,20 +285,9 @@ def export_build(graph: Graph, file_path: str, format: MapFormat):
                 next_sector = faces.index(redge.face)
             except:
                 continue
-
             wall_data = m.walls[wall]
             wall_data.nextsector = next_sector
             wall_data.nextwall = edges.index(redge)
-
-    # HAXXOR
-    # Map *from* internal values.
-    for wall in m.walls:
-        wall.shade = int(shade_from_brightness(wall.shade))
-    for sector in m.sectors:
-        sector.floorshade = int(shade_from_brightness(sector.floorshade))
-        sector.ceilingshade = int(shade_from_brightness(sector.ceilingshade))
-        sector.floorz = int(sector.floorz * -16)
-        sector.ceilingz = int(sector.ceilingz * -16)
 
     print('\nheader')
     print(m.header)

@@ -1,63 +1,75 @@
 import logging
-from typing import Any
 from collections import defaultdict
 from pathlib import Path
+from typing import Any
 
-import omg
 import numpy as np
+import omg
 from omg import WAD, MapEditor
 from omg.mapedit import Vertex, Linedef, Sidedef, Sector, Thing
 
 from editor.constants import MapFormat
-from editor.graph import Graph
+from editor.graph import Edge, Face, Graph
+from editor.texture import Texture
 
 
 def get_ring_bounds(m, ring: list[Any]) -> tuple:
-    #print('ring:', ring)
     positions = [(edge.head.get_attribute('x'), edge.tail.get_attribute('y')) for edge in ring]
     min_pos = np.amin(positions, axis=0)
     max_pos = np.amax(positions, axis=0)
     return tuple(max_pos - min_pos)
 
-#
-# def order_tuples(tuples):
-#     if not tuples:
-#         return []
-#
-#     # Build a mapping from start -> tuple
-#     start_map = {t[0]: t for t in tuples}
-#
-#     # Find a starting tuple (whose start is never an end)
-#     all_starts = set(t[0] for t in tuples)
-#     all_ends = set(t[1] for t in tuples)
-#     start_candidates = all_starts - all_ends
-#     if start_candidates:
-#         start_val = start_candidates.pop()
-#         current = start_map[start_val]
-#     else:
-#         # No unique start, just pick the first tuple
-#         current = tuples[0]
-#
-#     ordered = [current]
-#     used = set([current])
-#
-#     while len(ordered) < len(tuples):
-#         last = ordered[-1]
-#         next_tuple = None
-#         for t in tuples:
-#             if t in used:
-#                 continue
-#             if t[0] == last[1]:
-#                 next_tuple = t
-#                 break
-#         if not next_tuple:
-#             #print("Cannot chain all tuples", tuples, '->', ordered)
-#             #print('remaining:', set(tuples) - set(ordered))
-#             raise ValueError("Cannot chain all tuples", tuples)
-#         ordered.append(next_tuple)
-#         used.add(next_tuple)
-#
-#     return ordered
+
+def map_wall_to_edge(sector: Sector):
+    return {
+        'shade': sector.lightlevel / 255 + 0.1
+    }
+
+
+def map_sector_to_face(sector: Sector, global_scale):
+    return {
+        'ceilingshade': sector.lightlevel / 255,
+        'floorshade': sector.lightlevel / 255,
+        'ceilingz': sector.heightceiling * global_scale,
+        'floorz': sector.heightfloor * global_scale,
+        'floor_tex': Texture(sector.texturefloor),
+        'ceiling_tex': Texture(sector.textureceiling),
+    }
+
+
+def map_face_to_sector(face: Face, global_scale: float):
+    """
+    NOTE: Casting to string in case the textures originally came from an engine
+    that used integers to index their textures.
+
+    """
+    attrs = face.get_attributes()
+    return {
+        'z_floor': int(attrs['floorz'] * global_scale),
+        'z_ceil': int(attrs['ceilingz'] * global_scale),
+        'tx_floor': str(attrs['floor_tex'].value),
+        'tx_ceil': str(attrs['ceiling_tex'].value),
+    }
+
+
+def map_edge_to_side(edge: Edge, face_to_index: dict):
+    """
+    NOTE: Casting to string in case the textures originally came from an engine
+    that used integers to index their textures.
+
+    """
+    edge_attrs = edge.get_attributes()
+    attrs = {
+        'off_x': 0,
+        'off_y': 0,
+        'sector': face_to_index[edge.face],
+    }
+    if edge.reversed is None:
+        attrs['tx_mid'] = str(edge_attrs['mid_tex'].value)
+    else:
+        attrs['tx_up'] = str(edge_attrs['top_tex'].value)
+        attrs['tx_low'] = str(edge_attrs['low_tex'].value)
+    return attrs
 
 
 def order_tuples_into_chains(tuples):
@@ -97,7 +109,7 @@ def order_tuples_into_chains(tuples):
 
 def import_doom(graph: Graph, file_path: str | Path, format: MapFormat):
 
-    global_scale = 10
+    global_scale = 14
 
     # TODO: Support wadded level selection.
     wad = omg.WAD()
@@ -118,38 +130,28 @@ def import_doom(graph: Graph, file_path: str | Path, format: MapFormat):
         for reverse, side_idx in enumerate((line.sidefront, line.sideback)):
             if side_idx < 0:
                 continue
-            sector_idx = m.sidedefs[side_idx].sector
-            sector = m.sectors[sector_idx]
-            edge_attrs = {
-                'shade': sector.lightlevel / 255 + 0.1
-            }
             head, tail = line.v2, line.v1
             if reverse:
                 head, tail = tail, head
+            sector_idx = m.sidedefs[side_idx].sector
+            sector = m.sectors[sector_idx]
+            edge_attrs = map_wall_to_edge(sector)
             edge = graph.add_edge((head, tail), **edge_attrs)
             sector_idx_to_edges[sector_idx].append(edge)
 
-    #i = 0
     for sector_idx, edges in sector_idx_to_edges.items():
         sector = m.sectors[sector_idx]
         rings = order_tuples_into_chains(edges)
-        sector_attrs = {
-            'ceilingshade': sector.lightlevel / 255,
-            'floorshade': sector.lightlevel / 255,
-            'ceilingz': sector.heightceiling * global_scale,
-            'floorz': sector.heightfloor * global_scale,
-            'floorpicnum': sector.texturefloor,
-            'ceilingpicnum': sector.textureceiling,
-        }
+        face_attrs = map_sector_to_face(sector, global_scale)
         sorted_rings = sorted(rings, key=lambda r: get_ring_bounds(m, r), reverse=True)
-        graph.add_face(tuple([node.head.data for ring in sorted_rings for node in ring]), **sector_attrs)
+        graph.add_face(tuple([node.head.data for ring in sorted_rings for node in ring]), **face_attrs)
 
     graph.update()
 
 
 def export_doom(graph: Graph, file_path: str | Path, format: MapFormat):
 
-    global_scale = 0.1
+    global_scale = 1/ 14
 
     # Assign indices.
     node_to_index = {node: i for i, node in enumerate(graph.nodes)}
@@ -170,17 +172,8 @@ def export_doom(graph: Graph, file_path: str | Path, format: MapFormat):
         if edge.face is None:
             print('No face')
             continue
-        tx_attrs = {
-            'off_x': 0,
-            'off_y': 0,
-            'sector': face_to_index[edge.face],
-        }
-        if edge.reversed is None:
-            tx_attrs['tx_mid'] = 'STARTAN3'
-        else:
-            tx_attrs['tx_up'] = 'STARTAN3'
-            tx_attrs['tx_low'] = 'STARTAN3'
-        sidedef = Sidedef(**tx_attrs)
+        side_attrs = map_edge_to_side(edge, face_to_index)
+        sidedef = Sidedef(**side_attrs)
         m.sidedefs.append(sidedef)
         logging.debug(f'Adding sidedef: {sidedef}')
 
@@ -193,7 +186,11 @@ def export_doom(graph: Graph, file_path: str | Path, format: MapFormat):
             continue
         linedef = linedefs.get(edge.reversed)
         if linedef is None:
-            linedef = Linedef(vx_a=node_to_index[edge.tail], vx_b=node_to_index[edge.head], front=edge_to_index[edge])
+            linedef = Linedef(
+                vx_a=node_to_index[edge.tail],
+                vx_b=node_to_index[edge.head],
+                front=edge_to_index[edge],
+            )
             linedefs[edge] = linedef
         else:
             linedef.back = edge_to_index[edge]
@@ -202,12 +199,7 @@ def export_doom(graph: Graph, file_path: str | Path, format: MapFormat):
 
     # Sectors.
     for face in face_to_index:
-        sector = Sector(
-            z_floor=int(face.get_attribute('floorz') * global_scale),
-            z_ceil=int(face.get_attribute('ceilingz') * global_scale),
-            tx_floor='FLAT1',
-            tx_ceil='FLAT1',
-        )
+        sector = Sector(**map_face_to_sector(face, global_scale))
         m.sectors.append(sector)
         logging.debug(f'Adding sector: {sector}')
 
