@@ -2,7 +2,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any, Iterable
 
-from applicationframework.actions import Base, Edit
+from applicationframework.actions import Base, Composite, Edit
 from editor.graph import Edge, Face, Node
 from editor.updateflag import UpdateFlag
 
@@ -81,6 +81,13 @@ class SetElementAttribute(Edit):
     def redo(self):
         self.obj.set_attribute(self.name, self.value)
         return self.flags
+
+
+class SetElementsAttribute(Composite):
+
+    def __init__(self, name, value, *objs, **kwargs):
+        actions = [SetElementAttribute(name, value, obj) for obj in objs]
+        super().__init__(actions, **kwargs)
 
 
 class SelectDeselectBase(Base):
