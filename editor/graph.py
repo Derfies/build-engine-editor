@@ -411,7 +411,7 @@ class Graph(ContentBase):
         """
         NOTE: This makes the assumption that certain keys are a certain type.
         This is bad! We need to define these types in the serialized format.
-        
+
         """
         with open(file_path, 'r') as f:
             g = json_graph.node_link_graph(json.load(f))
