@@ -20,9 +20,12 @@ def get_ring_bounds(m, ring: list[Any]) -> tuple:
     return tuple(max_pos - min_pos)
 
 
-def map_wall_to_edge(sector: Sector):
+def map_wall_to_edge(side: Sidedef, sector: Sector):
     return {
-        'shade': sector.lightlevel / 255 + 0.1
+        'low_tex': Texture(side.texturebottom),
+        'mid_tex': Texture(side.texturemiddle),
+        'top_tex': Texture(side.texturetop),
+        'shade': sector.lightlevel / 255 + 0.1,
     }
 
 
@@ -133,9 +136,10 @@ def import_doom(graph: Graph, file_path: str | Path, format: MapFormat):
             head, tail = line.v2, line.v1
             if reverse:
                 head, tail = tail, head
-            sector_idx = m.sidedefs[side_idx].sector
+            side = m.sidedefs[side_idx]
+            sector_idx = side.sector
             sector = m.sectors[sector_idx]
-            edge_attrs = map_wall_to_edge(sector)
+            edge_attrs = map_wall_to_edge(side, sector)
             edge = graph.add_edge((head, tail), **edge_attrs)
             sector_idx_to_edges[sector_idx].append(edge)
 
