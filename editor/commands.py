@@ -10,7 +10,7 @@ from shapely.geometry.polygon import orient
 from shapely.ops import split as split_ops
 
 from applicationframework.actions import Composite, SetAttribute
-from editor.actions import Add, Deselect, Remove, SetElementAttribute, Tweak
+from editor.actions import Add, Deselect, Remove, SetElementAttribute, SetElementsAttribute, Tweak
 from editor.constants import IS_SELECTED
 from editor.graph import Face, Edge, Node
 from editor.maths import lerp, long_line_through, midpoint
@@ -84,6 +84,8 @@ def delete_elements(*elements: Iterable[Node | Edge | Face]):
     nodes = {n for n in elements if isinstance(n, Node)}
     edges = {e for e in elements if isinstance(e, Edge)}
     faces = {f for f in elements if isinstance(f, Face)}
+
+    # TODO: Not doing edges properly yet...?
 
     # Any node or edge being deleted should also delete its faces.
     for node in nodes:
@@ -515,5 +517,11 @@ def join_edges(*edges: Iterable[Edge]) -> tuple[Tweak, Tweak]:
 
 def set_attribute(obj: object, name: str, value: object):
     action = SetElementAttribute(name, value, obj, flags=UpdateFlag.CONTENT)
+    QApplication.instance().action_manager.push(action)
+    QApplication.instance().doc.updated(action())
+
+
+def set_attributes(objs: list[object], name: str, value: object):
+    action = SetElementsAttribute(name, value, *objs, flags=UpdateFlag.CONTENT)
     QApplication.instance().action_manager.push(action)
     QApplication.instance().doc.updated(action())
