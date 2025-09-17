@@ -56,3 +56,7 @@ class HotkeySettings:
     delete: str = 'Delete'
     grid_snap: str = 'X'
     vertex_snap: str = 'V'
+    no_filter: str = 'F8'
+    select_node: str = 'F9'
+    select_edge: str = 'F10'
+    select_poly: str = 'F11'

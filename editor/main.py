@@ -286,6 +286,12 @@ class MainWindow(MainWindowBase):
         self.rotate_action.set_shortcut(QKeySequence(hotkeys.rotate))
         self.scale_action.set_shortcut(QKeySequence(hotkeys.scale))
 
+        # Select actions.
+        self.no_filter_action.set_shortcut(hotkeys.no_filter)
+        self.select_node_action.set_shortcut(hotkeys.select_node)
+        self.select_edge_action.set_shortcut(hotkeys.select_edge)
+        self.select_poly_action.set_shortcut(hotkeys.select_poly)
+
         # Misc actions.
         self.join_edges_action.set_shortcut(hotkeys.join_edges)
         self.split_edges_action.set_shortcut(hotkeys.split_edges)
