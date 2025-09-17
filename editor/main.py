@@ -524,7 +524,7 @@ class MainWindow(MainWindowBase):
 
         map_format = MapFormat(file_format)
         IMPORTERS[map_format](self.app().doc.content, file_path, MapFormat(file_format))
-        self.app().doc.updated(self.app().doc.default_flags & ~UpdateFlag.ADAPTOR_TEXTURES, dirty=False)
+        self.app().doc.updated(self.app().doc.default_flags & ~UpdateFlag.ADAPTOR_TEXTURES, dirty=True)
 
     def export_event(self):
         file_formats = ';;'.join([fmt.value for fmt in MapFormat])
