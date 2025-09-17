@@ -1,9 +1,17 @@
 from applicationframework.document import Document as DocumentBase
-
 from editor.graph import Element
+from editor.updateflag import UpdateFlag
 
 
 class Document(DocumentBase):
+
+    @property
+    def new_flags(self):
+        return self.default_flags & ~UpdateFlag.ADAPTOR_TEXTURES
+
+    @property
+    def load_flags(self):
+        return self.default_flags & ~UpdateFlag.ADAPTOR_TEXTURES
 
     @property
     def selected_nodes(self) -> set[Element]:
