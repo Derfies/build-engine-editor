@@ -52,4 +52,4 @@ class AdaptorManager(HasAppMixin):
 
     def update_event(self, doc: Document, flags: UpdateFlag):
         if UpdateFlag.ADAPTOR_TEXTURES in flags and self.current_adaptor is not None:
-            self.current_adaptor.load_resources()
+            self.current_adaptor.build_resources()

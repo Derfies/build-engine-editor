@@ -9,13 +9,13 @@ from pathlib import Path
 from typing import Any
 
 import networkx as nx
-import numpy as np
 from PySide6.QtCore import QPointF
 from networkx.readwrite import json_graph
 
 from applicationframework.contentbase import ContentBase
 from editor import maths
 from editor.constants import ATTRIBUTES, EDGE_DEFAULT, FACES, FACE_DEFAULT, IS_SELECTED, NODE_DEFAULT
+from editor.texture import Texture
 
 # noinspection PyUnresolvedReferences
 from __feature__ import snake_case
@@ -24,10 +24,12 @@ from __feature__ import snake_case
 logger = logging.getLogger(__name__)
 
 
-TYPES = {
-    type_.__name__: type_
-    for type_ in {bool, int, float, str}
-}
+class TextureEncoder(json.JSONEncoder):
+
+    def default(self, obj):
+        if isinstance(obj, Texture):
+            return obj.value
+        return super().default(obj)
 
 
 class ElementBase(metaclass=abc.ABCMeta):
@@ -52,6 +54,9 @@ class ElementBase(metaclass=abc.ABCMeta):
 
 
 class Element(ElementBase):
+
+    def __getitem__(self, item):
+        return self.get_attributes()[item]
 
     @abc.abstractmethod
     def get_private_attributes(self):
@@ -403,14 +408,28 @@ class Graph(ContentBase):
         del self.data.graph[FACES][face]
 
     def load(self, file_path: str | Path):
+        """
+        NOTE: This makes the assumption that certain keys are a certain type.
+        This is bad! We need to define these types in the serialized format.
+
+        """
         with open(file_path, 'r') as f:
             g = json_graph.node_link_graph(json.load(f))
 
         # Build faces from comma-separated list.
-        g.graph[FACES] = {
-            tuple(face_nodes.split(', ')): face_attrs
-            for face_nodes, face_attrs in g.graph[FACES].items()
-        }
+        faces = {}
+        for nodes, attrs in g.graph.pop(FACES).items():
+            faces[tuple(nodes.split(', '))] = attrs
+            for key in {'floor_tex', 'ceiling_tex'}:
+                if key in attrs[ATTRIBUTES]:
+                    attrs[ATTRIBUTES][key] = Texture(attrs[ATTRIBUTES][key])
+        g.graph[FACES] = faces
+
+        # Rehydrate textures.
+        for head, tail, attrs in g.edges(data=True):
+            for key in {'low_tex', 'mid_tex', 'top_tex'}:
+                if key in attrs[ATTRIBUTES]:
+                    attrs[ATTRIBUTES][key] = Texture(attrs[ATTRIBUTES][key])
 
         self.data = g
         self.update()
@@ -426,4 +445,4 @@ class Graph(ContentBase):
 
         data = json_graph.node_link_data(g)
         with open(file_path, 'w') as f:
-            json.dump(data, f, indent=2)
+            json.dump(data, f, indent=2, cls=TextureEncoder)

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import marshmallow_dataclass
 import qdarktheme
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QModelIndex, Qt
 from PySide6.QtGui import QAction, QActionGroup, QKeySequence
 from PySide6.QtWidgets import QDockWidget, QFileDialog, QVBoxLayout, QWidget
 
@@ -30,9 +30,9 @@ from editor.settings import (
     GridSettings,
     HotkeySettings,
 )
+from editor.texture import Texture
 from editor.updateflag import UpdateFlag
 from editor.viewport import Viewport
-from propertygrid.model import ModelEvent
 
 # noinspection PyUnresolvedReferences
 from __feature__ import snake_case
@@ -86,7 +86,7 @@ class MainWindow(MainWindowBase):
         self.view_2d = GraphicsView(self.scene)
         self.view_3d = Viewport()
         self.property_grid = PropertyGrid()
-        self.property_grid.model().data_changed.connect(self.on_data_changed)
+        self.property_grid.model().dataChanged.connect(self.on_data_changed)
 
         # Moving openGl widget sometimes crashes :/
         wrapper = QWidget()
@@ -135,9 +135,6 @@ class MainWindow(MainWindowBase):
 
         # Load all window / settings preferences.
         self.app().preferences_manager.load()
-
-        self.open_event(r'C:\Users\Jamie Davies\Documents\git\build-engine-editor\test.json')
-        self.app().doc.updated(dirty=False)
 
     def show_event(self, event):
         """
@@ -286,6 +283,12 @@ class MainWindow(MainWindowBase):
         self.rotate_action.set_shortcut(QKeySequence(hotkeys.rotate))
         self.scale_action.set_shortcut(QKeySequence(hotkeys.scale))
 
+        # Select actions.
+        self.no_filter_action.set_shortcut(hotkeys.no_filter)
+        self.select_node_action.set_shortcut(hotkeys.select_node)
+        self.select_edge_action.set_shortcut(hotkeys.select_edge)
+        self.select_poly_action.set_shortcut(hotkeys.select_poly)
+
         # Misc actions.
         self.join_edges_action.set_shortcut(hotkeys.join_edges)
         self.split_edges_action.set_shortcut(hotkeys.split_edges)
@@ -349,20 +352,54 @@ class MainWindow(MainWindowBase):
         # content.add_face_attribute_definition('qux', 'four')
 
         # TODO: Move this somewhere else / add method of indirection.
-        from gameengines.build.map import Sector, Wall
+        for attr_name, attr_default in {
+            'cstat': 0,
+            'pal': 0,
+            'shade': 0,
+            'xrepeat': 0,
+            'yrepeat': 0,
+            'xpanning': 0,
+            'ypanning': 0,
+            'lotag': 0,
+            'hitag': 0,
+            'extra': -1,
+            'low_tex': Texture(0),
+            'mid_tex': Texture(0),
+            'top_tex': Texture(0),
+        }.items():
+            content.add_edge_attribute_definition(attr_name, attr_default)
 
-        for field in fields(Wall):
-            content.add_edge_attribute_definition(field.name, field.default)
-
-        for field in fields(Sector):
-            content.add_face_attribute_definition(field.name, field.default)
+        for attr_name, attr_default in {
+            'ceilingz': 0,
+            'floorz': 0,
+            'ceilingstat': 0,
+            'floorstat': 0,
+            'ceilingheinum': 0,
+            'ceilingshade': 0,
+            'ceilingpal': 0,
+            'ceilingxpanning': 0,
+            'ceilingypanning': 0,
+            'floorheinum': 0,
+            'floorshade': 0,
+            'floorpal': 0,
+            'floorxpanning': 0,
+            'floorypanning': 0,
+            'visibility': 0,
+            'filler': 0,
+            'lotag': 0,
+            'hitag': 0,
+            'extra': -1,
+            'floor_tex': Texture(0),
+            'ceiling_tex': Texture(0),
+        }.items():
+            content.add_face_attribute_definition(attr_name, attr_default)
 
         # Sensible default values.
         content.add_edge_attribute_definition('shade', 1)
         content.add_edge_attribute_definition('xrepeat', 32)
         content.add_edge_attribute_definition('yrepeat', 32)
         content.add_face_attribute_definition('floorz', 0)
-        content.add_face_attribute_definition('ceilingz', 1024)#-1024 * 16)
+        content.add_face_attribute_definition('ceilingz', 1024)
         content.add_face_attribute_definition('ceilingshade', 0.9)
         content.add_face_attribute_definition('floorshade', 0.9)
 
@@ -437,8 +474,9 @@ class MainWindow(MainWindowBase):
     def split_edges(self):
         print('split')
 
-    def on_data_changed(self, event: ModelEvent):
-        commands.set_attribute(event.object(), event.name(), event.value())
+    def on_data_changed(self, index: QModelIndex):
+        prop = index.internal_pointer()
+        commands.set_attributes(prop.object(), prop.name(), prop.value())
 
     def frame_selection(self):
 
@@ -486,7 +524,7 @@ class MainWindow(MainWindowBase):
 
         map_format = MapFormat(file_format)
         IMPORTERS[map_format](self.app().doc.content, file_path, MapFormat(file_format))
-        self.app().doc.updated(dirty=False)
+        self.app().doc.updated(self.app().doc.default_flags & ~UpdateFlag.ADAPTOR_TEXTURES, dirty=True)
 
     def export_event(self):
         file_formats = ';;'.join([fmt.value for fmt in MapFormat])
