@@ -22,12 +22,11 @@ from PySide6.QtOpenGL import QOpenGLTexture, QOpenGLShaderProgram, QOpenGLBuffer
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import QApplication, QGraphicsItem
 from shapely import Polygon
-from shapely.ops import orient
 
 import editor
 from applicationframework.document import Document
 from editor import utils
-from editor.graph import Edge, Face, Ring
+from editor.graph import Edge
 from editor.updateflag import UpdateFlag
 
 # noinspection PyUnresolvedReferences
@@ -218,22 +217,22 @@ class Viewport(QOpenGLWidget):
             if y2 > y4:
                 self.mesh_pool.meshes.append(self.create_wall_mesh(xz0, y4, xz1, y2, top_tex, attrs['shade']))
 
-    def create_textures(self):
+    def build_textures(self):
         logger.info('Rebuilding OpenGL textures...')
+        start = time.time()
         self.textures.clear()
-        for key, raw in self.app().adaptor_manager.current_adaptor.textures.items():
-            img = QImage(raw, raw.shape[1], raw.shape[0], 3 * raw.shape[1], QImage.Format_RGB888)
-            texture = QOpenGLTexture(img)
+        for key, img in self.app().adaptor_manager.current_adaptor.images.items():
+            texture = QOpenGLTexture(img.mirrored())
             texture.set_minification_filter(QOpenGLTexture.Nearest)
             texture.set_magnification_filter(QOpenGLTexture.Nearest)
             self.textures[key] = texture
-        logger.info('Finished rebuilding OpenGL textures')
+        logger.info(f'Rebuilt OpenGL textures in {time.time() - start}s')
 
     def update_event(self, doc: Document, flags: UpdateFlag):
 
         # TODO: Consider never setting adaptor to None but instead using a default adaptor to house the default texture?
         if UpdateFlag.ADAPTOR_TEXTURES in flags and self.app().adaptor_manager.current_adaptor != None:
-            self.create_textures()
+            self.build_textures()
 
         if self.program is None:
             print('early out')
@@ -470,30 +469,20 @@ class Viewport(QOpenGLWidget):
 
     def frame(self, items: list[QGraphicsItem]):
 
-        # TODO: Doesn't make much sense to take graphics items as the arg.
-        # TODO: This is almost copy-pasted from drawing sectors above. If we
-        # keep a map of graph elements to meshes we probably wont need this, and
-        # then walls etc should work ootb.
+        if not items:
+            return
+
         vertices = []
         for item in items:
-
-            # TODO: How do we frame edges, etc?
-            if not isinstance(item.element(), Face):
-                continue
-            face = item.element()
-            y1 = face.get_attribute('floorz')
-
-            rings = []
-            for ring in face.rings:
-                rings.append([node.pos.to_tuple() for node in ring.nodes])
-
-            sector = Polygon(rings[0], [list(reversed(ring)) for ring in rings[1:]])
-            sector = orient(sector, sign=1.0)
-            triangles = utils.triangulate_polygon(sector)
-
-            for tri in triangles:
-                for coord in tri.exterior.coords[:-1]:
-                    vertices.append((coord[0], y1, coord[1]))
+            element = item.element()
+            for face in element.faces:
+                for node in element.nodes:
+                    vertices.extend(
+                        (
+                            (node['x'], face['floorz'], node['y']),
+                            (node['x'], face['ceilingz'], node['y']),
+                        )
+                    )
 
         center, radius = utils.compute_bounding_sphere(vertices)
         dist = utils.camera_distance(radius, self.fov)
