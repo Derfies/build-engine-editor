@@ -222,7 +222,6 @@ class Viewport(QOpenGLWidget):
         start = time.time()
         self.textures.clear()
         for key, img in self.app().adaptor_manager.current_adaptor.images.items():
-            #img = QImage(raw, raw.shape[1], raw.shape[0], 3 * raw.shape[1], QImage.Format_RGB888).mirrored()
             texture = QOpenGLTexture(img.mirrored())
             texture.set_minification_filter(QOpenGLTexture.Nearest)
             texture.set_magnification_filter(QOpenGLTexture.Nearest)
