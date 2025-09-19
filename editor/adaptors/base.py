@@ -112,6 +112,8 @@ class AdaptorBase(HasAppMixin, metaclass=ABCMeta):
         ...
 
     def play(self):
+
+        # Should be moved into running class?
         exe_path = Path(self.settings.exe_path)
         if not exe_path.exists():
             raise Exception(f'Cannot find executable: {self.settings.exe_path}')

@@ -52,4 +52,7 @@ class AdaptorManager(HasAppMixin):
 
     def update_event(self, doc: Document, flags: UpdateFlag):
         if UpdateFlag.ADAPTOR_TEXTURES in flags and self.current_adaptor is not None:
+
+            # TODO: Instead of doing this, we should probably just throw the class
+            # away and reinstantiate it instead.
             self.current_adaptor.build_resources()
