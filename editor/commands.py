@@ -10,7 +10,7 @@ from shapely.geometry.polygon import orient
 from shapely.ops import split as split_ops
 
 from applicationframework.actions import Composite, SetAttribute
-from editor.actions import Add, Deselect, Removee, Select, SetElementAttribute, SetElementsAttribute, Tweak
+from editor.actions import Add, Deselect, Remove, Select, SetElementAttribute, SetElementsAttribute, Tweak
 from editor.constants import IS_SELECTED
 from editor.graph import Face, Edge, Node
 from editor.maths import lerp, long_line_through, midpoint

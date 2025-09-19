@@ -465,10 +465,6 @@ class Viewport(QOpenGLWidget):
         self.update()
 
     def frame(self, items: list[QGraphicsItem]):
-
-        if not items:
-            return
-
         vertices = []
         for item in items:
             element = item.element()
@@ -480,6 +476,9 @@ class Viewport(QOpenGLWidget):
                             (node['x'], face['ceilingz'], node['y']),
                         )
                     )
+
+        if not vertices:
+            return
 
         center, radius = utils.compute_bounding_sphere(vertices)
         dist = utils.camera_distance(radius, self.fov)
