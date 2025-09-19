@@ -8,6 +8,10 @@ from jjaro.shpA import ShpA
 from editor.adaptors.base import AdaptorBase, AdaptorSettingsBase
 from editor.graph import Graph
 
+# noinspection PyUnresolvedReferences
+from __feature__ import snake_case
+
+
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +48,7 @@ class MarathonAdaptor(AdaptorBase):
     def subprocess_args(self):
         return None
 
-    def load_resources(self):
+    def build_textures(self):
         try:
             shapes = ShpA()
             shapes.load(self.settings.shapes_path)
@@ -54,5 +58,5 @@ class MarathonAdaptor(AdaptorBase):
             return
 
         for i, texture in enumerate(shapes.textures):
-            self.textures[str(i)] = texture
+            self.textures[i] = texture
             logger.debug(f'Loaded marathon texture: {i}')

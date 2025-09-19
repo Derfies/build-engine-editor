@@ -10,7 +10,7 @@ from shapely.geometry.polygon import orient
 from shapely.ops import split as split_ops
 
 from applicationframework.actions import Composite, SetAttribute
-from editor.actions import Add, Deselect, Remove, SetElementAttribute, Tweak
+from editor.actions import Add, Deselect, Remove, Select, SetElementAttribute, SetElementsAttribute, Tweak
 from editor.constants import IS_SELECTED
 from editor.graph import Face, Edge, Node
 from editor.maths import lerp, long_line_through, midpoint
@@ -60,7 +60,7 @@ def remove_elements(elements: set[Node] | set[Edge] | set[Face]):
         if isinstance(element, Face):
             tweak.faces.add(element.data)
 
-    action = Remove(tweak, QApplication.instance().doc.content, flags=UpdateFlag.CONTENT)
+    action = Remove(tweak, QApplication.instance().doc.content)
     QApplication.instance().action_manager.push(action)
     QApplication.instance().doc.updated(action(), dirty=False)
 
@@ -84,6 +84,8 @@ def delete_elements(*elements: Iterable[Node | Edge | Face]):
     nodes = {n for n in elements if isinstance(n, Node)}
     edges = {e for e in elements if isinstance(e, Edge)}
     faces = {f for f in elements if isinstance(f, Face)}
+
+    # TODO: Not doing edges properly yet...?
 
     # Any node or edge being deleted should also delete its faces.
     for node in nodes:
@@ -127,6 +129,31 @@ def delete_elements(*elements: Iterable[Node | Edge | Face]):
     return None, rem_tweak
 
 
+def clean_up(edges_with_no_face: bool = False, nodes_with_no_edges: bool = False, delete_geometry: bool = True):
+
+    nodes = set()
+    edges = set()
+    if edges_with_no_face:
+        edges.update([e for e in QApplication.instance().doc.content.edges if e.face is None])
+    if nodes_with_no_edges:
+        nodes.update([n for n in QApplication.instance().doc.content.nodes if not n.edges or not set(n.edges) - edges])
+
+    rem_tweak = Tweak()
+    if delete_geometry:
+        rem_tweak.nodes.update([n.data for n in nodes])
+        rem_tweak.edges.update([e.data for e in edges])
+        rem_tweak.node_attrs.update({n.data: n.get_attributes() for n in nodes})
+        rem_tweak.edge_attrs.update({e.data: e.get_attributes() for e in edges})
+        action = Remove(rem_tweak, QApplication.instance().doc.content)
+    else:
+        action = Select(nodes | edges)
+
+    QApplication.instance().action_manager.push(action)
+    QApplication.instance().doc.updated(action(), dirty=False)
+
+    return None, rem_tweak
+
+
 def transform_node_items(node_items):
     action = Composite([
         SetAttribute('pos', node_item.pos(), node_item.element())
@@ -142,7 +169,7 @@ def add_node(point: tuple) -> tuple[Tweak | None, Tweak | None]:
     add_tweak.nodes.add(node)
     add_tweak.node_attrs[node]['x'] = point[0]
     add_tweak.node_attrs[node]['y'] = point[1]
-    action = Add(add_tweak, QApplication.instance().doc.content, flags=UpdateFlag.CONTENT)
+    action = Add(add_tweak, QApplication.instance().doc.content)
     QApplication.instance().action_manager.push(action)
     QApplication.instance().doc.updated(action(), dirty=True)
     return add_tweak, None
@@ -161,7 +188,7 @@ def add_edges(points: Iterable[tuple[float, float]]) -> tuple[Tweak | None, Twea
         nodes.append(node)
     for cur, nxt in pairwise(nodes):
         add_tweak.edges.add((cur, nxt))
-    action = Add(add_tweak, QApplication.instance().doc.content, flags=UpdateFlag.CONTENT)
+    action = Add(add_tweak, QApplication.instance().doc.content)
     QApplication.instance().action_manager.push(action)
     QApplication.instance().doc.updated(action(), dirty=True)
     return add_tweak, None
@@ -192,7 +219,7 @@ def add_polygon(points: Iterable[tuple]):
     add_tweak.edges.update(edges)
     add_tweak.faces.add(face)
 
-    action = Add(add_tweak, QApplication.instance().doc.content, flags=UpdateFlag.CONTENT)
+    action = Add(add_tweak, QApplication.instance().doc.content)
     QApplication.instance().action_manager.push(action)
     QApplication.instance().doc.updated(action(), dirty=True)
 
@@ -515,5 +542,11 @@ def join_edges(*edges: Iterable[Edge]) -> tuple[Tweak, Tweak]:
 
 def set_attribute(obj: object, name: str, value: object):
     action = SetElementAttribute(name, value, obj, flags=UpdateFlag.CONTENT)
+    QApplication.instance().action_manager.push(action)
+    QApplication.instance().doc.updated(action())
+
+
+def set_attributes(objs: list[object], name: str, value: object):
+    action = SetElementsAttribute(name, value, *objs, flags=UpdateFlag.CONTENT)
     QApplication.instance().action_manager.push(action)
     QApplication.instance().doc.updated(action())

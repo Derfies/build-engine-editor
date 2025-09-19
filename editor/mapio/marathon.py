@@ -1,15 +1,26 @@
 from collections import defaultdict
 from pathlib import Path
 
+from jjaro.sceA import load
+
 from editor.constants import MapFormat
 from editor.graph import Graph
-from jjaro.sceA import load
+from editor.texture import Texture
 
 
 def get_texture_ids(value: int):
     texture_id = value & 0xFF  # masks the lower 8 bits
     collection = (value >> 8) & 0xFF  # shifts right 8 bits and masks
     return texture_id, collection
+
+
+def map_polygon_to_face(polygon, offset):
+    return {
+        'floorz': polygon.floor_height,
+        'ceilingz': polygon.ceiling_height,
+        'floor_tex': Texture(get_texture_ids(polygon.floor_texture)[0] + offset),
+        'ceiling_tex': Texture(get_texture_ids(polygon.ceiling_texture)[0] + offset),
+    }
 
 
 def import_marathon(graph: Graph, file_path: str | Path, format: MapFormat):
@@ -53,15 +64,7 @@ def import_marathon(graph: Graph, file_path: str | Path, format: MapFormat):
 
         face_nodes = [e_idx for e_idx in polygon.endpoint_indices if e_idx > -1]
         face_nodes.append(face_nodes[0])
-        #print('floor_light:', polygon.floor_light)
-        face_attrs = {
-            'floorz': polygon.floor_height,
-            'ceilingz': polygon.ceiling_height,
-            'floorpicnum': str(get_texture_ids(polygon.floor_texture)[0] + offset),
-            'ceilingpicnum': str(get_texture_ids(polygon.ceiling_texture)[0] + offset),
-            #'floorshade': polygon.floor_light / 255,
-            #'ceilingshade': polygon.ceiling_light / 255,
-        }
+        face_attrs = map_polygon_to_face(polygon, offset)
         graph.add_face(tuple(face_nodes), **face_attrs)
 
     graph.update()
