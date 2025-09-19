@@ -235,8 +235,7 @@ class GraphicsScene(QGraphicsScene):
                 for node in item_nodes:
                     self._node_to_items[node].add(item)
 
-            end = time.time()
-            logger.info(f'Finished rebuilding QGraphicsScene in {end - start}s')
+            logger.info(f'Rebuilt QGraphicsScene in: {time.time() - start}')
 
         else:
 

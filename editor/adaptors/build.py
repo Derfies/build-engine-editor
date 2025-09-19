@@ -11,6 +11,9 @@ from editor.constants import MapFormat
 from editor.graph import Graph
 from editor.mapio import build
 
+# noinspection PyUnresolvedReferences
+from __feature__ import snake_case
+
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +61,7 @@ class DukeAdaptor(AdaptorBase):
     def subprocess_args(self):
         return ['-map', 'out.map']
 
-    def load_resources(self):
+    def build_textures(self):
         try:
             grp = Grp()
             grp.load(self.settings.grp_path)
@@ -76,7 +79,7 @@ class DukeAdaptor(AdaptorBase):
             return
 
         for i, texture in enumerate(grp.textures):
-            self.textures[str(i)] = palette.data[texture]
+            self.textures[i] = palette.data[texture]
             logger.debug(f'Loaded build texture: {i}')
 
 
@@ -107,7 +110,7 @@ class BloodAdaptor(AdaptorBase):
     def subprocess_args(self):
         return ['-map', 'out.map']
 
-    def load_resources(self):
+    def build_textures(self):
         try:
             grp = Grp()
             grp.load(self.settings.grp_path)
@@ -125,5 +128,5 @@ class BloodAdaptor(AdaptorBase):
             return
 
         for i, texture in enumerate(grp.textures):
-            self.textures[str(i)] = palette.data[texture]
+            self.textures[i] = palette.data[texture]
             logger.debug(f'Loaded build texture: {i}')

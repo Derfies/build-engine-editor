@@ -1,7 +1,7 @@
 import logging
 import time
-
 import math
+import time
 import traceback
 from dataclasses import dataclass
 from pathlib import Path
@@ -23,12 +23,11 @@ from PySide6.QtOpenGL import QOpenGLTexture, QOpenGLShaderProgram, QOpenGLBuffer
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import QApplication, QGraphicsItem
 from shapely import Polygon
-from shapely.ops import orient
 
 import editor
 from applicationframework.document import Document
 from editor import utils
-from editor.graph import Edge, Face, Ring
+from editor.graph import Edge
 from editor.updateflag import UpdateFlag
 
 # noinspection PyUnresolvedReferences
@@ -198,43 +197,43 @@ class Viewport(QOpenGLWidget):
         If there is a connected face and their ceiling is higher than ours, don't draw it.
 
         """
-        # Not sure if this is correct, but whatevs.
-        # TODO: Some engines provide separate 'middle' texture so need to
-        # account for that.
-        lower_picnum = edge.get_attribute('picnum')
-        upper_picnum = edge.get_attribute('overpicnum')
-        lower_tex = self.get_texture(lower_picnum)
-        upper_tex = self.get_texture(upper_picnum)
-        shade = edge.get_attribute('shade')
+        # Note sure if Build puts its MID on lower or upper...
+        # TODO: Draw the full wall regardless of connected rooms if it has a mid
+        # texture.
+        attrs = edge.get_attributes()
+        low_tex = self.get_texture(attrs['low_tex'].value)
+        mid_tex = self.get_texture(attrs['mid_tex'].value)
+        top_tex = self.get_texture(attrs['top_tex'].value)
+
         reversed_face = edge.reversed_face
         xz0 = edge.head.get_attribute('x'), edge.head.get_attribute('y')
         xz1 = edge.tail.get_attribute('x'), edge.tail.get_attribute('y')
         if reversed_face is None:
-            self.mesh_pool.meshes.append(self.create_wall_mesh(xz0, y1, xz1, y2, lower_tex, shade))
+            self.mesh_pool.meshes.append(self.create_wall_mesh(xz0, y1, xz1, y2, mid_tex, attrs['shade']))
         else:
             y3 = reversed_face.get_attribute('floorz')
             y4 = reversed_face.get_attribute('ceilingz')
             if y1 < y3:
-                self.mesh_pool.meshes.append(self.create_wall_mesh(xz0, y1, xz1, y3, lower_tex, shade))
+                self.mesh_pool.meshes.append(self.create_wall_mesh(xz0, y1, xz1, y3, low_tex, attrs['shade']))
             if y2 > y4:
-                self.mesh_pool.meshes.append(self.create_wall_mesh(xz0, y4, xz1, y2, upper_tex, shade))
+                self.mesh_pool.meshes.append(self.create_wall_mesh(xz0, y4, xz1, y2, top_tex, attrs['shade']))
 
-    def create_textures(self):
+    def build_textures(self):
         logger.info('Rebuilding OpenGL textures...')
+        start = time.time()
         self.textures.clear()
-        for key, raw in self.app().adaptor_manager.current_adaptor.textures.items():
-            img = QImage(raw, raw.shape[1], raw.shape[0], 3 * raw.shape[1], QImage.Format_RGB888)
-            texture = QOpenGLTexture(img)
+        for key, img in self.app().adaptor_manager.current_adaptor.images.items():
+            texture = QOpenGLTexture(img.mirrored())
             texture.set_minification_filter(QOpenGLTexture.Nearest)
             texture.set_magnification_filter(QOpenGLTexture.Nearest)
             self.textures[key] = texture
-        logger.info('Finished rebuilding OpenGL textures')
+        logger.info(f'Rebuilt OpenGL textures in {time.time() - start}s')
 
     def update_event(self, doc: Document, flags: UpdateFlag):
 
         # TODO: Consider never setting adaptor to None but instead using a default adaptor to house the default texture?
         if UpdateFlag.ADAPTOR_TEXTURES in flags and self.app().adaptor_manager.current_adaptor != None:
-            self.create_textures()
+            self.build_textures()
 
         if self.program is None:
             print('early out')
@@ -245,16 +244,25 @@ class Viewport(QOpenGLWidget):
 
             logger.info('Rebuilding OpenGL meshes...')
             start = time.time()
+            poly_duration = 0
+            triangulate_duration = 0
+            wall_duration = 0
+            sector_duration = 0
+            allocate_duration = 0
 
             self.make_current()
 
+            mesh_pool_start = time.time()
             if self.mesh_pool is not None:
                 self.mesh_pool.delete()
             self.mesh_pool = MeshPool()
+            mesh_pool_duration = time.time() - mesh_pool_start
 
             try:
 
                 for face in doc.content.faces:
+
+                    poly_start = time.time()
 
                     ring_positions = [
                         [node.pos.to_tuple() for node in ring.nodes]
@@ -265,43 +273,53 @@ class Viewport(QOpenGLWidget):
                     except Exception as e:
                         traceback.print_exc()
 
+                    poly_duration += time.time() - poly_start
+
                     # TODO: Still some invalid polys.
                     try:
+                        tri_start = time.time()
                         tris = utils.triangulate_polygon(sector)
+                        triangulate_duration += time.time() - tri_start
                     except Exception as e:
                         traceback.print_exc()
                         continue
 
+                    sector_start = time.time()
+
+                    attrs = face.get_attributes()
+                    floor_tex = self.get_texture(attrs['floor_tex'].value)
+                    ceil_tex = self.get_texture(attrs['ceiling_tex'].value)
                     positions = np.array([coord for tri in tris for coord in tri.exterior.coords[:-1]], dtype=np.float32)
-                    y1 = face.get_attribute('floorz')
-                    y2 = face.get_attribute('ceilingz')
-                    floor_shade = face.get_attribute('floorshade')
-                    ceiling_shade = face.get_attribute('ceilingshade')
-                    floor_positions = np.insert(positions, 1, y1, axis=1)
-                    ceiling_positions = np.insert(positions, 1, y2, axis=1)[::-1]
-
-                    floor_picnum = face.get_attribute('floorpicnum')
-                    ceilingpicnum = face.get_attribute('ceilingpicnum')
-                    floor_tex = self.get_texture(floor_picnum)
-                    ceil_tex = self.get_texture(ceilingpicnum)
-
-                    self.mesh_pool.meshes.append(Mesh(floor_positions, positions / 1000, floor_tex, shade=floor_shade))
-                    self.mesh_pool.meshes.append(Mesh(ceiling_positions, positions[::-1] / 1000, ceil_tex, shade=ceiling_shade))
+                    floor_positions = np.insert(positions, 1, attrs['floorz'], axis=1)
+                    ceiling_positions = np.insert(positions, 1, attrs['ceilingz'], axis=1)[::-1]
+                    self.mesh_pool.meshes.append(Mesh(floor_positions, positions / 1000, floor_tex, shade=attrs['floorshade']))
+                    self.mesh_pool.meshes.append(Mesh(ceiling_positions, positions[::-1] / 1000, ceil_tex, shade=attrs['ceilingshade']))
+                    sector_duration += time.time() - sector_start
 
                     # Build walls.
+                    wall_start = time.time()
                     for ring in face.rings:
                         for edge in ring.edges:
-                            self.build_wall(edge, y1, y2)
+                            self.build_wall(edge, attrs['floorz'], attrs['ceilingz'])
+                    wall_duration += time.time() - wall_start
 
+                allocate_start = time.time()
                 self.mesh_pool.allocate()
+                allocate_duration += time.time() - allocate_start
 
             except Exception as e:
                 traceback.print_exc()
 
             self.done_current()
 
-            end = time.time()
-            logger.info(f'Finished rebuilding OpenGL meshes in {end - start}s')
+            logger.info(f'Rebuilt OpenGL meshes in {time.time() - start}s')
+            logger.debug(f'    Polygon: {poly_duration}s')
+            logger.debug(f'    Triangulate: {triangulate_duration}s')
+            logger.debug(f'    Walls: {wall_duration}s')
+            logger.debug(f'    Sectors: {sector_duration}s')
+            logger.debug(f'    Allocate: {allocate_duration}s')
+            logger.debug(f'    Mesh pool destroy: {mesh_pool_duration}s')
+            logger.debug(f'    Total: {poly_duration + triangulate_duration + wall_duration + sector_duration + allocate_duration + mesh_pool_duration}s')
 
             self.update()
 
@@ -448,30 +466,20 @@ class Viewport(QOpenGLWidget):
 
     def frame(self, items: list[QGraphicsItem]):
 
-        # TODO: Doesn't make much sense to take graphics items as the arg.
-        # TODO: This is almost copy-pasted from drawing sectors above. If we
-        # keep a map of graph elements to meshes we probably wont need this, and
-        # then walls etc should work ootb.
+        if not items:
+            return
+
         vertices = []
         for item in items:
-
-            # TODO: How do we frame edges, etc?
-            if not isinstance(item.element(), Face):
-                continue
-            face = item.element()
-            y1 = face.get_attribute('floorz')
-
-            rings = []
-            for ring in face.rings:
-                rings.append([node.pos.to_tuple() for node in ring.nodes])
-
-            sector = Polygon(rings[0], [list(reversed(ring)) for ring in rings[1:]])
-            sector = orient(sector, sign=1.0)
-            triangles = utils.triangulate_polygon(sector)
-
-            for tri in triangles:
-                for coord in tri.exterior.coords[:-1]:
-                    vertices.append((coord[0], y1, coord[1]))
+            element = item.element()
+            for face in element.faces:
+                for node in element.nodes:
+                    vertices.extend(
+                        (
+                            (node['x'], face['floorz'], node['y']),
+                            (node['x'], face['ceilingz'], node['y']),
+                        )
+                    )
 
         center, radius = utils.compute_bounding_sphere(vertices)
         dist = utils.camera_distance(radius, self.fov)
