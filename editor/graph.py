@@ -153,6 +153,11 @@ class Edge(Element):
         return self.graph.edge_to_face.get(self)
 
     @property
+    def faces(self) -> tuple[Face]:
+        face = self.face
+        return tuple([face]) if face is not None else tuple()
+
+    @property
     def normal(self):
         return maths.edge_normal(self.head.pos.to_tuple(), self.tail.pos.to_tuple())
 
@@ -236,8 +241,7 @@ class Graph(ContentBase):
         self.node_to_faces = defaultdict(set)
 
 
-        self.edge_to_nodes = defaultdict(set)
-        self.edge_to_nodes = defaultdict(set)
+        self.edge_to_nodes = {}
         self.edge_to_face = {}
 
         self.ring_to_nodes = {}
@@ -284,13 +288,13 @@ class Graph(ContentBase):
         self.edge_to_face.clear()
 
         self.face_to_nodes.clear()
-        #self.face_to_edges.clear()
+        self.face_to_edges.clear()
 
+        edge_to_nodes = defaultdict(list)
         ring_to_nodes = defaultdict(list)
         ring_to_edges = defaultdict(list)
         face_to_edges = defaultdict(list)
         face_to_rings = defaultdict(list)
-
 
         for face in self.data.graph[FACES]:
             face_ = self.get_face(face)
@@ -340,9 +344,10 @@ class Graph(ContentBase):
 
         for edge in self.data.edges:
             edge_ = self.get_edge(*edge)
-            self.edge_to_nodes[edge].add(edge_.head)
-            self.edge_to_nodes[edge].add(edge_.tail)
+            edge_to_nodes[edge].append(edge_.head)
+            edge_to_nodes[edge].append(edge_.tail)
 
+        self.edge_to_nodes = {k: tuple(v) for k, v in edge_to_nodes.items()}
         self.ring_to_nodes = {k: tuple(v) for k, v in ring_to_nodes.items()}
         self.ring_to_edges = {k: tuple(v) for k, v in ring_to_edges.items()}
         self.face_to_edges = {k: tuple(v) for k, v in face_to_edges.items()}
