@@ -190,12 +190,14 @@ class CommandsTestCase(TestCaseBase):
 
         # Set up test data.
         self.c.add_node(0)
+        self.c.add_node(1)
+        self.c.update()
 
         # Start test.
         _, rem_tweak = commands.clean_up(nodes_with_no_edges=True)
 
         # Assert results.
-        self.assertSetEqual(rem_tweak.nodes, {0})
+        self.assertSetEqual(rem_tweak.nodes, {0, 1})
         self.assertSetEqual(rem_tweak.edges, set())
         self.assertSetEqual(rem_tweak.faces, set())
 
@@ -244,6 +246,41 @@ class CommandsTestCase(TestCaseBase):
 
         # Start test.
         _, rem_tweak = commands.clean_up(edges_with_no_face=True)
+
+        # Assert results.
+        self.assertSetEqual(rem_tweak.nodes, set())
+        self.assertSetEqual(rem_tweak.edges, set())
+        self.assertSetEqual(rem_tweak.faces, set())
+
+    def test_clean_up_nodes_and_edges_with_no_face(self):
+
+        # Set up test data.
+        for i in range(3):
+            self.c.add_node(i)
+        for i in range(3):
+            self.c.add_edge((i, (i + 1) % 3))
+        self.c.update()
+
+        # Start test.
+        _, rem_tweak = commands.clean_up(nodes_with_no_edges=True, edges_with_no_face=True)
+
+        # Assert results.
+        self.assertSetEqual(rem_tweak.nodes, {0, 1, 2})
+        self.assertSetEqual(rem_tweak.edges, {(0, 1), (1, 2), (2, 0)})
+        self.assertSetEqual(rem_tweak.faces, set())
+
+    def test_clean_up_nodes_and_edges_with_face(self):
+
+        # Set up test data.
+        for i in range(3):
+            self.c.add_node(i)
+        for i in range(3):
+            self.c.add_edge((i, (i + 1) % 3))
+        self.c.add_face((0, 1, 2, 0))
+        self.c.update()
+
+        # Start test.
+        _, rem_tweak = commands.clean_up(nodes_with_no_edges=True, edges_with_no_face=True)
 
         # Assert results.
         self.assertSetEqual(rem_tweak.nodes, set())
