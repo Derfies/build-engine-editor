@@ -23,9 +23,9 @@ class Tweak:
 
 class AddRemoveBase(Edit):
 
-    def __init__(self, tweak: Tweak, *args, **kwargs):
+    def __init__(self, tweak: Tweak, *args):
         self.tweak = tweak
-        super().__init__(*args, **kwargs)
+        super().__init__(*args, flags=UpdateFlag.CONTENT)
 
     def remove(self):
         for face in self.tweak.faces:
@@ -106,6 +106,7 @@ class SelectDeselectBase(Base):
     def undo(self):
         for i, element in enumerate(self._elements):
             element.is_selected = self._old_is_selected[i]
+        return self.flags
 
 
 class Select(SelectDeselectBase):
@@ -113,6 +114,7 @@ class Select(SelectDeselectBase):
     def redo(self):
         for element in self._elements:
             element.is_selected = True
+        return self.flags
 
 
 class Deselect(SelectDeselectBase):
@@ -120,3 +122,4 @@ class Deselect(SelectDeselectBase):
     def redo(self):
         for element in self._elements:
             element.is_selected = False
+        return self.flags

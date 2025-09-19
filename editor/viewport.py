@@ -1,4 +1,5 @@
 import logging
+import time
 import math
 import time
 import traceback
@@ -239,7 +240,6 @@ class Viewport(QOpenGLWidget):
             return
 
         #self.block_signals(True)
-        #start = time.time()
         if flags != UpdateFlag.SELECTION and flags != UpdateFlag.SETTINGS:
 
             logger.info('Rebuilding OpenGL meshes...')
@@ -322,9 +322,6 @@ class Viewport(QOpenGLWidget):
             logger.debug(f'    Total: {poly_duration + triangulate_duration + wall_duration + sector_duration + allocate_duration + mesh_pool_duration}s')
 
             self.update()
-
-        #end = time.time()
-        #print('viewport:', end - start)
 
         #self.block_signals(False)
 
@@ -468,10 +465,6 @@ class Viewport(QOpenGLWidget):
         self.update()
 
     def frame(self, items: list[QGraphicsItem]):
-
-        if not items:
-            return
-
         vertices = []
         for item in items:
             element = item.element()
@@ -483,6 +476,9 @@ class Viewport(QOpenGLWidget):
                             (node['x'], face['ceilingz'], node['y']),
                         )
                     )
+
+        if not vertices:
+            return
 
         center, radius = utils.compute_bounding_sphere(vertices)
         dist = utils.camera_distance(radius, self.fov)
