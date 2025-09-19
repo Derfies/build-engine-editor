@@ -12,7 +12,6 @@ from editor.graph import Graph
 from __feature__ import snake_case
 
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -49,6 +48,12 @@ class MarathonAdaptor(AdaptorBase):
         return None
 
     def build_textures(self):
+
+        def make_value(collection: int, texture_id: int) -> int:
+
+            # TODO: Inline
+            return (collection << 8) | (texture_id & 0xFF)
+
         try:
             shapes = ShpA()
             shapes.load(self.settings.shapes_path)
@@ -57,6 +62,9 @@ class MarathonAdaptor(AdaptorBase):
             logger.exception(e)
             return
 
-        for i, texture in enumerate(shapes.textures):
-            self.textures[i] = texture
-            logger.debug(f'Loaded marathon texture: {i}')
+        # First texture collection is in slot 17.
+        for coll_idx in range(17, 22):
+            for tex_idx, tex in enumerate(shapes.collections[coll_idx].textures):
+                key = make_value(coll_idx, tex_idx)
+                self.textures[key] = shapes.collections[coll_idx].textures[tex_idx]
+                logger.debug(f'Loaded marathon texture: {key}')

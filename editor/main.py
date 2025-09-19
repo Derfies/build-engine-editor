@@ -23,6 +23,7 @@ from editor.editorpropertygrid import PropertyGrid
 from editor.graph import Graph
 from editor.graphicsscene import GraphicsScene
 from editor.graphicsview import GraphicsView
+from editor.importers.manager import ImporterManager
 from editor.mapio import build, doom, gexf, fallenaces, marathon
 from editor.preferencesdialog import PreferencesDialog
 from editor.settings import (
@@ -45,13 +46,6 @@ logger = logging.getLogger(__name__)
 DEFAULT_COMPANY_NAME = 'Enron'
 DEFAULT_APP_NAME = 'Build Engine Map Editor'
 
-# TODO: Replace with adaptors.
-IMPORTERS = {
-    MapFormat.BLOOD: build.import_build,
-    MapFormat.DOOM: doom.import_doom,
-    MapFormat.DUKE_3D: build.import_build,
-    MapFormat.MARATHON: marathon.import_marathon,
-}
 EXPORTERS = {
     MapFormat.BLOOD: build.export_build,
     MapFormat.DOOM: doom.export_doom,
@@ -75,8 +69,10 @@ class MainWindow(MainWindowBase):
         self.app().colour_settings = ColourSettings()
         self.app().grid_settings = GridSettings()
         self.app().hotkey_settings = HotkeySettings()
-        self.app().adaptor_manager = AdaptorManager()
         self.app().held_keys = set()
+
+        self.app().adaptor_manager = AdaptorManager()
+        self.app().importer_manager = ImporterManager()
 
         super().__init__(*args, **kwargs)
 
@@ -527,19 +523,28 @@ class MainWindow(MainWindowBase):
 
     def import_event(self):
 
-        # TODO: Need to build list of exporters from adaptors *and* standalone functions...?
-        file_formats = ';;'.join([fmt.value for fmt in MapFormat])
+        # Show default open dialog.
+        file_formats = ';;'.join(self.app().importer_manager.formats)
         file_path, file_format = QFileDialog.get_open_file_name(caption='Import', filter=file_formats)
         if not file_path:
             return False
 
-        map_format = MapFormat(file_format)
-        IMPORTERS[map_format](self.app().doc.content, file_path, MapFormat(file_format))
+        # Now show the importer options dialog.
+        importer_cls = self.app().importer_manager.get_by_format(file_format)
+        importer = importer_cls(file_path)
+        dialog = importer.create_dialog()
+        if dialog is not None:
+            if not dialog.exec():
+                return
+
+        # Make rocket go now.
+        importer.run(self.app().doc.content, **dialog.get_options())
         self.app().doc.updated(self.app().doc.default_flags & ~UpdateFlag.ADAPTOR_TEXTURES, dirty=True)
 
     def export_event(self):
         file_formats = ';;'.join([fmt.value for fmt in MapFormat])
-        file_path, file_format = QFileDialog.get_save_file_name(caption='Export', filter=file_formats)
+        file_path, file_format = QFileDialog.get_save_file_name(
+            caption='Export', filter=file_formats)
         if not file_path:
             return False
 
